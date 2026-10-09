@@ -5,7 +5,14 @@ pick up passengers, follow the GPS through a toy-town city with left-hand traffi
 autos, cars, an MPV, three buses and a supercar.
 
 Built with Vite, React 19, TypeScript, Three.js, React Three Fiber 9, Rapier (via @react-three/rapier 2),
-Zustand and Zod. All 3D models, signs and sounds are generated procedurally in code.
+Zustand and Zod. The city, original vehicles, signs and sounds are generated procedurally in code.
+The two supplied BMW GLB car models are also available in the garage.
+
+Open **Garage → BMW i8 / BMW M4 GT3 EVO** to rotate a preview. **Try car · free** equips the car
+without spending cash; then press Play from the main menu to drive. Finish or cancel an active job before
+switching vehicles. Both cars retain their original finish, with animated steering, wheels and suspension.
+Models load only when selected (or when restoring a save that has one equipped).
+See [model credits](docs/asset-audit.md#supplied-bmw-models-9-october-2026) for authors and embedded licenses.
 
 ## Requirements
 
@@ -40,12 +47,17 @@ npx playwright install chromium   # only for e2e tests and the release smoke tes
 ## Controls
 
 - **Touch (default):** left joystick drives (up = accelerate, down = brake, hold down when stopped = reverse);
-  drag anywhere on the right to look around. Compact horn, brake, camera and recover buttons sit on the right.
+  drag anywhere on the right to look around. Power Brake sits on the right: hold alone to stop instantly,
+  or steer while holding to drift. Horn, sound, camera, door and recover controls also sit on the right.
   An alternative *Steering + pedals* layout is in Settings.
 - **Map:** tap the minimap in the top-right corner to open the city map. Pause sits beside it.
-- Settings → *Your driver* switches the player character between the male and female driver.
-- **Keyboard:** W/↑ accelerate · S/↓ brake/reverse · A/D steer · Space brake · C camera · H horn · R recover ·
+- Settings → *Your driver* switches between **Male Rover** (the default), **Female Rover**, **Lynae** and **Cartethyia**. Existing Male/Female selections automatically use the Rover GLBs. The passenger character selector chooses Lynae, Cartethyia, a mixture, or the original passengers.
+- **Keyboard:** W/↑ accelerate · S/↓ brake/reverse · A/D steer · Space/Shift Power Brake (steer to drift) · F enter/get out · C camera · H horn · R recover ·
   E/Enter accept · Esc/P pause · M map. Mouse drag orbits the camera.
+- Tap a stopped car's door to get out or enter. Use the joystick or WASD to walk outside and return to the door.
+- Traffic Racer pack vehicles and the Police Cruiser are NPC assets only; the garage lists player vehicles.
+- Player cars reach 100 km/h in roughly 2–3 seconds, with higher top speeds and louder engines. All player traffic warnings, fines and police pursuits are removed.
+- Power Brake smoothly reduces rear grip for drifting. Keep throttle on while countersteering through center; hold only Power Brake to stop instantly. Tire tracks fade after ten seconds. NPC collisions transfer momentum and temporarily stop their lane AI.
 
 The bottom-left fuel bar decreases as you drive and is saved for each vehicle. Stop in a marked curb
 bay at either petrol station, release the accelerator, and wait for a free refill. Petrol stations
@@ -68,3 +80,11 @@ along the destination sidewalk. The camera shows the curb during boarding, exit 
 See `docs/progress.md` for the phase log, verification results and measurements, `docs/asset-audit.md` for the
 reference images (not shipped), and `docs/controls.md` / `docs/performance.md`.
 # city-ride
+
+## Supplied models and entry animations
+
+Open **Garage** to preview and try any of the 25 imported vehicles free: the two BMWs, Porsche 718, Supra A80, Western Star, Fast 72, Police Cruiser, Classic Sport and 17 vehicles from the traffic pack. Original colors/textures are retained. The pack also appears as NPC traffic. Assets load on demand.
+
+When starting a car, the driver walks up, reaches for the door, opens it, enters and sits, then closes it. Movement remains braked during this sequence. Passengers follow the same door sequence and visibly leave at the destination. Open doors have physical collision shapes. Bikes retain their mounting behavior.
+
+Car engines use your **supercarsound.mp3**, cut into start, idle, pickup, acceleration and peak-speed sections with smooth blends that follow throttle, speed and braking. Bikes and heavy diesel vehicles retain their separate recordings. Model/audio sources are in **Credits** and `docs/asset-audit.md`.

@@ -1,4 +1,4 @@
-type IconName = 'horn' | 'brake' | 'camera' | 'recover' | 'pause';
+type IconName = 'horn' | 'brake' | 'camera' | 'recover' | 'pause' | 'sound' | 'muted' | 'door';
 
 /** Small, consistent controls that remain legible without large emoji artwork. */
 export function ControlIcon({ name }: { name: IconName }) {
@@ -9,6 +9,8 @@ export function ControlIcon({ name }: { name: IconName }) {
       {name === 'camera' && <><path d="M3 7h4l2-3h6l2 3h4v13H3z" /><circle cx="12" cy="13" r="4" /></>}
       {name === 'recover' && <><path d="M4 11a8 8 0 1 1 2 7M4 4v7h7" /></>}
       {name === 'pause' && <><path d="M8 5v14M16 5v14" strokeWidth="3" /></>}
+      {(name === 'sound' || name === 'muted') && <><path d="M3 9h4l5-4v14l-5-4H3z" />{name === 'sound' ? <path d="M16 8a6 6 0 0 1 0 8M19 5a10 10 0 0 1 0 14" /> : <path d="m16 9 5 6m0-6-5 6" />}</>}
+      {name === 'door' && <><path d="M5 21V4l12-2v19M3 21h18M11 12h2" /></>}
     </svg>
   );
 }

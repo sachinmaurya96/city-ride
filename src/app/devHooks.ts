@@ -1,3 +1,4 @@
+import { vehicleEntry } from '../game/vehicles/entry';
 import { runtime } from '../game/core/runtime';
 import { input } from '../game/input/input';
 import { pauseManager } from '../game/core/pause';
@@ -110,6 +111,8 @@ export async function installDevHooks() {
     import('../game/data/vehicles'),
   ]);
   const [{ enforcement }, { police }, { violations }, { fuel }, { rideVisual }, cityMap, { audio }] = await Promise.all([import('../game/rules/enforcementState'), import('../game/rules/police'), import('../game/rules/violations'), import('../game/vehicles/fuel'), import('../game/missions/rides'), import('../game/data/cityMap'), import('../game/audio/audio')]);
+  const { loadImportedModel } = await import('../game/render/importedVehicles');
+  const { quoteRide } = await import('../game/progression/progression');
   const autopilot = makeAutopilot(
     () => (nav.active ? nav.route : null),
     () => nav.along,
@@ -133,5 +136,5 @@ export async function installDevHooks() {
     },
   );
   runtime.register('zz-autopilot', () => autopilot.step());
-  (window as unknown as { __cr: unknown }).__cr = { runtime, input, debug, rides, nav, rideVisual, fuel, cityMap, audio, store: useGame, pauseManager, autopilot, recoverVehicle, platform: platformMod.platform, traffic, pedestrians, enforcement, police, violations, setWeather: (w: 'sunny' | 'rain') => useGame.getState().setWeather(w) };
+  (window as unknown as { __cr: unknown }).__cr = { runtime, vehicleEntry, vehicles: VEHICLES, loadImportedModel, quoteRide, input, debug, rides, nav, rideVisual, fuel, cityMap, audio, store: useGame, pauseManager, autopilot, recoverVehicle, platform: platformMod.platform, traffic, pedestrians, enforcement, police, violations, setWeather: (w: 'sunny' | 'rain') => useGame.getState().setWeather(w) };
 }

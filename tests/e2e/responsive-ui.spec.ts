@@ -13,7 +13,8 @@ async function checkHud(page: Page, width: number, height: number, preset: 'joys
   expect(map.y).toBeLessThanOrEqual(15);
   expect(width - map.x - map.width).toBeLessThanOrEqual(15);
   expect(map.width).toBeLessThanOrEqual(105);
-  const selectors = ['.hud-top-left', '.minimap', '.pause-btn', '.hud-instruments', '.util-buttons'];
+  const selectors = ['.hud-top-left', '.minimap', '.pause-btn', '.hud-instruments', '.util-buttons', '.power-brake'];
+  if (await page.locator('.util.recover').isVisible()) selectors.push('.util.recover');
   if (touch) selectors.push(preset === 'joystick' ? '.joy-home' : '.steer-pad');
   if (touch && preset === 'pedals') selectors.push('.pedals');
   const boxes: { selector: string; box: Box }[] = [];

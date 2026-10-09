@@ -46,6 +46,32 @@ function summary(id: string, over: Partial<RideSummary> = {}): RideSummary {
 }
 
 describe('fares, XP and ratings', () => {
+  it('refuses purchasing/equipping NPC vehicles, even from an older owned list', () => {
+    for (const spec of Object.values(VEHICLES).filter(spec => spec.npcOnly)) {
+      const save = fresh();
+      expect(purchaseVehicle(save, spec.id, DAY)).toMatchObject({ error: 'unknown', save });
+      save.ownedVehicleIds.push(spec.id);
+      expect(equipVehicle(save, spec.id, DAY)).toMatchObject({ error: 'unknown', save });
+    }
+  });
+  it('migrates an equipped NPC and active ride to a free player car without changing wallet or ride progress', () => {
+    const save = fresh();
+    save.equippedVehicleId = 'pack_hummer';
+    save.ownedVehicleIds.push('pack_hummer');
+    save.settings.speedLimiter = true;
+    save.mission = { id: 'legacy-npc-ride', kind: 'ride', seed: 2, state: 'TO_DROPOFF', vehicleId: 'pack_hummer',
+      passengerName: 'Diya', avatar: 0, partySize: 1, rideType: 'standard', pickupBayId: 'homes_west_bay2', dropBayId: 'central_park_bay1',
+      quote: summary('legacy-npc-ride').quote, elapsed: 25, satisfaction: 90, finesPaid: 0, incidents: 0, recovered: false, harshEvents: 0, safePose: null, bus: null };
+    const loaded = validateSave(save);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.data.equippedVehicleId).toBe('bmw_i8');
+    expect(loaded.data.ownedVehicleIds).toContain('bmw_i8');
+    expect(loaded.data.ownedVehicleIds).not.toContain('pack_hummer');
+    expect(loaded.data.wallet).toBe(save.wallet);
+    expect(loaded.data.settings.speedLimiter).toBe(false);
+    expect(loaded.data.mission).toMatchObject({ id: save.mission.id, vehicleId: 'bmw_i8', elapsed: 25, satisfaction: 90 });
+  });
   it('quotes the plan formula and caps combined multipliers', () => {
     expect(quoteRide({ routeMeters: 600, vehicleId: 'bike_basic', rideType: 'standard', rain: false, estSeconds: 1 }).baseFare).toBe(350);
     expect(quoteRide({ routeMeters: 600, vehicleId: 'car_compact', rideType: 'standard', rain: false, estSeconds: 1 }).baseFare).toBe(700);

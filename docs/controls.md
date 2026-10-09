@@ -4,10 +4,12 @@
 | --- | --- |
 | Left joystick (touch, default) | Steer (x), accelerate (push up), brake (pull down); hold down ≥0.4 s near standstill = reverse (≤10 km/h). Release = gentle slow-down then auto-hold. Dead zone 0.12, circle→square mapping so diagonals keep full throttle. |
 | Right-side drag (touch) / mouse drag | Orbit camera (yaw free, pitch clamped); auto re-centers after 1.5 s while moving (toggle in Settings) |
-| Right utility buttons | Horn · Brake override · Camera mode · Recover (appears when stuck) |
+| Right utility buttons | Horn · Camera mode · Sound on/off · Enter/Get out · Recover (appears when stuck) |
+| Power Brake (right side, both presets) | Hold alone to stop immediately, including sideways motion. Hold while steering with the joystick or A/D to drift. Keep accelerating while countersteering through center; release the joystick/accelerator and hold only Power Brake to stop. |
 | Steering + pedals (Settings alternative) | Left steering pad, right gas/brake pedals, camera drag on the remaining area |
 | W/↑, S/↓, A/D | Accelerate, brake/reverse, steer |
-| Space | Brake override |
+| Space / either Shift | Power Brake; combine with steering to drift |
+| Car door tap / F / Enter–Get out button | Open the driver door and enter/get out of a stopped car. Joystick or WASD moves the character outside; walk back to the door to enter. Passenger boarding and refueling finish before driver exit. |
 | C | Chase → high chase → handlebar/bonnet |
 | H / R / E | Horn / recover (when available) / accept offer or next ride |
 | Esc / P | Pause (closes dialogs) |
@@ -17,6 +19,14 @@
 Pointer ownership is decided at pointer-down (left zone → driving, right zone → camera) and kept until release;
 `pointercancel`, lost capture, window blur, tab hide and orientation change zero every held input.
 UI buttons stop propagation so they never rotate the camera.
+Audio unlock uses capture listeners so these buttons also activate audio on phones and tablets. Safari
+interrupted audio resumes after returning to the game. The Sound button and saved mute setting always take priority.
+All player traffic warnings, fines, heat, police pursuits and capture are disabled. Signals still organize NPC traffic.
+Cars reach 100 km/h in approximately 2–3 seconds at full throttle, with higher top speeds and a louder engine mix.
+Power Brake eases rear grip into a controlled slide; release it to recover grip gradually. Rear tires leave dark
+skid marks while drifting; each segment fades away after ten seconds of unpaused gameplay.
+NPC cars receive collision momentum, brake and pause their lane AI before resuming. Head-on hits push them backward;
+rear and side impacts follow the direction of the impact.
 
 ## Fuel and passenger stops
 

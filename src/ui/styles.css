@@ -184,6 +184,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--amber)
 .preview-wrap { position: relative; }
 .preview { width: 100%; height: auto; border-radius: 18px; background: #f7efe1; touch-action: none; cursor: grab; display: block; }
 .preview-fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 80px; }
+.preview-status { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center; background: #f7efe1; border-radius: 18px; }
 .garage-panel { background: #fff; border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 4px; }
 .tabs { display: flex; gap: 4px; background: var(--cream-2); border-radius: 12px; padding: 4px; }
 .tabs button { flex: 1; border: none; background: transparent; border-radius: 9px; padding: 7px 4px; font-weight: 800; font-size: 13px; min-height: 38px; }
@@ -242,3 +243,10 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--amber)
 
 .deadline { color: var(--teal-dark); font-weight: 800; letter-spacing: 0; }
 .deadline.late { color: var(--ink-soft); text-decoration: line-through; }
+.fuel-station { max-width: 540px; }
+.fuel-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 16px 0; }
+.fuel-options button { display: flex; flex-direction: column; gap: 6px; padding: 14px 8px; min-height: 100px; }
+.fuel-options button.selected { border: 2px solid var(--teal, #16a597); background: #e0f6ed; }
+.fuel-options button span, .fuel-options button small { font-size: 12px; }
+.fuel-quote { padding: 12px; background: #f2eddf; border-radius: 10px; font-weight: 700; }
+@media (max-width: 380px) { .fuel-options { gap: 4px; } .fuel-options button { padding: 10px 3px; font-size: 12px; } }

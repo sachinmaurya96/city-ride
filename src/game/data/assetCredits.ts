@@ -1,0 +1,109 @@
+export const ASSET_CREDITS = [
+  {
+    "title": "Male Rover1_02 wuthering waves",
+    "author": "ilyakardailskiy",
+    "source": "https://sketchfab.com/3d-models/male-rover1-02-wuthering-waves-9990a963a5da4cceaee55d062a8d5439",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  {
+    "title": "Female Rover1_01 wuthering waves",
+    "author": "ilyakardailskiy",
+    "source": "https://sketchfab.com/3d-models/female-rover1-01-wuthering-waves-094c99a017a442f1bb20b6e948264fe5",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  {
+    "title": "2025 BMW M4 GT3 EVO G82",
+    "author": "Ddiaz Design",
+    "source": "https://sketchfab.com/3d-models/2025-bmw-m4-gt3-evo-g82-113f83dd87064697a5ec2511d280b9d5",
+    "license": "CC-BY-NC-SA-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+  },
+  {
+    "title": "Cartethyia wuthering waves",
+    "author": "ilyakardailskiy",
+    "source": "https://sketchfab.com/3d-models/cartethyia-wuthering-waves-190c6f977eaf4b038b51e0d20459da7f",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  {
+    "title": "Western_Star_4900",
+    "author": "Korolv",
+    "source": "https://sketchfab.com/3d-models/western-star-4900-ffb6ac796fb94d83b7687761bebf13d3",
+    "license": "SKETCHFAB Standard",
+    "licenseUrl": "https://sketchfab.com/licenses"
+  },
+  {
+    "title": "Toyota Supra (A80) 1993",
+    "author": "Lexyc16",
+    "source": "https://sketchfab.com/3d-models/toyota-supra-a80-1993-dd897d7823784bc5893c183c1328e8cb",
+    "license": "CC-BY-NC-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-nc/4.0/"
+  },
+  {
+    "title": "Lynae from Wuthering waves",
+    "author": "keqingkuki",
+    "source": "https://sketchfab.com/3d-models/lynae-from-wuthering-waves-e59593637d424294a7361d428d9147bc",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  {
+    "title": "BMW I8",
+    "author": "iSteven",
+    "source": "https://sketchfab.com/3d-models/bmw-i8-4b143b95aec045bf8912d99662f8d580",
+    "license": "CC-BY-NC-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-nc/4.0/"
+  },
+  {
+    "title": "2020_porsche_718_spyder",
+    "author": "007",
+    "source": "https://sketchfab.com/3d-models/2020-porsche-718-spyder-433c9de37b8a46e18fccfa1c90b5ac27",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  {
+    "title": "Traffic Racer NPC vehicles pack",
+    "author": "Mason",
+    "source": "https://sketchfab.com/3d-models/traffic-racer-npc-vehicles-pack-8825234a326d4c219fe79af52608d62d",
+    "license": "CC-BY-NC-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by-nc/4.0/"
+  },
+  {
+    "title": "Petrol engine loops",
+    "author": "domasx2",
+    "source": "https://opengameart.org/content/racing-car-engine-sound-loops",
+    "license": "CC0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  {
+    "title": "Car doors",
+    "author": "looneybits",
+    "source": "https://opengameart.org/content/cardoorsfx",
+    "license": "CC0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  {
+    "title": "Porsche flat-six recording",
+    "author": "mharo",
+    "source": "https://freesound.org/people/mharo/sounds/55727/",
+    "license": "CC0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  {
+    "title": "Truck idle recording",
+    "author": "qubodup",
+    "source": "https://freesound.org/people/qubodup/sounds/187564/",
+    "license": "CC0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  {
+    "title": "Motorcycle idle recording",
+    "author": "lmbubec",
+    "source": "https://freesound.org/people/lmbubec/sounds/119455/",
+    "license": "CC0",
+    "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/"
+  }
+];
+
+ASSET_CREDITS.push({ title: 'Car engine start 01', author: 'looneybits', source: 'https://opengameart.org/content/car-engine-start-01', license: 'CC0', licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/' });

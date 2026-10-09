@@ -14,6 +14,8 @@ import { newAnimState, poseSeated } from '../render/charAnim';
 import { mulberry32 } from '../core/rng';
 import { CAMERA_ONLY_GROUPS, GROUND_GROUPS, STATIC_GROUPS } from './collisionGroups';
 import { quality } from '../render/quality';
+import { ImportedCity } from './ImportedCity';
+import { FuelMarkers } from './FuelMarkers';
 
 const SPHERE_LOW = new THREE.IcosahedronGeometry(1, 0);
 
@@ -243,6 +245,17 @@ function CityColliders({ city }: { city: CityBuild }) {
     for (const c of city.cameraBalls) {
       world.createCollider(rapier.ColliderDesc.ball(c.r).setTranslation(c.x, c.y, c.z).setCollisionGroups(CAMERA_ONLY_GROUPS), body);
     }
+    // Sign backings can cover curbside entry views even when the building behind them is clear.
+    for (const sign of [...city.signs, ...city.boards]) {
+      q.setFromAxisAngle(up, sign.ry ?? 0);
+      world.createCollider(
+        rapier.ColliderDesc.cuboid(sign.w / 2 + .15, sign.h / 2 + .15, .15)
+          .setTranslation(sign.x, sign.y, sign.z)
+          .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
+          .setCollisionGroups(CAMERA_ONLY_GROUPS),
+        body,
+      );
+    }
     return () => {
       if (world.bodies === ownerBodies && world.getRigidBody(body.handle)) world.removeRigidBody(body);
     };
@@ -316,15 +329,17 @@ export function City() {
 
   return (
     <group>
-      <mesh rotation-x={-Math.PI / 2} receiveShadow position-y={0}>
+      <mesh rotation-x={-Math.PI / 2} receiveShadow position-y={-.02}>
         <planeGeometry args={[(MAP_HALF + 40) * 2, (MAP_HALF + 40) * 2]} />
-        <meshStandardMaterial color="#7a8798" roughness={0.95} />
+        <meshStandardMaterial color="#739669" roughness={0.95} />
       </mesh>
       <mesh rotation-x={-Math.PI / 2} position-y={-0.3}>
         <planeGeometry args={[4000, 4000]} />
         <meshStandardMaterial color="#9fd07f" roughness={1} />
       </mesh>
       <primitive object={markings} />
+      <ImportedCity city={city} />
+      <FuelMarkers />
       {chunkObjects.map((objs, i) => (
         <group key={city.chunks[i].id} ref={(g) => void (groups.current[i] = g)}>
           {objs.map((o, j) => (

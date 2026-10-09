@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { VEHICLE_ORDER, isVehicleId, type VehicleId } from '../game/data/vehicles';
+import { VEHICLE_ORDER, isVehicleId, isPlayableVehicleId, type VehicleId } from '../game/data/vehicles';
 import type { QualityLevel } from '../game/render/quality';
 
 export const SCHEMA_VERSION = 1;
@@ -46,10 +46,12 @@ export const SettingsSchema = z.object({
   language: z.enum(['en', 'ru']),
   uiScale: z.preprocess((v) => (typeof v === 'number' ? Math.min(1.3, Math.max(0.9, v)) : v), z.number()),
   reducedMotion: z.boolean(),
-  speedLimiter: z.boolean(),
+  // Accept older saves, but the player no longer has a road speed limiter.
+  speedLimiter: z.boolean().optional().transform(() => false),
   cameraMode: z.enum(['chase', 'high', 'eye']),
   /** Player character: older saves without it default to the male driver. */
-  driver: z.enum(['male', 'female']).default('male'),
+  driver: z.enum(['male', 'female', 'lynae', 'cartethyia']).default('male'),
+  passengerCharacter: z.enum(['original', 'mixed', 'lynae', 'cartethyia']).default('mixed'),
 });
 
 export const DailyTaskSchema = z.object({
@@ -201,6 +203,7 @@ export function defaultSettings(quality: QualityLevel, language: 'en' | 'ru'): G
     speedLimiter: false,
     cameraMode: 'chase',
     driver: 'male',
+    passengerCharacter: 'mixed',
   };
 }
 
@@ -252,6 +255,13 @@ export function validateSave(raw: unknown): { ok: true; data: SaveData } | { ok:
   const res = SaveSchema.safeParse(migrate(raw));
   if (!res.success) return { ok: false, error: res.error.issues.slice(0, 3).map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') };
   const data = res.data;
+  // Replace a formerly drivable NPC with a free car, preserving the ride and wallet.
+  if (isVehicleId(data.equippedVehicleId) && !isPlayableVehicleId(data.equippedVehicleId)) {
+    data.equippedVehicleId = 'bmw_i8';
+    if (!data.ownedVehicleIds.includes('bmw_i8')) data.ownedVehicleIds.push('bmw_i8');
+  }
+  if (data.mission && !isPlayableVehicleId(data.mission.vehicleId)) data.mission.vehicleId = 'bmw_i8';
+  data.ownedVehicleIds = data.ownedVehicleIds.filter(isPlayableVehicleId);
   if (!isVehicleId(data.equippedVehicleId) || !data.ownedVehicleIds.includes(data.equippedVehicleId)) data.equippedVehicleId = 'bike_basic';
   for (const id of Object.keys(data.upgradesByVehicle)) if (!isVehicleId(id)) delete data.upgradesByVehicle[id];
   return { ok: true, data };

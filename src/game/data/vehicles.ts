@@ -1,3 +1,4 @@
+import { EXTRA_CARS, type ExtraVehicleId, type ImportedModelId } from './importedCatalog';
 // Vehicle catalog. All values are tunable design parameters from plan.md §7.3 and §11.2.
 // Units: meters, kilograms, seconds. Local +Z is forward, +Y is up.
 
@@ -10,7 +11,10 @@ export type VehicleId =
   | 'bus_small'
   | 'bus_medium'
   | 'bus_long'
-  | 'supercar';
+  | 'supercar'
+  | 'bmw_i8'
+  | 'bmw_m4_gt3'
+  | ExtraVehicleId;
 
 export type VehicleKind = 'bike' | 'auto' | 'car' | 'bus';
 export type JobKind = 'standard' | 'office' | 'family' | 'airport' | 'vip' | 'rain' | 'bus';
@@ -27,6 +31,10 @@ export interface VehicleSpec {
   name: string;
   nameRu: string;
   kind: VehicleKind;
+  /** Supplied model, available for a free garage test drive. */
+  importedModel?: ImportedModelId;
+  /** Traffic/police assets never appear in the garage or become player vehicles. */
+  npcOnly?: boolean;
   totalSeats: number;
   passengerSeats: number;
   unlockLevel: number;
@@ -49,6 +57,8 @@ export interface VehicleSpec {
   width: number;
   length: number;
   height: number;
+  /** Actual model roof height, when shorter than its nominal catalog height. */
+  cabinHeight?: number;
   wheelRadius: number;
   /** Suspension rest length. */
   suspension: number;
@@ -62,14 +72,14 @@ export interface VehicleSpec {
   display: { speed: number; handling: number; brakes: number; comfort: number };
 }
 
-function fourWheels(track: number, wheelbase: number, radius: number, width = 0.28): WheelLayout {
+function fourWheels(track: number, wheelbase: number, radius: number, width = 0.28, axleOffset = 0): WheelLayout {
   const hx = track / 2;
   const hz = wheelbase / 2;
   const physics = [
-    { x: hx, z: hz, steer: true },
-    { x: -hx, z: hz, steer: true },
-    { x: hx, z: -hz, steer: false },
-    { x: -hx, z: -hz, steer: false },
+    { x: hx, z: hz + axleOffset, steer: true },
+    { x: -hx, z: hz + axleOffset, steer: true },
+    { x: hx, z: -hz + axleOffset, steer: false },
+    { x: -hx, z: -hz + axleOffset, steer: false },
   ];
   return { physics, visual: physics.map((w) => ({ ...w, radius, width })) };
 }
@@ -83,7 +93,7 @@ function busWheels(track: number, wheelbase: number, radius: number, extraRearAx
   return base;
 }
 
-export const VEHICLES: Record<VehicleId, VehicleSpec> = {
+const BASE_VEHICLES = {
   bike_basic: {
     id: 'bike_basic',
     name: 'Commuter',
@@ -182,8 +192,8 @@ export const VEHICLES: Record<VehicleId, VehicleSpec> = {
     upgradeReferencePrice: 6500,
     serviceMultiplier: 2.0,
     jobs: ['standard', 'office', 'family', 'airport', 'rain'],
-    topSpeedKmh: 75,
-    accel0to40: 5,
+    topSpeedKmh: 220,
+    accel0to40: .95,
     brakeDecel: 5.6,
     maxSteerDeg: 33,
     highSpeedSteer: 0.3,
@@ -213,8 +223,8 @@ export const VEHICLES: Record<VehicleId, VehicleSpec> = {
     upgradeReferencePrice: 11000,
     serviceMultiplier: 2.4,
     jobs: ['standard', 'office', 'airport', 'vip', 'rain'],
-    topSpeedKmh: 95,
-    accel0to40: 4,
+    topSpeedKmh: 250,
+    accel0to40: .85,
     brakeDecel: 6,
     maxSteerDeg: 32,
     highSpeedSteer: 0.28,
@@ -244,8 +254,8 @@ export const VEHICLES: Record<VehicleId, VehicleSpec> = {
     upgradeReferencePrice: 22000,
     serviceMultiplier: 3.0,
     jobs: ['standard', 'office', 'family', 'airport', 'vip', 'rain'],
-    topSpeedKmh: 75,
-    accel0to40: 6,
+    topSpeedKmh: 210,
+    accel0to40: 1.05,
     brakeDecel: 5.2,
     maxSteerDeg: 31,
     highSpeedSteer: 0.32,
@@ -368,8 +378,8 @@ export const VEHICLES: Record<VehicleId, VehicleSpec> = {
     upgradeReferencePrice: 140000,
     serviceMultiplier: 5.5,
     jobs: ['standard', 'office', 'vip', 'airport', 'rain'],
-    topSpeedKmh: 120,
-    accel0to40: 3,
+    topSpeedKmh: 300,
+    accel0to40: .75,
     brakeDecel: 6.8,
     maxSteerDeg: 30,
     highSpeedSteer: 0.24,
@@ -387,10 +397,60 @@ export const VEHICLES: Record<VehicleId, VehicleSpec> = {
     camera: { distance: 7.4, height: 2.9, highDistance: 12, highHeight: 7, eyeHeight: 1, eyeForward: 0.7 },
     display: { speed: 98, handling: 92, brakes: 90, comfort: 74 },
   },
-};
+  bmw_i8: {
+    id: 'bmw_i8', name: 'BMW i8', nameRu: 'BMW i8', kind: 'car', importedModel: 'bmw_i8',
+    totalSeats: 4, passengerSeats: 3, unlockLevel: 1, price: 0, upgradeReferencePrice: 11000,
+    serviceMultiplier: 2.4, jobs: ['standard', 'office', 'airport', 'vip', 'rain'],
+    topSpeedKmh: 270, accel0to40: .85, brakeDecel: 6.5, maxSteerDeg: 32,
+    highSpeedSteer: 0.28, steerResponse: 0.13, mass: 1500,
+    width: 1.9, length: 4.7, height: 1.36, wheelRadius: 0.374, suspension: 0.25,
+    chassisHalfHeight: 0.35, wheels: fourWheels(1.6, 2.86, 0.374, 0.27),
+    defaultColor: '#ffffff', accentColor: '#287fd8',
+    camera: { distance: 8, height: 3.1, highDistance: 13, highHeight: 7, eyeHeight: 1.08, eyeForward: 0.65 },
+    display: { speed: 90, handling: 84, brakes: 84, comfort: 80 },
+  },
+  bmw_m4_gt3: {
+    id: 'bmw_m4_gt3', name: 'BMW M4 GT3 EVO', nameRu: 'BMW M4 GT3 EVO', kind: 'car', importedModel: 'bmw_m4_gt3',
+    totalSeats: 2, passengerSeats: 1, unlockLevel: 1, price: 0, upgradeReferencePrice: 14000,
+    serviceMultiplier: 2.4, jobs: ['standard', 'office', 'airport', 'vip', 'rain'],
+    topSpeedKmh: 320, accel0to40: .75, brakeDecel: 6.8, maxSteerDeg: 30,
+    highSpeedSteer: 0.24, steerResponse: 0.12, mass: 1350,
+    width: 2.06, length: 5.02, height: 1.39, wheelRadius: 0.347, suspension: 0.22,
+    chassisHalfHeight: 0.33, wheels: fourWheels(1.7, 2.907, 0.347, 0.34, 0.113),
+    defaultColor: '#141414', accentColor: '#287fd8',
+    camera: { distance: 8.5, height: 3.2, highDistance: 13.5, highHeight: 7.5, eyeHeight: 1.1, eyeForward: 0.65 },
+    display: { speed: 98, handling: 92, brakes: 90, comfort: 70 },
+  },
+} satisfies Record<Exclude<VehicleId, ExtraVehicleId>, VehicleSpec>;
+
+function extraSpec(car: typeof EXTRA_CARS[number]): VehicleSpec {
+  const heavy = car.height > 2.4;
+  const wheels = fourWheels(car.width * .8, car.wheelbase, car.radius, heavy ? .4 : .28);
+  if (car.id === 'western_star') {
+    wheels.physics.forEach((w) => { w.z += .6; });
+    wheels.visual.forEach((w) => { w.z += .6; });
+    wheels.visual.push(...wheels.visual.slice(2).map((w) => ({ ...w, z: w.z - 1.32 })));
+  }
+  return {
+    id: car.id, name: car.name, nameRu: car.name, kind: 'car', importedModel: car.id,
+    npcOnly: car.id === 'police_car' || car.id.startsWith('pack_'),
+    totalSeats: heavy || car.id === 'porsche_718' ? 2 : 4, passengerSeats: heavy || car.id === 'porsche_718' ? 1 : 3, unlockLevel: 1, price: 0, upgradeReferencePrice: 12000,
+    serviceMultiplier: 2.4, jobs: ['standard', 'office', 'airport', 'rain'],
+    topSpeedKmh: heavy ? 160 : Math.max(230, car.speed * 1.3), accel0to40: heavy ? .85 : .95, brakeDecel: heavy ? 4.8 : 6, maxSteerDeg: 32,
+    highSpeedSteer: .28, steerResponse: .14, mass: car.mass, width: car.width, length: car.length, height: car.height,
+    wheelRadius: car.radius, suspension: heavy ? .32 : .25, chassisHalfHeight: heavy ? .7 : .34, wheels,
+    defaultColor: '#eeeeee', accentColor: '#283c4a',
+    camera: { distance: car.length + 3, height: car.height + 1.8, highDistance: car.length + 7, highHeight: 8, eyeHeight: car.height * .73, eyeForward: heavy ? car.length * .25 : .65 },
+    display: { speed: Math.min(100, Math.round(car.speed * .45)), handling: heavy ? 50 : 82, brakes: heavy ? 62 : 80, comfort: 76 },
+  };
+}
+export const VEHICLES: Record<VehicleId, VehicleSpec> = { ...BASE_VEHICLES, ...Object.fromEntries(EXTRA_CARS.map((car) => [car.id, extraSpec(car)])) as Record<ExtraVehicleId, VehicleSpec> };
 
 export const VEHICLE_ORDER: VehicleId[] = [
   'bike_basic',
+  'bmw_i8',
+  'bmw_m4_gt3',
+  ...EXTRA_CARS.filter((car) => !VEHICLES[car.id].npcOnly).map((car) => car.id),
   'auto_city',
   'car_compact',
   'car_coupe',
@@ -402,5 +462,9 @@ export const VEHICLE_ORDER: VehicleId[] = [
 ];
 
 export function isVehicleId(id: string): id is VehicleId {
-  return id in VEHICLES;
+  return Object.hasOwn(VEHICLES, id);
+}
+
+export function isPlayableVehicleId(id: string): id is VehicleId {
+  return isVehicleId(id) && !VEHICLES[id].npcOnly;
 }

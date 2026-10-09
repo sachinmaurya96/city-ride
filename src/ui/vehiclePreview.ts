@@ -3,6 +3,7 @@ import { VEHICLES, type VehicleId } from '../game/data/vehicles';
 import { buildStaticVehicleGeometry } from '../game/render/models';
 import { MATERIALS } from '../game/render/materials';
 import { runtime } from '../game/core/runtime';
+import { applyVehicleEnvironment, modelState } from '../game/render/importedVehicles';
 
 // Garage previews rendered with the ONE shared WebGLRenderer into a small render target,
 // then copied to a 2D canvas (no second renderer or physics world).
@@ -11,6 +12,8 @@ let scene: THREE.Scene | null = null;
 let cam: THREE.PerspectiveCamera;
 let rt: THREE.WebGLRenderTarget | null = null;
 let mesh: THREE.Mesh | null = null;
+let imported: THREE.Group | null = null;
+let importedId: VehicleId | null = null;
 const geoCache = new Map<string, THREE.BufferGeometry>();
 let pixels = new Uint8Array(0);
 
@@ -46,24 +49,40 @@ export function renderVehiclePreview(canvas: HTMLCanvasElement, id: VehicleId, p
   const h = canvas.height;
   ensure(w, h);
   const spec = VEHICLES[id];
-  const key = id;
-  let geo = geoCache.get(key);
-  if (!geo) {
-    geo = buildStaticVehicleGeometry(spec, '#ffffff', false);
-    geoCache.set(key, geo);
+  if (spec.importedModel) {
+    const template = modelState(spec.importedModel).model;
+    if (!template) return false;
+    if (importedId !== id) {
+      if (imported) scene!.remove(imported);
+      imported = template.clone(true);
+      importedId = id;
+      applyVehicleEnvironment(imported, renderer);
+      scene!.add(imported);
+    }
+    imported!.visible = true;
+    imported!.rotation.y = yaw;
+    if (mesh) mesh.visible = false;
+  } else {
+    if (imported) imported.visible = false;
+    let geo = geoCache.get(id);
+    if (!geo) {
+      geo = buildStaticVehicleGeometry(spec, '#ffffff', false);
+      geoCache.set(id, geo);
+    }
+    if (!mesh) {
+      mesh = new THREE.Mesh(geo, MATERIALS.world);
+      scene!.add(mesh);
+    }
+    mesh.geometry = paintGeometry(id, paint, geo);
+    mesh.rotation.y = yaw;
+    mesh.visible = true;
   }
-  if (!mesh) {
-    mesh = new THREE.Mesh(geo, MATERIALS.world);
-    scene!.add(mesh);
-  }
-  mesh.geometry = paintGeometry(id, paint, geo);
-  mesh.rotation.y = yaw;
   const L = Math.max(spec.length, 1.8);
   const table = scene!.getObjectByName('turntable')!;
   const ring = scene!.getObjectByName('ring')!;
   table.scale.set(L * 0.65, 1, L * 0.65);
   ring.scale.set(L * 0.65, L * 0.65, 1);
-  const dist = L * 1.55 + spec.height * 1.2 + 1.2;
+  const dist = spec.importedModel ? L * 1.12 + spec.height * 0.8 + 1.2 : L * 1.55 + spec.height * 1.2 + 1.2;
   cam.aspect = w / h;
   cam.position.set(dist * 0.75, spec.height * 0.9 + dist * 0.32, dist * 0.75);
   cam.lookAt(0, spec.height * 0.42, 0);
@@ -72,11 +91,14 @@ export function renderVehiclePreview(canvas: HTMLCanvasElement, id: VehicleId, p
   const prevTarget = renderer.getRenderTarget();
   const prevShadow = renderer.shadowMap.enabled;
   renderer.shadowMap.enabled = false;
-  renderer.setRenderTarget(rt);
-  renderer.render(scene!, cam);
-  renderer.readRenderTargetPixels(rt!, 0, 0, w, h, pixels);
-  renderer.setRenderTarget(prevTarget);
-  renderer.shadowMap.enabled = prevShadow;
+  try {
+    renderer.setRenderTarget(rt);
+    renderer.render(scene!, cam);
+    renderer.readRenderTargetPixels(rt!, 0, 0, w, h, pixels);
+  } finally {
+    renderer.setRenderTarget(prevTarget);
+    renderer.shadowMap.enabled = prevShadow;
+  }
   const ctx = canvas.getContext('2d')!;
   const img = ctx.createImageData(w, h);
   for (let y = 0; y < h; y++) img.data.set(pixels.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);

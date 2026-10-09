@@ -1,3 +1,4 @@
+import { vehicleEntry } from '../vehicles/entry';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useRapier } from '@react-three/rapier';
 import { useRef } from 'react';
@@ -30,7 +31,7 @@ function dampAngle(a: number, b: number, k: number) {
 export function CameraRig({ anchor, autoRecenter }: { anchor: React.RefObject<THREE.Group | null>; autoRecenter: boolean }) {
   const { camera } = useThree();
   const { world, rapier } = useRapier();
-  const state = useRef({ yaw: 0, orbitYaw: 0, orbitPitch: 0, dist: 7, init: false });
+  const state = useRef({ yaw: 0, orbitYaw: 0, orbitPitch: 0, dist: 7, init: false, lastTarget: new THREE.Vector3() });
   const ray = useRef<InstanceType<typeof rapier.Ray> | null>(null);
 
   const camDir = useRef(new THREE.Vector3());
@@ -52,13 +53,21 @@ export function CameraRig({ anchor, autoRecenter }: { anchor: React.RefObject<TH
     }
     const dt = Math.min(rawDt, 0.1);
     const spec = VEHICLES[runtime.vehicleId];
+    const outside = vehicleEntry.mode === 'outside';
     const s = state.current;
     a.getWorldPosition(target);
+    if (outside) {
+      a.localToWorld(target.copy(vehicleEntry.outside));
+      target.y -= runtime.vehicle ? runtime.vehicle.spec.wheelRadius + runtime.vehicle.spec.suspension * .75 + runtime.vehicle.spec.chassisHalfHeight * .6 - .45 : 0;
+    }
+    const teleported = s.init && target.distanceTo(s.lastTarget) > 30;
+    s.lastTarget.copy(target);
     a.getWorldQuaternion(quat);
     fwd.set(0, 0, 1).applyQuaternion(quat);
     const heading = Math.atan2(fwd.x, fwd.z);
-    if (!s.init) {
+    if (!s.init || teleported) {
       s.yaw = heading;
+      s.dist = spec.camera.distance;
       s.init = true;
     }
 
@@ -79,9 +88,9 @@ export function CameraRig({ anchor, autoRecenter }: { anchor: React.RefObject<TH
     // Follow the vehicle heading smoothly (no 180° snap in reverse: always behind the chassis).
     s.yaw = dampAngle(s.yaw, heading, 1 - Math.exp(-dt * 5));
     const passengerMoving = rideVisual.boardProgress >= 0 || (rideVisual.alightProgress >= 0 && rideVisual.departureAt < 0);
-    const showingStop = passengerMoving || fuel.refilling;
-    const yaw = s.yaw + (showingStop && idle ? 1 : s.orbitYaw);
-    const mode = showingStop ? 'chase' : runtime.cameraMode;
+    const showingStop = vehicleEntry.active || passengerMoving || fuel.refilling;
+    const yaw = s.yaw + (showingStop && idle ? (vehicleEntry.active ? 1 : -1) : s.orbitYaw);
+    const mode = showingStop || outside ? 'chase' : runtime.cameraMode;
     const persp = camera as THREE.PerspectiveCamera;
 
     if (mode === 'eye') {
@@ -97,8 +106,8 @@ export function CameraRig({ anchor, autoRecenter }: { anchor: React.RefObject<TH
     }
 
     const high = mode === 'high';
-    const baseDist = high ? spec.camera.highDistance : spec.camera.distance;
-    const baseH = high ? spec.camera.highHeight : spec.camera.height;
+    const baseDist = outside ? 4.8 : high ? spec.camera.highDistance : spec.camera.distance;
+    const baseH = outside ? 2.3 : high ? spec.camera.highHeight : spec.camera.height;
     const pitchAdd = s.orbitPitch * baseDist * 0.8;
     const lookY = target.y + (high ? 0.2 : 0.9);
     look.set(target.x, lookY, target.z);
@@ -122,7 +131,8 @@ export function CameraRig({ anchor, autoRecenter }: { anchor: React.RefObject<TH
     desired.y = Math.max(desired.y, 0.8);
 
     const pk = 1 - Math.exp(-dt * 10);
-    camera.position.lerp(desired, pk);
+    if (teleported) camera.position.copy(desired);
+    else camera.position.lerp(desired, pk);
     camera.lookAt(look);
     const speedFrac = Math.min(1, Math.abs(runtime.telemetry.speed) / 30);
     const fov = 60 + (runtime.reducedMotion ? 0 : speedFrac * 5);

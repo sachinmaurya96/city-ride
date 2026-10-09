@@ -2,10 +2,6 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useGame } from '../app/store';
 import { runtime } from '../game/core/runtime';
 import { nav, rides, AVATARS } from '../game/missions/rides';
-import { playerRoad } from '../game/rules/recovery';
-import { enforcement } from '../game/rules/enforcementState';
-import { lightFor } from '../game/traffic/signals';
-import { INTERSECTION_BY_ID } from '../game/navigation/roadGraph';
 import { levelProgress } from '../game/progression/progression';
 import { fmt, meters, money } from '../i18n/strings';
 import { drawMap } from './mapDraw';
@@ -138,16 +134,11 @@ export function Minimap() {
 
 export function SpeedPill() {
   const t = useGame((s) => s.t);
-  const v = usePoll(() => {
-    const seg = playerRoad.proj.segment;
-    return { kmh: Math.round(runtime.telemetry.speedKmh), limit: seg ? seg.limitKmh : 0 };
-  }, 100, shallow);
-  const over = v.limit > 0 && v.kmh > v.limit + 3;
+  const kmh = usePoll(() => Math.round(runtime.telemetry.speedKmh), 100);
   return (
-    <div className={`speed-pill ${over ? 'over' : ''}`} data-testid="speed">
-      <span className="num">{v.kmh}</span>
+    <div className="speed-pill" data-testid="speed">
+      <span className="num">{kmh}</span>
       <span className="unit">{t.speedUnit}</span>
-      {v.limit > 0 && <span className="limit-sign">{v.limit}</span>}
     </div>
   );
 }
@@ -162,6 +153,7 @@ function FuelGauge() {
       <div className="fuel-track" role="progressbar" aria-label={t.fuel} aria-valuemin={0} aria-valuemax={100} aria-valuenow={f.percent}><i style={{ width: `${f.percent}%` }} /></div>
       {f.refilling ? <small>{t.refueling}</small> : f.distance < 24 ? <small>{t.stopToRefuel}</small> : low && f.name ? <small>{f.name} · {meters(f.distance)}</small> : null}
       {f.percent === 0 && <button onClick={() => fuel.emergencyRefill()} data-testid="emergency-fuel">{t.emergencyFuel}</button>}
+      {f.distance < 24 && fuel.inBay && <button onClick={() => fuel.openPump()} data-testid="open-fuel">{t.refuel}</button>}
     </div>
   );
 }
@@ -343,55 +335,6 @@ function Toasts() {
   );
 }
 
-function HeatMeter() {
-  const t = useGame((s) => s.t);
-  const h = usePoll(() => ({ heat: Math.round(enforcement.heat), pursuit: enforcement.pursuit }), 250, shallow);
-  if (h.heat < 3 && !h.pursuit) return null;
-  const label = h.pursuit ? t.heatPursuit : h.heat >= 30 ? t.heatCaution : t.heatLow;
-  return (
-    <div className={`heat ${h.pursuit ? 'pursuit' : ''}`} data-testid="heat">
-      <span>🚓 {label}</span>
-      <div className="bar">
-        <i style={{ width: `${h.heat}%` }} />
-      </div>
-      {h.pursuit && <small>{t.pursuitHint}</small>}
-    </div>
-  );
-}
-
-/** Contextual signal hint ("Red light — stop here") and a calm "Safe driving" chip. */
-function RoadHint() {
-  const t = useGame((s) => s.t);
-  const stage = useGame((s) => s.ride.stage);
-  const h = usePoll(() => {
-    const pr = playerRoad.proj;
-    let red = false;
-    if (pr.kind === 'segment' && pr.segment && pr.correctSide) {
-      const dist = pr.segment.length - pr.s;
-      const j = INTERSECTION_BY_ID.get(pr.segment.to)!;
-      red = dist < 45 && dist > -1 && j.signal && lightFor(j, pr.segment.dir, runtime.simTime) !== 'G';
-    }
-    return { red, calm: enforcement.heat < 1 && enforcement.jobIncidents === 0 };
-  }, 250, shallow);
-  if (h.red) {
-    return (
-      <div className="road-hint" data-testid="red-hint">
-        <span className="signal-ico">
-          <i className="r" />
-          <i />
-          <i />
-        </span>
-        <div>
-          <b>{t.redLightStop}</b>
-          <small>{t.letPedestrians}</small>
-        </div>
-      </div>
-    );
-  }
-  if (h.calm && (stage === 'TO_DROPOFF' || stage === 'BUS')) return <div className="safe-chip">🛡️ {t.safeDriving}</div>;
-  return null;
-}
-
 export function Hud({ onPause, tutorial }: { onPause: () => void; tutorial?: ReactNode }) {
   const t = useGame((s) => s.t);
   return (
@@ -404,7 +347,6 @@ export function Hud({ onPause, tutorial }: { onPause: () => void; tutorial?: Rea
         <DispatchButton />
         <OfferCard />
         <StopProgress />
-        <RoadHint />
         {tutorial}
         <Toasts />
       </div>
@@ -413,7 +355,6 @@ export function Hud({ onPause, tutorial }: { onPause: () => void; tutorial?: Rea
         <button className="pause-btn" aria-label={t.paused} onClick={onPause} data-testid="pause">
           <ControlIcon name="pause" />
         </button>
-        <HeatMeter />
       </div>
       <div className="hud-instruments">
         <SpeedPill />

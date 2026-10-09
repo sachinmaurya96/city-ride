@@ -1,3 +1,4 @@
+import { ASSET_CREDITS } from '../game/data/assetCredits';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useGame } from '../app/store';
 import { rides, nav } from '../game/missions/rides';
@@ -153,6 +154,7 @@ export function MainMenu({ onPlay }: { onPlay: () => void }) {
   const save = useGame((s) => s.save);
   const open = useGame((s) => s.openOverlay);
   const started = save.lifetime.jobs > 0 || !!save.mission || save.tutorial.firstRideDone;
+  const vehicle = VEHICLES[save.equippedVehicleId as keyof typeof VEHICLES];
   return (
     <div className="main-menu" data-testid="main-menu">
       <div className="menu-card">
@@ -161,7 +163,7 @@ export function MainMenu({ onPlay }: { onPlay: () => void }) {
           <div className="w3">{t.subtitle}</div>
         </div>
         <CashLevel />
-        <div className="menu-vehicle">🛵 {VEHICLES[save.equippedVehicleId as keyof typeof VEHICLES]?.name}</div>
+        <div className="menu-vehicle">{vehicle?.kind === 'car' ? '🚗' : vehicle?.kind === 'bus' ? '🚌' : vehicle?.kind === 'auto' ? '🛺' : '🛵'} {vehicle?.name}</div>
         <button className="btn primary big" onClick={onPlay} data-testid="play">
           {started ? t.continue : t.play}
         </button>
@@ -337,6 +339,7 @@ export function ControlsOverlay({ onClose }: { onClose: () => void }) {
         </div>
       </div>
       <p className="kbd-hint">⌨️ {t.keyboardHint}</p>
+      <p className="kbd-hint">{t.powerBrake}: {t.powerBrakeHint}. {t.doorHint}.</p>
       <button className="btn primary" onClick={onClose} data-testid="controls-ok">
         {t.gotIt}
       </button>
@@ -391,6 +394,11 @@ export function CreditsOverlay() {
     <Modal label={t.credits} onClose={close} className="small" testId="credits">
       <h2>{t.credits}</h2>
       <p>{t.creditsBody}</p>
+      {ASSET_CREDITS.map((credit) => <p className="muted" key={credit.source}>
+        <a href={credit.source} target="_blank" rel="noreferrer">{credit.title} — {credit.author}</a>
+        {' · '}<a href={credit.licenseUrl} target="_blank" rel="noreferrer">{credit.license}</a>
+      </p>)}
+      <p className="muted">Fast 72, Police Cruiser, Classic Sport — supplied GLB files; no author/license metadata embedded.</p>
       <p className="muted">
         {t.version} {import.meta.env.VITE_APP_VERSION ?? '0.1.0'}
       </p>

@@ -6,7 +6,7 @@ import { defaultQuality } from '../game/render/quality';
 import { utcDayKey } from '../game/progression/progression';
 
 export type AppState = 'BOOT' | 'LOADING' | 'MAIN_MENU' | 'PLAYING' | 'RECOVERABLE_ERROR';
-export type Overlay = 'pause' | 'settings' | 'garage' | 'daily' | 'stats' | 'map' | 'controls' | 'credits' | 'bus' | 'cancel' | 'conflict';
+export type Overlay = 'pause' | 'settings' | 'garage' | 'daily' | 'stats' | 'map' | 'controls' | 'credits' | 'bus' | 'cancel' | 'conflict' | 'fuel';
 
 export type RideStage = 'IDLE' | 'OFFERED' | 'TO_PICKUP' | 'BOARDING' | 'TO_DROPOFF' | 'ALIGHTING' | 'COMPLETED' | 'BUS';
 

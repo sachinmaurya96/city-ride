@@ -1,3 +1,4 @@
+import { LeadPassenger } from './LeadPassenger';
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
@@ -163,6 +164,7 @@ function BayMarker() {
 function Passengers({ seat }: { seat: React.RefObject<THREE.Group | null> }) {
   const passengerName = useGame(() => rideVisual.passengerName);
   const seed = useGame(() => rideVisual.seed);
+  const characterChoice = useGame((s) => s.save.settings.passengerCharacter);
   // three walkers per gender so the party can mix; the lead passenger's gender follows the name
   const walkers = useMemo(() => {
     const out: { gender: Gender; mesh: THREE.SkinnedMesh; rig: Rig; st: AnimState; x: number; z: number; h: number; init: boolean }[] = [];
@@ -210,6 +212,7 @@ function Passengers({ seat }: { seat: React.RefObject<THREE.Group | null> }) {
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.1);
     const spec = VEHICLES[runtime.vehicleId];
+    const newLead = spec.kind === 'car' || characterChoice !== 'original';
     const p = runtime.pose;
     const stop = rideVisual.stopPose ?? p;
     const shown = Math.min(3, rideVisual.partySize);
@@ -223,6 +226,7 @@ function Passengers({ seat }: { seat: React.RefObject<THREE.Group | null> }) {
     });
     for (let i = 0; i < shown; i++) {
       const w = walkers[slots[i]];
+      if (i === 0 && newLead) { w.mesh.visible = false; continue; }
       const bay = rideVisual.waitingBay ?? rideVisual.alightBay;
       if (!bay) {
         w.mesh.visible = false;
@@ -281,7 +285,7 @@ function Passengers({ seat }: { seat: React.RefObject<THREE.Group | null> }) {
       const s = seat.current;
       const mounted = rideVisual.onboard || (rideVisual.waitingBay && rideVisual.boardProgress >= 0.94);
       const moving = rideVisual.boardProgress >= 0 || (rideVisual.alightProgress >= 0 && rideVisual.departureAt < 0);
-      const show = g === lead && !!mounted && !!s && !!spec && (spec.kind === 'bike' || spec.kind === 'auto' || spec.kind === 'car') && (runtime.cameraMode !== 'eye' || moving);
+      const show = !newLead && g === lead && !!mounted && !!s && !!spec && (spec.kind === 'bike' || spec.kind === 'auto' || spec.kind === 'car') && (runtime.cameraMode !== 'eye' || moving);
       c.mesh.visible = show;
       if (!show || !s) continue;
       if (c.mesh.parent !== s) s.add(c.mesh);
@@ -305,6 +309,7 @@ function Passengers({ seat }: { seat: React.RefObject<THREE.Group | null> }) {
   );
   return (
     <>
+      <LeadPassenger seat={seat} look={party.looks[0]} />
       {walkers.map((w, i) => (
         <primitive key={i} object={w.mesh} />
       ))}

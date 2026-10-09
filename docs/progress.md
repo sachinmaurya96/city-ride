@@ -1,3 +1,32 @@
+## Free driving, smooth drifting and character fit — 9 October 2026
+
+- Removed all player traffic warnings, fines, heat, pursuits and capture. Signals continue organizing NPC traffic; police cars remain ambient NPC assets.
+- Player cars reach 100 km/h in roughly 2–3 seconds at full throttle and have higher top speeds. Increased car engine gain while retaining sound settings, mute and pause behavior.
+- Power Brake gradually reduces rear grip and limits oversteer. Throttle preserves the slide while countersteering through center; holding only Power Brake stops immediately. Space and either Shift are desktop shortcuts, shown on the button.
+- Rear tires leave bounded skid ribbons that fade during their last two seconds and disappear after ten unpaused seconds. Browser screenshots confirm both visible tracks and the restored road.
+- NPCs use dynamic Rapier bodies, accept collision momentum and brake while lane AI pauses. Head-on and rear impacts move them in the physical impact direction, without snapping back to a path.
+- Imported walking has clearer strides, knee bends and grounded feet. Car seating extends feet into the footwell, adjusts hip position, and fits width separately from height. Cartethyia sleeves fold into the lap. Actor-space measurements prevent further shrinking after a car moves or turns.
+- Validation: production build, typecheck, lint and 152 unit/integration tests pass. Five browser flows pass for desktop drift/countersteering/instant stop/ten-second tracks/Cartethyia walking and size; real NPC impact without fines; Rover appearance/seating/save/steering reach; uploaded engine recording phases/mute; and mobile sound/two-finger drift/door entry. Screenshots inspected; physical phone/tablet speaker output and performance remain unmeasured.
+
+## Rover defaults and supplied Supercar recording — 9 October 2026
+
+- Male/Female driver selections now use the supplied Rover GLBs, preserving existing saves. Their original textures and UVs remain intact; runtime rigs match the lowered-arm bind poses and keep ponytails attached to the head.
+- Rover drivers walk, enter/exit cars and fit every playable car's cabin. Bikes, autos and buses use vehicle-specific poses and arm IK for steering grips, with the original procedural character available while a model loads.
+- Car audio uses the supplied `supercarsound.mp3`, cut in memory into start, idle, pickup, acceleration and peak-rev sections. Matched loudness, overlapping loop seams and equal-power blends track actual speed, throttle and braking. Startup plays once per engine activation; stopping or muting does not restart it.
+- Validation: production build, lint and 135 unit tests pass. Three browser flows pass: Rover appearance/walking/seating/save and bike/auto/bus steering reach; real recording decode/cuts/start/speed/braking/mute; mobile audio/drift/instant stop/door entry.
+
+## Additional supplied cars, characters and door physics — 9 October 2026
+
+- Added six more standalone vehicles and all 17 vehicles in the traffic pack to the free garage catalog. The pack also supplies instanced ambient traffic.
+- Preserved original textures, converted legacy spec/gloss materials, split merged wheels and cut hinged doors while retaining UVs. Corrected Western Star export transforms and included its six visual wheels.
+- Added Lynae and Cartethyia as selectable drivers and passengers. Lynae uses her original skeleton; Cartethyia receives runtime skin weights. Character entry, sitting and exit use shared procedural animation phases.
+- Driver and passenger doors open before entering and close after sitting. Door colliders track the hinges in Rapier; throttle/reverse remain braked during entry/open doors. Camera shows the relevant side.
+- Sign backings now block camera queries, preventing curbside signs from hiding passengers. The camera snaps to recovered vehicles instead of sweeping across the city.
+- Added local recorded engine/start/door audio. Separate bike, petrol, flat-six and diesel recordings plus tuned vehicle profiles react to throttle, RPM and virtual gears. These are engine-type approximations, not exact recordings for every garage vehicle.
+- Recorded all embedded model credits/licenses and real audio sources in Credits and the asset audit. Existing release size gate is unchanged; no publishing.
+- Paused menus render the world on demand instead of continuously, while the garage preview remains animated. Active driving retains the continuous render loop.
+- Validation: build/typecheck/lint and 104 unit tests pass. Browser checks pass for all 25 imported vehicles and responsive menus/HUD. Final focused browser regressions pass for BMW previews/driving/save persistence, failed-download retry/mobile garage, native character door entry/exit and unobstructed passenger view, physics brake lock/audio decoding, fuel/refueling/reload, horn, live phone graphics settings and phone/tablet settings layout (7 flows).
+
 # City Ride — progress log
 
 Owner instructions take priority, then `plan.md`, then the cozy reference images for appearance.
@@ -15,6 +44,29 @@ Owner instructions take priority, then `plan.md`, then the cozy reference images
 | 6 — Buses and supercar | ✅ Implemented; per-tier e2e running (see checkpoint) |
 | 7 — Daily tasks, weather, polished UI | ✅ Implemented |
 | 8 — Platform integration and release | ⏳ Release script written; final run pending |
+
+## Supplied BMW cars — 9 October 2026
+
+- Integrated `assets/glb-files/bmw_i8.glb` and `2025_bmw_m4_gt3_evo_g82.glb` as BMW i8 and
+  BMW M4 GT3 EVO in the garage. Both are free to preview/equip at level 1 using “Try car · free”.
+  Ownership and equipment persist; the active-job vehicle-switch restriction remains enforced.
+- Retained original finishes/textures and added shared studio reflections. Normalized export units,
+  orientation and ground height, batched meshes by material, split the i8's combined rear wheels and
+  straightened its posed front wheels. Wheels steer/spin/follow suspension while the body rolls/pitches.
+  Pooled traffic continues to use procedural LODs.
+- Assets and GLTFLoader load on demand and are shared between the one-renderer garage preview and
+  player car. Previews rotate/drag, show loading/retry states and return to view when selected on mobile.
+  The preview timer now actually limits readbacks to about 12.5 frames/second, matching its intended
+  throttle. Imported cars use their original finish rather than charging for unsupported paint changes.
+- Recorded the embedded author/source/license metadata in Credits and the asset audit. The source
+  GLBs remain unchanged. The two models add 10.2 MB before compression, exceeding the original release
+  size target; the existing release gate was retained and no publication was performed.
+- Validation: TypeScript/production build, ESLint and all 76 Vitest tests passed. Two Playwright
+  scenarios checked both real model triangle counts/materials, animated steering/spin, free selection,
+  saved equipment/direct-load reflections, failed-download retry, active-ride protection and garage
+  layout at 667×375, 568×320, 320×568 and 1024×768. A separate production smoke check loaded both
+  hashed GLBs on demand, previewed/equipped both and entered driving with no page errors and no dev
+  hooks. Screenshots were inspected. Physical-device frame rates remain unmeasured.
 
 ## Graphics controls — 9 October 2026
 

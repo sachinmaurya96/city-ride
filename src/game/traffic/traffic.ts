@@ -1,4 +1,5 @@
 import { DIR_VEC, SEGMENTS, laneOffset, leftOf, segmentPoint, type Intersection, type Segment } from '../data/cityMap';
+import { EXTRA_CARS, type ExtraVehicleId } from '../data/importedCatalog';
 import { VEHICLES } from '../data/vehicles';
 import { mulberry32, pick } from '../core/rng';
 import { runtime } from '../core/runtime';
@@ -9,9 +10,11 @@ import { nav } from '../missions/rides';
 // Ambient traffic (plan §10.1): bounded pool, legal lane paths, headway control, signals,
 // junction reservations with protected crossing turns, player avoidance, off-screen spawn/recycle.
 
-export type TrafficModel = 'car_compact' | 'car_coupe' | 'mpv_seven' | 'auto_city' | 'bus_small';
-export const TRAFFIC_MODELS: TrafficModel[] = ['car_compact', 'car_coupe', 'mpv_seven', 'auto_city', 'bus_small'];
-const MODEL_WEIGHTS: TrafficModel[] = ['car_compact', 'car_compact', 'car_compact', 'car_coupe', 'mpv_seven', 'mpv_seven', 'auto_city', 'auto_city', 'bus_small'];
+type PackVehicleId = Extract<ExtraVehicleId, `pack_${string}`>;
+export const PACK_TRAFFIC_MODELS = EXTRA_CARS.filter((c) => c.id.startsWith('pack_')).map((c) => c.id as PackVehicleId);
+export type TrafficModel = PackVehicleId | 'police_car' | 'car_compact' | 'car_coupe' | 'mpv_seven' | 'auto_city' | 'bus_small';
+export const TRAFFIC_MODELS: TrafficModel[] = ['car_compact', 'car_coupe', 'mpv_seven', 'auto_city', 'bus_small', 'police_car', ...PACK_TRAFFIC_MODELS];
+const MODEL_WEIGHTS: TrafficModel[] = ['car_compact', 'car_compact', 'car_compact', 'car_coupe', 'mpv_seven', 'mpv_seven', 'auto_city', 'auto_city', 'bus_small', 'police_car', ...PACK_TRAFFIC_MODELS, ...PACK_TRAFFIC_MODELS.filter((id) => VEHICLES[id].height < 2.4)];
 export const TRAFFIC_COLORS = ['#ee5a52', '#f4c430', '#3f7fd8', '#f6efe2', '#3cc9b0', '#9b7fd6', '#f39c5a', '#7fb069', '#e9b8d0', '#f6efe2'];
 
 export interface Car {
@@ -44,6 +47,8 @@ export interface Car {
   chase: { x: number; z: number } | null;
   /** Close-range pursuit: drive directly at the chase target instead of following lanes. */
   homing: boolean;
+  /** AI yields to collision momentum until the car settles. */
+  impactTime: number;
 }
 
 const MAX_POOL = 26;
@@ -98,6 +103,7 @@ export class TrafficSystem {
         atSignal: false,
         chase: null,
         homing: false,
+        impactTime: 0,
       });
     }
   }
@@ -114,6 +120,7 @@ export class TrafficSystem {
     c.police = false;
     c.chase = null;
     c.homing = false;
+    c.impactTime = 0;
     c.z = -5000;
   }
 
@@ -148,7 +155,7 @@ export class TrafficSystem {
       const bay = nav.targetBay;
       if (bay && Math.hypot(bay.x - x, bay.z - z) < 30) continue;
       if (this.cars.some((o) => o.active && o.seg === seg && o.lane === lane && Math.abs(o.s - s) < 14)) continue;
-      const model = police ? 'car_compact' : pick(this.rng, MODEL_WEIGHTS);
+      const model = police ? 'police_car' : pick(this.rng, MODEL_WEIGHTS);
       const spec = VEHICLES[model];
       c.active = true;
       c.police = police;
@@ -167,6 +174,7 @@ export class TrafficSystem {
       c.stopped = 0;
       c.chase = null;
       c.homing = false;
+      c.impactTime = 0;
       c.x = x;
       c.z = z;
       const [dx, dz] = DIR_VEC[seg.dir];
@@ -178,6 +186,13 @@ export class TrafficSystem {
 
   spawnPolice() {
     return this.spawnOne(true);
+  }
+
+  impact(id: number) {
+    const c = this.cars[id]; if (!c?.active || c.impactTime > 0) return;
+    c.impactTime = 2.4; c.speed = 0; c.allow = false; c.atSignal = false;
+    if (c.turn) this.inJunction.get(c.turn.junction.id)?.delete(c);
+    c.turn = null; c.next = null;
   }
 
   /** Choose the next segment and lane (curb lane for left turns, inner lane for right turns). */
@@ -295,6 +310,7 @@ export class TrafficSystem {
 
     for (const c of this.cars) {
       if (!c.active) continue;
+      if (c.impactTime > 0) { c.impactTime = Math.max(0, c.impactTime - dt); c.speed = 0; c.stopped += dt; continue; }
       if (c.chase && (c.homing || Math.hypot(c.chase.x - c.x, c.chase.z - c.z) < 40)) {
         this.home(c, dt);
         continue;

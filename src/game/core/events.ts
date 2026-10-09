@@ -17,6 +17,7 @@ export type GameEvent =
   | { type: 'DAY_ROLLED_OVER' }
   | { type: 'BUS_STOP_SERVED'; stop: number }
   | { type: 'HORN' }
+  | { type: 'CAR_DOOR'; side: number; open: boolean }
   | { type: 'LEVEL_UP'; level: number };
 
 type Listener = (e: GameEvent) => void;

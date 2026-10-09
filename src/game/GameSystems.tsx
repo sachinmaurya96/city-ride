@@ -1,9 +1,12 @@
 import { useFrame } from '@react-three/fiber';
 import { useRapier } from '@react-three/rapier';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { DIR_VEC, INTERSECTIONS, SEGMENTS, CURB_HEIGHT, roadHalfWidth, segmentPoint } from './data/cityMap';
 import { VEHICLES } from './data/vehicles';
+import { useGame } from '../app/store';
+import { loadImportedModel } from './render/importedVehicles';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { runtime } from './core/runtime';
 import { quality } from './render/quality';
 import { MATERIALS } from './render/materials';
@@ -11,11 +14,12 @@ import { buildStaticVehicleGeometry } from './render/models';
 import { createCharacterMesh, randomLook, setLook, type Look } from './render/characters';
 import { animateLocomotion, newAnimState } from './render/charAnim';
 import { mulberry32 } from './core/rng';
-import { traffic, TRAFFIC_MODELS, type Car } from './traffic/traffic';
+import { traffic, TRAFFIC_MODELS, PACK_TRAFFIC_MODELS } from './traffic/traffic';
 import { phaseAt, axisOf } from './traffic/signals';
 import { pedestrians } from './pedestrians/pedestrians';
 import { recoveryOccupancy } from './rules/recovery';
-import { TRAFFIC_GROUPS } from './world/collisionGroups';
+import { TrafficPhysics } from './traffic/trafficPhysics';
+import { SkidMarks } from './render/SkidMarks';
 
 const tmpM = new THREE.Matrix4();
 const tmpQ = new THREE.Quaternion();
@@ -24,7 +28,7 @@ const tmpS = new THREE.Vector3(1, 1, 1);
 const UP = new THREE.Vector3(0, 1, 0);
 const tmpC = new THREE.Color();
 
-/** Traffic cars: instanced meshes per model + one kinematic Rapier body per pooled car. */
+/** Traffic cars: instanced meshes per model + one dynamic Rapier body per pooled car. */
 function Traffic() {
   const { world, rapier } = useRapier();
   const meshes = useMemo(() => {
@@ -46,52 +50,38 @@ function Traffic() {
     out.set('police', police);
     return out;
   }, []);
-  const bodies = useRef<Map<number, InstanceType<typeof rapier.RigidBody>>>(new Map());
-
+  const appState = useGame((s) => s.appState);
+  const [packMeshes, setPackMeshes] = useState<Map<string, THREE.InstancedMesh[]>>(new Map());
   useEffect(() => {
-    const ownerBodies = world.bodies;
-    const map = bodies.current;
-    for (const c of traffic.cars) {
-      const body = world.createRigidBody(rapier.RigidBodyDesc.kinematicPositionBased().setTranslation(0, -50, c.id * 10));
-      world.createCollider(rapier.ColliderDesc.cuboid(0.95, 0.8, 2.1).setTranslation(0, 0.8, 0).setCollisionGroups(TRAFFIC_GROUPS).setFriction(0.3), body);
-      map.set(c.id, body);
-    }
-    const sizeKey = new Map<number, string>();
-    const syncBody = (b: InstanceType<typeof rapier.RigidBody>, c: Car) => {
-      if (!c.active) {
-        b.setNextKinematicTranslation({ x: c.id * 10, y: -50, z: 0 });
-        return;
-      }
-      // resize collider when the pooled car changes model
-      const key = c.police ? 'police' : c.model;
-      if (sizeKey.get(c.id) !== key) {
-        sizeKey.set(c.id, key);
-        const col = b.collider(0);
-        const spec = VEHICLES[c.model];
-        col.setHalfExtents({ x: spec.width / 2, y: spec.height / 2, z: spec.length / 2 });
-        col.setTranslationWrtParent({ x: 0, y: spec.height / 2, z: 0 });
-      }
-      b.setNextKinematicTranslation({ x: c.x, y: 0, z: c.z });
-      tmpQ.setFromAxisAngle(UP, c.heading);
-      b.setNextKinematicRotation({ x: tmpQ.x, y: tmpQ.y, z: tmpQ.z, w: tmpQ.w });
-    };
+    if (appState !== 'PLAYING') return;
+    let disposed = false;
+    const owned: THREE.InstancedMesh[] = [];
+    void Promise.allSettled([...PACK_TRAFFIC_MODELS, 'police_car' as const].map(async (id) => {
+      const model = await loadImportedModel(VEHICLES[id]); model.updateMatrixWorld(true);
+      const byMaterial = new Map<string, { material: THREE.Material; geometries: THREE.BufferGeometry[] }>();
+      model.traverse((o) => { if (o instanceof THREE.Mesh) { const material = o.material as THREE.Material;
+        const key = `${material.uuid}:${Object.keys(o.geometry.attributes).map((name) => `${name}:${o.geometry.getAttribute(name).itemSize}`).sort().join(',')}`;
+        const batch = byMaterial.get(key) ?? { material, geometries: [] }; batch.geometries.push(o.geometry.clone().applyMatrix4(o.matrixWorld)); byMaterial.set(key, batch); } });
+      const instances = [...byMaterial.values()].map(({ material, geometries }) => {
+        const geometry = mergeGeometries(geometries);
+        if (!geometry) throw new Error('Invalid traffic geometry batch'); geometries.forEach((g) => g.dispose());
+        const mesh = new THREE.InstancedMesh(geometry, material, traffic.cars.length); mesh.name = `traffic-${id}`; mesh.castShadow = true; mesh.frustumCulled = false; mesh.count = 0; owned.push(mesh); return mesh;
+      });
+      return [id, instances] as const;
+    })).then((results) => {
+      const entries = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : []);
+      if (!disposed) setPackMeshes(new Map(entries)); else owned.forEach((m) => { m.geometry.dispose(); m.dispose(); });
+    });
+    return () => { disposed = true; setPackMeshes(new Map()); owned.forEach((m) => { m.geometry.dispose(); m.dispose(); }); };
+  }, [appState]);
+  useEffect(() => {
+    const physics = new TrafficPhysics(world, rapier, traffic);
     recoveryOccupancy.test = (x, z) => traffic.occupied(x, z, 7);
     const off = runtime.register('traffic', (dt) => {
       traffic.target = quality.current.traffic;
-      traffic.step(dt);
-      for (const c of traffic.cars) {
-        const b = map.get(c.id);
-        if (!b) continue;
-        syncBody(b, c);
-      }
+      physics.step(dt);
     });
-    return () => {
-      off();
-      recoveryOccupancy.test = null;
-      if (world.bodies === ownerBodies) for (const b of map.values()) if (world.getRigidBody(b.handle)) world.removeRigidBody(b);
-      map.clear();
-      traffic.reset();
-    };
+    return () => { off(); recoveryOccupancy.test = null; physics.dispose(); traffic.reset(); };
   }, [world, rapier]);
 
   useFrame(() => {
@@ -101,24 +91,28 @@ function Traffic() {
       if (!c.active) continue;
       const near = Math.hypot(c.x - cam.x, c.z - cam.z) < quality.current.trafficLodDistance;
       const key = c.police ? 'police' : `${c.model}:${near ? 'near' : 'far'}`;
+      const imported = packMeshes.get(c.model);
       const mesh = meshes.get(key)!;
-      const n = counts.get(key) ?? 0;
+      const countKey = imported ? c.model : key;
+      const n = counts.get(countKey) ?? 0;
       if (n >= mesh.instanceMatrix.count) continue;
       tmpQ.setFromAxisAngle(UP, c.heading);
       tmpM.compose(tmpP.set(c.x, 0, c.z), tmpQ, tmpS);
-      mesh.setMatrixAt(n, tmpM);
+      if (imported) imported.forEach((m) => m.setMatrixAt(n, tmpM)); else mesh.setMatrixAt(n, tmpM);
       if (key !== 'police') mesh.setColorAt(n, tmpC.set(c.color));
-      counts.set(key, n + 1);
+      counts.set(countKey, n + 1);
     }
     for (const [key, mesh] of meshes) {
-      mesh.count = counts.get(key) ?? 0;
+      mesh.count = packMeshes.has(key === 'police' ? 'police_car' : key.split(':')[0]) ? 0 : counts.get(key) ?? 0;
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
+    for (const [id, instances] of packMeshes) for (const mesh of instances) { mesh.count = counts.get(id) ?? 0; mesh.instanceMatrix.needsUpdate = true; }
   });
 
   return (
     <group>
+      {[...packMeshes.values()].flat().map((m) => <primitive key={m.uuid} object={m} dispose={null} />)}
       {[...meshes.values()].map((m, i) => (
         <primitive key={i} object={m} />
       ))}
@@ -330,6 +324,7 @@ export function GameSystems() {
     <>
       <Signals />
       <Traffic />
+      <SkidMarks />
       <Pedestrians />
     </>
   );

@@ -32,7 +32,7 @@ export function deriveHandling(spec: VehicleSpec, up: UpgradeLevels = NO_UPGRADE
   const baseA0 = (-spec.topSpeedKmh / 3.6) * Math.log(1 - v40 / (spec.topSpeedKmh / 3.6)) / spec.accel0to40;
   const accel0 = baseA0 * (1 + 0.06 * up.engine);
   const brakeDecel = Math.min(spec.brakeDecel * (1 + 0.06 * up.brakes), 8.5);
-  const gripBase = 2.2 * (1 + 0.05 * up.tires);
+  const gripBase = (spec.kind === 'car' ? 3.2 : 2.2) * (1 + 0.05 * up.tires);
   return {
     mass: spec.mass,
     topSpeed,

@@ -1,3 +1,4 @@
+import { CAR_BOARD_SECONDS, CAR_ALIGHT_SECONDS, vehicleEntry } from '../vehicles/entry';
 import { BAYS, BAY_BY_ID, DIR_VEC, FUEL_STATIONS, LANDMARK_BY_ID, SEGMENT_BY_ID, garageSpawn, landmarkName, type Bay } from '../data/cityMap';
 import { VEHICLES, type VehicleId, type VehicleSpec } from '../data/vehicles';
 import { RIDE_TIMING, SATISFACTION } from '../data/economy';
@@ -546,6 +547,7 @@ export class RideSystem {
         if (this.stage === 'TO_DROPOFF') nav.elapsed += dt;
         this.comfort(dt);
         const bay = BAY_BY_ID.get(this.stage === 'TO_PICKUP' ? m.pickupBayId : m.dropBayId)!;
+        if (vehicleEntry.mode !== 'seated') return;
         const chk = checkStop(bay, this.spec, m.partySize <= this.spec.passengerSeats);
         if (chk.ok) this.stopTimer += dt;
         else this.stopTimer = 0;
@@ -581,8 +583,8 @@ export class RideSystem {
       }
       case 'BOARDING': {
         this.phaseTimer += dt;
-        rideVisual.boardProgress = Math.min(1, this.phaseTimer / RIDE_TIMING.boardTime);
-        if (this.phaseTimer >= RIDE_TIMING.boardTime) {
+        rideVisual.boardProgress = Math.min(1, this.phaseTimer / (VEHICLES[runtime.vehicleId].kind === 'car' ? CAR_BOARD_SECONDS : RIDE_TIMING.boardTime));
+        if (this.phaseTimer >= (VEHICLES[runtime.vehicleId].kind === 'car' ? CAR_BOARD_SECONDS : RIDE_TIMING.boardTime)) {
           if (runtime.vehicle) runtime.vehicle.holdBrake = false;
           this.enterToDropoff(true);
         }
@@ -590,9 +592,9 @@ export class RideSystem {
       }
       case 'ALIGHTING': {
         this.phaseTimer += dt;
-        rideVisual.alightProgress = Math.min(1, this.phaseTimer / RIDE_TIMING.alightTime);
-        rideVisual.onboard = rideVisual.alightProgress < 0.15;
-        if (this.phaseTimer >= RIDE_TIMING.alightTime) this.complete();
+        rideVisual.alightProgress = Math.min(1, this.phaseTimer / (VEHICLES[runtime.vehicleId].kind === 'car' ? CAR_ALIGHT_SECONDS : RIDE_TIMING.alightTime));
+        rideVisual.onboard = rideVisual.alightProgress < (VEHICLES[runtime.vehicleId].kind === 'car' ? .46 : .15);
+        if (this.phaseTimer >= (VEHICLES[runtime.vehicleId].kind === 'car' ? CAR_ALIGHT_SECONDS : RIDE_TIMING.alightTime)) this.complete();
         return;
       }
       case 'COMPLETED':

@@ -12,13 +12,14 @@ import { runtime } from '../game/core/runtime';
 import { pauseManager } from '../game/core/pause';
 import { events } from '../game/core/events';
 import { garageSpawn } from '../game/data/cityMap';
-import { isVehicleId, VEHICLES, type VehicleId } from '../game/data/vehicles';
-import { recoverySystem, recoverVehicle, playerRoad } from '../game/rules/recovery';
+import { isPlayableVehicleId, VEHICLES, type VehicleId } from '../game/data/vehicles';
+import { recoverySystem, recoverVehicle } from '../game/rules/recovery';
 import { rides } from '../game/missions/rides';
 import { busService } from '../game/missions/bus';
 import { violations } from '../game/rules/violations';
 import { audio } from '../game/audio/audio';
 import { fuel } from '../game/vehicles/fuel';
+import { requestDriverDoor } from '../game/vehicles/entry';
 import { Rain } from '../game/render/Rain';
 import { police } from '../game/rules/police';
 import { ensureDailyBoard, paintFor, upgradeLevels } from '../game/progression/progression';
@@ -33,6 +34,7 @@ import { debug, TEST_HOOKS } from './devHooks';
 import type { SafeRoadPose } from '../game/vehicles/vehicleController';
 import { fmt } from '../i18n/strings';
 import { lazyOverlay } from '../ui/lazy';
+import { loadWorldAssets } from '../game/world/worldAssets';
 
 const GarageOverlay = lazyOverlay(() => import('../ui/Garage').then((m) => m.GarageOverlay));
 const DailyOverlay = lazyOverlay(() => import('../ui/Daily').then((m) => m.DailyOverlay));
@@ -41,6 +43,7 @@ const SettingsOverlay = lazyOverlay(() => import('../ui/Settings').then((m) => m
 const BusDispatch = lazyOverlay(() => import('../ui/Garage').then((m) => m.BusDispatch));
 const NoticeCard = lazyOverlay(() => import('../ui/Notice').then((m) => m.NoticeCard));
 const GameSystems = lazyOverlay(() => import('../game/GameSystems').then((m) => m.GameSystems));
+const FuelStation = lazyOverlay(() => import('../ui/FuelStation').then(m => m.FuelStation));
 
 class ErrorBoundary extends Component<{ children: ReactNode; onError: (e: Error) => void }, { failed: boolean }> {
   state = { failed: false };
@@ -179,6 +182,7 @@ export function App() {
       st.setBoot(2);
       await new Promise((r) => setTimeout(r, 30));
       st.setBoot(3);
+      await loadWorldAssets();
       getCity(); // deterministic city build
       useGame.getState().setApp('LOADING');
     } catch (e) {
@@ -283,8 +287,6 @@ export function App() {
     const id = setInterval(() => {
       setCanRecover(runtime.canRecover);
       setReversing(runtime.telemetry.reversing && Math.abs(runtime.telemetry.speed) > 0.05);
-      const st = useGame.getState();
-      runtime.limiterKmh = st.save.settings.speedLimiter && playerRoad.proj.segment ? playerRoad.proj.segment.limitKmh : null;
     }, 200);
     const daily = setInterval(() => {
       const st = useGame.getState();
@@ -380,6 +382,14 @@ export function App() {
           st.updateSettings({ cameraMode: next });
         }
         if (a === 'horn') events.emit({ type: 'HORN' });
+        if (a === 'door') {
+          const stage = st.ride.stage;
+          if (stage === 'BOARDING' || stage === 'ALIGHTING' || fuel.refilling) return;
+          const result = requestDriverDoor();
+          if (result === 'moving') st.toast(st.t.stopToExit, 'info');
+          if (result === 'far') st.toast(st.t.nearDoorToEnter, 'info');
+          if (result === 'ok') input.reset();
+        }
         if (a === 'recover') {
           if (recoverVehicle()) {
             rides.markRecovered();
@@ -391,7 +401,7 @@ export function App() {
   );
 
   // ---------- vehicle ----------
-  const vehicleId: VehicleId = isVehicleId(save.equippedVehicleId) ? save.equippedVehicleId : 'bike_basic';
+  const vehicleId: VehicleId = isPlayableVehicleId(save.equippedVehicleId) ? save.equippedVehicleId : 'bike_basic';
   const lastVehicle = useRef(vehicleId);
   if (lastVehicle.current !== vehicleId) {
     // Changing vehicles happens in the garage: leave from a clear garage spawn point.
@@ -414,6 +424,7 @@ export function App() {
             }}
           >
             <Canvas
+              frameloop={appState === 'LOADING' || (showGame && !paused) ? 'always' : 'demand'}
               shadows
               dpr={renderDpr}
               camera={{ fov: 60, near: 0.3, far: 1800, position: [spawnRef.current.x, 8, spawnRef.current.z - 12] }}
@@ -471,6 +482,7 @@ export function App() {
             {overlay === 'map' && <CityMapOverlay />}
             {overlay === 'controls' && <ControlsOverlay onClose={closeControls} />}
             {overlay === 'bus' && <BusDispatch />}
+            {overlay === 'fuel' && <FuelStation />}
           </>
         )}
         {appState === 'MAIN_MENU' && !overlay && <MainMenu onPlay={startPlaying} />}

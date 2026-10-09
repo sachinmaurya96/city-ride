@@ -1,6 +1,6 @@
 import type { DriveInput } from '../vehicles/vehicleController';
 
-export type InputAction = 'camera' | 'horn' | 'recover' | 'context' | 'pause' | 'map';
+export type InputAction = 'camera' | 'horn' | 'recover' | 'context' | 'pause' | 'map' | 'door';
 
 const KEY_ACTIONS: Record<string, InputAction> = {
   KeyC: 'camera',
@@ -11,9 +11,10 @@ const KEY_ACTIONS: Record<string, InputAction> = {
   Escape: 'pause',
   KeyP: 'pause',
   KeyM: 'map',
+  KeyF: 'door',
 };
 
-const DRIVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
+const DRIVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight']);
 
 function isEditable(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -38,6 +39,8 @@ class InputManager {
   camera = { dx: 0, dy: 0, lastInteraction: -Infinity, dragging: false };
   private listeners = new Set<(a: InputAction) => void>();
   private attached = false;
+  /** The scene owns door hit testing; the gesture layer forwards taps through its overlay. */
+  sceneTap: ((x: number, y: number, commit: boolean) => boolean) | null = null;
 
   attach() {
     if (this.attached) return () => {};
@@ -132,6 +135,7 @@ class InputManager {
       out.throttle = 0;
       out.brake = 0;
       out.handbrake = false;
+      out.powerBrake = false;
       return out;
     }
     const k = this.keys;
@@ -143,8 +147,8 @@ class InputManager {
     out.steer = Math.max(-1, Math.min(1, steer));
     out.throttle = Math.max(kbThrottle, Math.max(0, this.joystick.y), this.pedals.gas);
     out.brake = Math.max(kbBrake, Math.max(0, -this.joystick.y), this.pedals.brake);
-    out.handbrake = this.brakeButton || k.has('Space');
-    if (out.handbrake) out.throttle = 0;
+    out.handbrake = false;
+    out.powerBrake = this.brakeButton || k.has('Space') || k.has('ShiftLeft') || k.has('ShiftRight');
     return out;
   }
 
