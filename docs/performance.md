@@ -1,10 +1,18 @@
 # Performance and size measurements
 
+The release budget is now **300,000,000 bytes (300 MB)** for both unpacked files and the ZIP,
+authorized on 10 October 2026 to match Playgama's documented limit. References below to the
+original 5 MB gate describe earlier measurements and release attempts.
+
 All browser numbers below come from **headless Chromium with SwiftShader (software WebGL) on the development
 Mac**. They are useful for *relative* comparisons (triangles, draw calls) but are **not** device performance
 evidence. No physical Android/iOS device or GPU-accelerated desktop browser measurement has been performed yet.
 
 ## Startup and asset audit — 10 October 2026
+
+The size figures in this section describe the initial 25-model audit snapshot. Later supplied models
+and the facade correction are listed in the current generated `assets/optimized/report.json`.
+Building color/emissive atlases now retain 2048-pixel detail; the other maps retain the smaller limit.
 
 The menu now loads before WebGL, physics and world assets. Play fetches the physics/world code and
 optimized city packs concurrently; Garage creates the shared renderer without fetching the city.

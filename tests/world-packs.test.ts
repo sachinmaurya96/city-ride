@@ -14,6 +14,16 @@ describe('supplied city resources', () => {
     scene.traverse(o => { if (o instanceof THREE.Mesh) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => materials.add(m)); });
     const models = prepareWorldPack(scene, pack); worldAssets.set(pack, models);
     expect(models.length).toBeGreaterThanOrEqual(minimum);
+    if (pack === 'buildings') {
+      const facades = models.flatMap(model => model.parts).filter(part => part.material.name === 'BACKGROUND_BUILDING_2');
+      expect(facades.length).toBeGreaterThan(0);
+      for (const { material } of facades) {
+        const facade = material as THREE.MeshStandardMaterial;
+        expect(facade.transparent).toBe(false);
+        expect(facade.alphaTest).toBe(0);
+        expect(facade.depthWrite).toBe(true);
+      }
+    }
     for (const model of models) {
       const bounds = new THREE.Box3(); let triangles = 0;
       for (const part of model.parts) {

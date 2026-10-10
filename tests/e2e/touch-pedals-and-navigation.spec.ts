@@ -5,13 +5,13 @@ test.setTimeout(240000);
 
 test.describe('independent touch pedals', () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 844, height: 390 } });
-  test('phones and tablets steer without throttle, accelerate, drift, stop and reverse with separate fingers', async ({ page }) => {
+  test('phones and tablets steer, creep, accelerate, drift, stop and reverse with separate fingers', async ({ page }) => {
     const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
     await boot(page, { clear: true });
     await fixture(page, { owned: ['car_compact'], equipped: 'car_compact' }); await play(page);
     await expect.poll(() => page.evaluate(() => window.__cr.vehicleEntry.mode), { timeout: 60000 }).toBe('seated');
     const touch = await page.context().newCDPSession(page);
-    for (const [width, height] of [[844, 390], [1024, 768]]) {
+    for (const [width, height] of [[844, 390], [1024, 768], [1180, 674]]) {
       await page.setViewportSize({ width, height });
       await page.evaluate(() => {
         const c = window.__cr, seg = c.cityMap.SEGMENTS.find(s => s.dir === 'N' && s.length > 180)!;
@@ -29,7 +29,8 @@ test.describe('independent touch pedals', () => {
       const reversePoint = { x: reverse.x + reverse.width / 2, y: reverse.y + reverse.height / 2, id: 4 };
       await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [center] });
       await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...center, y: center.y - 35 }] });
-      expect(await page.evaluate(() => window.__cr.input.getDrive({ steer: 0, throttle: 0, brake: 0, handbrake: false }))).toMatchObject({ steer: 0, throttle: 0, brake: 0 });
+      const creep = await page.evaluate(() => window.__cr.input.getDrive({ steer: 0, throttle: 0, brake: 0, handbrake: false }));
+      expect(creep.steer).toBe(0); expect(creep.throttle).toBeGreaterThan(0); expect(creep.speedLimit).toBeCloseTo(8 / 3.6);
       await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [center, gasPoint] });
       await expect.poll(() => page.evaluate(() => window.__cr.runtime.telemetry.speedKmh)).toBeGreaterThan(5);
       const steer = { ...center, x: center.x + 30, y: center.y - 35 };
@@ -38,13 +39,39 @@ test.describe('independent touch pedals', () => {
       await expect.poll(() => page.evaluate(() => window.__cr.runtime.telemetry.drifting)).toBe(true);
       expect(await page.evaluate(() => window.__cr.input.pedals.gas)).toBe(1);
       await page.screenshot({ path: `test-results/touch-pedals-${width}x${height}.png` });
-      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [brakePoint] });
+      // End these contacts explicitly; the Power Brake contact stays held.
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [steer, gasPoint] });
+      await expect(page.locator('.joy-live')).toHaveCount(0);
       await expect.poll(() => page.evaluate(() => window.__cr.runtime.vehicle!.horizontalSpeed())).toBeLessThan(.05);
       await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [reversePoint] });
       await expect.poll(() => page.evaluate(() => window.__cr.runtime.telemetry.reversing)).toBe(true);
       await touch.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
       expect(await page.evaluate(() => window.__cr.input.getDrive({ steer: 0, throttle: 0, brake: 0, handbrake: false }))).toMatchObject({ steer: 0, throttle: 0, brake: 0, powerBrake: false });
+      // A pause/recovery resets input while a finger is still captured. The
+      // visible knob must recenter immediately and ignore that stale gesture.
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [center] });
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...center, y: center.y - 35 }] });
+      await expect(page.locator('.joy-live')).toBeVisible();
+      await page.evaluate(() => window.__cr.input.reset());
+      await expect(page.locator('.joy-live')).toHaveCount(0);
+      expect(await page.evaluate(() => window.__cr.input.joystick)).toEqual({ x: 0, y: 0, active: false });
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      // A release outside the layer still clears its owner before bubbling stops.
+      await page.evaluate(() => document.querySelector('.gesture-layer')!.addEventListener('pointerdown', e => {
+        window.__cr.debug.extra.joyPointer = (e as PointerEvent).pointerId;
+      }, { once: true }));
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [center] });
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...center, y: center.y - 35 }] });
+      await page.evaluate(() => {
+        document.querySelector('[data-testid=power-brake]')!.dispatchEvent(new PointerEvent('pointerup', { bubbles: true,
+          pointerId: window.__cr.debug.extra.joyPointer as number }));
+      });
+      await expect(page.locator('.joy-live')).toHaveCount(0);
+      await page.keyboard.down('KeyW');
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      expect(await page.evaluate(() => window.__cr.input.getDrive({ steer: 0, throttle: 0, brake: 0, handbrake: false }).throttle)).toBe(1);
+      await page.keyboard.up('KeyW');
     }
     await touch.detach(); expect(errors).toEqual([]);
   });

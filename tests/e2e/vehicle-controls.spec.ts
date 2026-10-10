@@ -49,7 +49,8 @@ test('NPCs stay out of the garage; mobile sound, steering/pedals/drift, instant 
   await expect.poll(() => page.evaluate(() => window.__cr.runtime.telemetry.drifting)).toBe(true);
   expect(await page.evaluate(() => window.__cr.runtime.telemetry.speedKmh)).toBeGreaterThan(5);
   await page.screenshot({ path: 'test-results/power-brake-drift-mobile.png' });
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [brakePoint] });
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [steerPoint, gasPoint] });
+  await expect(page.locator('.joy-live')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.__cr.runtime.vehicle!.horizontalSpeed()), { intervals: [50] }).toBeLessThan(.05);
   await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   expect(await page.evaluate(() => window.__cr.runtime.telemetry.reversing)).toBe(false);

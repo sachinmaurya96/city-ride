@@ -13,7 +13,7 @@ async function checkHud(page: Page, width: number, height: number, preset: 'joys
   expect(map.y).toBeLessThanOrEqual(15);
   expect(width - map.x - map.width).toBeLessThanOrEqual(15);
   expect(map.width).toBeLessThanOrEqual(105);
-  const selectors = ['.hud-top-left', '.minimap', '.pause-btn', '.hud-instruments', '.util-buttons', '.power-brake'];
+  const selectors = ['.hud-top-left', '.minimap', '.pause-btn', '.camera-control', '.hud-instruments', '.util-buttons', '.power-brake'];
   if (await page.locator('.util.recover').isVisible()) selectors.push('.util.recover');
   if (touch) selectors.push(preset === 'joystick' ? '.joy-home' : '.steer-pad');
   if (touch) selectors.push('.pedals');
@@ -30,8 +30,27 @@ async function checkHud(page: Page, width: number, height: number, preset: 'joys
     expect(overlaps(boxes[i].box, boxes[j].box), `${width}×${height} ${preset}: ${boxes[i].selector} / ${boxes[j].selector}`).toBe(false);
   }
   const clearRoad = { x: width * .4, y: height * .3, width: width * .35, height: height * .4 };
+  const camera = (await page.getByTestId('camera').boundingBox())!;
+  const pause = (await page.getByTestId('pause').boundingBox())!;
+  expect(camera.y).toBeCloseTo(pause.y, 0);
+  expect(camera.x + camera.width).toBeLessThan(pause.x);
+  if (touch && preset === 'joystick') {
+    const joystick = (await page.locator('.joy-home').boundingBox())!;
+    expect(joystick.width).toBeGreaterThanOrEqual(height >= 600 ? 150 : 112);
+    expect(joystick.height).toBeCloseTo(joystick.width, 0);
+    const knob = (await page.locator('.joy-home .joy-knob').boundingBox())!;
+    expect(knob.width).toBeGreaterThanOrEqual(44);
+  }
+  const powerBrake = page.getByTestId('power-brake');
+  expect(await powerBrake.evaluate(el => {
+    const button = el.getBoundingClientRect();
+    return [...el.querySelectorAll('svg, span')].every(child => {
+      const box = child.getBoundingClientRect();
+      return box.left >= button.left && box.right <= button.right && box.top >= button.top && box.bottom <= button.bottom;
+    });
+  }), 'Power Brake content must stay inside its button').toBe(true);
   for (const item of boxes) expect(overlaps(item.box, clearRoad), `road covered by ${item.selector}`).toBe(false);
-  for (const control of await page.locator('.util-buttons .util, .pause-btn, .pedal').all()) {
+  for (const control of await page.locator('.util-buttons .util, .camera-control, .pause-btn, .pedal').all()) {
     const box = (await control.boundingBox())!;
     expect(box.width).toBeGreaterThanOrEqual(44);
     expect(box.height).toBeGreaterThanOrEqual(44);
@@ -44,7 +63,8 @@ test.describe('responsive touch UI', () => {
   test('HUD stays at the edges across small phones, tablets, both presets and empty fuel', async ({ page }) => {
     await boot(page, { clear: true });
     await play(page);
-    await page.getByTestId('gesture-layer').tap({ position: { x: 540, y: 300 } });
+    const viewport = page.viewportSize()!;
+    await page.getByTestId('gesture-layer').tap({ position: { x: viewport.width * .6, y: viewport.height * .45 } });
     await expect(page.locator('.app')).toHaveClass(/touch-mode/);
     await waitStage(page, ['OFFERED'], 60000);
     const sizes = [[568, 280], [667, 375], [800, 300], [844, 390], [1024, 768], [1366, 768]];
@@ -82,7 +102,7 @@ test.describe('responsive touch UI', () => {
       const app = el as HTMLElement;
       for (const [side, value] of [['l', 40], ['r', 30], ['t', 10], ['b', 20]]) app.style.setProperty(`--safe-${side}`, `${value}px`);
     });
-    for (const selector of ['.hud-top-left', '.minimap', '.pause-btn', '.hud-instruments', '.util-buttons', '.pedals', '.steer-pad']) {
+    for (const selector of ['.hud-top-left', '.minimap', '.pause-btn', '.camera-control', '.hud-instruments', '.util-buttons', '.pedals', '.steer-pad']) {
       const box = (await page.locator(selector).boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(40);
       expect(box.y).toBeGreaterThanOrEqual(10);
@@ -105,6 +125,9 @@ test.describe('responsive touch UI', () => {
     await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await expect.poll(() => page.evaluate(() => window.__cr.input.joystick.active)).toBe(false);
     await touch.detach();
+    const cameraMode = await page.evaluate(() => window.__cr.runtime.cameraMode);
+    await page.getByTestId('camera').tap();
+    await expect.poll(() => page.evaluate(() => window.__cr.runtime.cameraMode)).toBe(cameraMode === 'chase' ? 'high' : cameraMode === 'high' ? 'eye' : 'chase');
     await page.getByTestId('minimap').tap();
     await expect(page.getByTestId('city-map')).toBeVisible();
     for (const [width, height] of [[800, 300], [667, 375], [1024, 768]]) {

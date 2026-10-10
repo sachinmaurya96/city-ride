@@ -48,6 +48,7 @@ class InputManager {
   enabled = true;
   camera = { dx: 0, dy: 0, lastInteraction: -Infinity, dragging: false };
   private listeners = new Set<(a: InputAction) => void>();
+  private resetListeners = new Set<() => void>();
   private attached = false;
   /** The scene owns door hit testing; the gesture layer forwards taps through its overlay. */
   sceneTap: ((x: number, y: number, commit: boolean) => boolean) | null = null;
@@ -95,9 +96,20 @@ class InputManager {
     for (const fn of this.listeners) fn(a);
   }
 
+  /** Gesture owners and visuals must release together with the central input buffer. */
+  onReset(fn: () => void) {
+    this.resetListeners.add(fn);
+    return () => void this.resetListeners.delete(fn);
+  }
+
   /** Zero every held input (blur, pause, orientation change, lost pointer capture). */
   reset() {
     this.keys.clear();
+    this.resetTouch();
+  }
+
+  /** Releasing the last finger must not cancel held keyboard acceleration. */
+  resetTouch() {
     this.joystick.x = 0;
     this.joystick.y = 0;
     this.joystick.active = false;
@@ -106,6 +118,7 @@ class InputManager {
     this.pedals.brake = 0;
     this.brakeButton = false;
     this.camera.dragging = false;
+    for (const fn of this.resetListeners) fn();
   }
 
   /** Thumb offset with dead zones. Up (+y) creeps forward, down creeps in reverse; the wider vertical dead zone keeps pure steering from creeping. */

@@ -882,9 +882,9 @@ Handle missing asset, rejected audio resume, WebGL context loss, unsupported Web
 
 ### 18.1 Requirements versus project goals
 
-The official technical page checked for this plan states a **300 MB total uploaded-game-file limit**, with `index.html` at archive root. The owner's earlier **under-5 MB** preference is a much stricter project target, not the official universal Playgama limit [S9]. Recheck the selected distribution channel before submission.
+The official technical page states a **300 MB total uploaded-game-file limit**, with `index.html` at archive root [S9]. On 10 October 2026, the owner authorized replacing the original under-5 MB project target with this **300 MB** release budget. Recheck the selected distribution channel before submission.
 
-For this project, initially configure both unpacked runtime files and final ZIP to **at most 5,000,000 bytes**. Exclude reference/source assets from runtime, but do not hide runtime dependencies on an external host merely to claim compliance. Report compressed, unpacked and external transfer sizes separately. If the strict target cannot coexist with the agreed visuals/features, present measured sizes and concrete choices; do not silently raise the limit or drop buses/supercars.
+For this project, configure both unpacked runtime files and final ZIP to **at most 300,000,000 bytes**. Exclude reference/source assets from runtime, but do not hide runtime dependencies on an external host merely to claim compliance. Report compressed, unpacked and external transfer sizes separately. If the configured budget cannot coexist with the agreed visuals/features, present measured sizes and concrete choices; do not silently raise the limit or drop buses/supercars.
 
 ### 18.2 Platform adapter
 
@@ -946,6 +946,8 @@ Do not automatically publish or upload the game merely because this implementati
 These are engineering targets requiring measurement, not guaranteed performance.
 
 ### 19.1 Initial size allocation
+
+The following allocations document the original 5 MB optimization target. They are historical planning figures; the current release gate is 300 MB as specified in section 18.1.
 
 | Runtime category | Initial unpacked target |
 | --- | --- |

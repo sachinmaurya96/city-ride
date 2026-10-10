@@ -32,7 +32,7 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
   const layer = useRef<HTMLDivElement>(null);
   const joyHome = useRef<HTMLDivElement>(null);
   const lastTouchTap = useRef(-Infinity);
-  const owners = useRef(new Map<number, { role: 'joy' | 'cam' | 'steer' | 'door'; ox: number; oy: number; lx: number; ly: number; radius: number; started: number }>());
+  const owners = useRef(new Map<number, { role: 'joy' | 'cam' | 'steer' | 'door'; touchId?: number; ox: number; oy: number; lx: number; ly: number; radius: number; started: number }>());
   const [joy, setJoy] = useState<{ bx: number; by: number; kx: number; ky: number } | null>(null);
   const [hint, setHint] = useState(true);
   const t = useGame((s) => s.t);
@@ -68,9 +68,10 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
       } else if (o.role === 'cam') {
         if (![...map.values()].some((v) => v.role === 'cam')) input.camera.dragging = false;
       }
+      if (el.hasPointerCapture(id)) el.releasePointerCapture(id);
     };
     const down = (e: PointerEvent) => {
-      if (e.target !== el) return;
+      if (e.target !== el || !input.enabled) return;
       const w = window.innerWidth;
       const isMouse = e.pointerType === 'mouse';
       let role: 'joy' | 'cam' | 'steer' | 'door' = 'cam';
@@ -98,6 +99,7 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
     const move = (e: PointerEvent) => {
       const o = map.get(e.pointerId);
       if (!o) return;
+      if (!input.enabled) { input.reset(); return; }
       if (o.role === 'joy') {
         let dx = e.clientX - o.ox, dy = e.clientY - o.oy;
         const len = Math.hypot(dx, dy);
@@ -118,28 +120,54 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
       release(e.pointerId);
     };
     const lost = (e: PointerEvent) => release(e.pointerId);
-    const releaseAll = () => {
+    const clearOwners = () => {
       for (const id of [...map.keys()]) release(id);
+      setJoy(null);
+    };
+    const releaseAll = () => {
       input.reset();
     };
+    // Touch identifiers and pointer IDs differ. Pair them at touch start so a
+    // missing pointerup can still release steering while another pedal is held.
+    const touchStarted = (e: TouchEvent) => {
+      const assigned = new Set([...map.values()].map(o => o.touchId));
+      for (const o of map.values()) {
+        if (o.touchId !== undefined) continue;
+        const touch = [...e.changedTouches].find(t => !assigned.has(t.identifier) && Math.hypot(t.clientX - o.ox, t.clientY - o.oy) < 2);
+        if (touch) { o.touchId = touch.identifier; assigned.add(touch.identifier); }
+      }
+    };
+    const touchEnded = (e: TouchEvent) => {
+      const active = new Set([...e.touches].map(t => t.identifier));
+      for (const [id, owner] of map) if (owner.touchId !== undefined && !active.has(owner.touchId)) release(id);
+      if (e.touches.length === 0) input.resetTouch();
+    };
+    const offReset = input.onReset(clearOwners);
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointermove', move);
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
+    window.addEventListener('pointerup', up, true);
+    window.addEventListener('pointercancel', up, true);
     el.addEventListener('lostpointercapture', lost);
+    window.addEventListener('touchstart', touchStarted, { passive: true, capture: true });
+    window.addEventListener('touchend', touchEnded, { passive: true, capture: true });
+    window.addEventListener('touchcancel', touchEnded, { passive: true, capture: true });
     window.addEventListener('blur', releaseAll);
     window.addEventListener('orientationchange', releaseAll);
     document.addEventListener('visibilitychange', releaseAll);
     return () => {
       el.removeEventListener('pointerdown', down);
       el.removeEventListener('pointermove', move);
-      el.removeEventListener('pointerup', up);
-      el.removeEventListener('pointercancel', up);
+      window.removeEventListener('pointerup', up, true);
+      window.removeEventListener('pointercancel', up, true);
       el.removeEventListener('lostpointercapture', lost);
+      window.removeEventListener('touchstart', touchStarted, true);
+      window.removeEventListener('touchend', touchEnded, true);
+      window.removeEventListener('touchcancel', touchEnded, true);
       window.removeEventListener('blur', releaseAll);
       window.removeEventListener('orientationchange', releaseAll);
       document.removeEventListener('visibilitychange', releaseAll);
       releaseAll();
+      offReset();
     };
   }, [preset]);
 
@@ -208,12 +236,12 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
           </button>
         </div>
       )}
+      <button className="util camera-control" data-testid="camera" aria-label={labels.camera} title={`${labels.camera} (C)`} {...tap(onCamera)}>
+        <ControlIcon name="camera" /><span>{labels.camera}</span><KeyHint k={SHORTCUTS.camera} />
+      </button>
       <div className={`util-buttons ${showTouch ? '' : 'desktop'}`}>
         <button className="util" aria-label={labels.horn} title={`${labels.horn} (H)`} {...tap(onHorn)}>
           <ControlIcon name="horn" /><span>{labels.horn}</span><KeyHint k={SHORTCUTS.horn} />
-        </button>
-        <button className="util" aria-label={labels.camera} title={`${labels.camera} (C)`} {...tap(onCamera)}>
-          <ControlIcon name="camera" /><span>{labels.camera}</span><KeyHint k={SHORTCUTS.camera} />
         </button>
         <button className="util" data-testid="sound-toggle" aria-label={muted ? t.unmute : t.mute} aria-pressed={muted} {...tap(() => { useGame.getState().updateSettings({ muted: !muted }); audio.unlock(); })}>
           <ControlIcon name={muted ? 'muted' : 'sound'} /><span>{t.audio}</span><KeyHint k={SHORTCUTS.mute} />

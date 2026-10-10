@@ -10,18 +10,20 @@
   --joy-size: clamp(72px, 22dvh, 96px);
   --steer-size: clamp(96px, 30dvh, 132px);
   --drive-width: var(--joy-size);
+  --drive-height: var(--joy-size);
   --map-size: clamp(72px, 24dvh, 104px);
   --control-size: 44px;
   height: 100dvh;
 }
-.app[data-controls="pedals"] { --drive-width: var(--steer-size); }
+.app[data-controls="pedals"] { --drive-width: var(--steer-size); --drive-height: 56px; }
+.app.touch-mode { --joy-size: clamp(112px, 30dvh, 160px); }
 .gesture-layer { position: absolute; inset: 0; touch-action: none; }
 
 /* Left: a short stack of context, above the driving controls. */
 .hud-top-left {
   position: absolute; left: var(--hud-left); top: var(--hud-top); width: var(--hud-rail);
   display: flex; flex-direction: column; gap: var(--hud-gap);
-  max-height: calc(100% - var(--hud-top) - var(--hud-bottom) - 116px);
+  max-height: calc(100% - var(--hud-top) - var(--hud-bottom) - max(116px, var(--drive-height) + 8px));
   overflow: auto; scrollbar-width: none; overscroll-behavior: contain; pointer-events: none;
 }
 .hud-top-left::-webkit-scrollbar { display: none; }
@@ -67,7 +69,7 @@
 .ride-chip.timed > .avatar, .ride-chip.timed .rc-title { display: none; }
 .ride-chip.timed .rc-sub { font-size: calc(11px * var(--ui-scale)); }
 
-/* Right: the map owns the corner. Pause sits beside it, never above it. */
+/* Right: the map owns the corner. Camera and pause sit beside it. */
 .hud-top-right { position: absolute; top: var(--hud-top); right: var(--hud-right); width: var(--map-size); display: flex; flex-direction: column; gap: var(--hud-gap); align-items: stretch; pointer-events: none; }
 .hud-top-right > * { pointer-events: auto; }
 .minimap { position: relative; width: var(--map-size); height: var(--map-size); padding: 0; border: 2px solid #fffffff0; border-radius: 50%; overflow: hidden; background: #cfe9c0; box-shadow: 0 2px 10px #14212b20; touch-action: manipulation; }
@@ -100,8 +102,10 @@
 .util.brake { color: var(--accent); background: var(--surface-2); }
 .util.recover { background: var(--amber); position: absolute; right: calc(100% + var(--hud-gap)); bottom: -72px; }
 .util:active { background: var(--surface-2); }
+.camera-control { position: absolute; top: var(--hud-top); right: calc(var(--hud-right) + var(--map-size) + var(--control-size) + var(--hud-gap) * 2); }
 .power-brake { position: absolute; right: var(--hud-right); bottom: var(--hud-bottom); width: 94px; height: 64px; min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 6px; border: 2px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--accent); font-weight: 800; font-size: calc(10px * var(--ui-scale)); touch-action: none; }
 .power-brake svg { flex: none; width: 25px; height: 25px; }
+.power-brake > span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; line-height: 1.15; text-align: center; }
 .power-brake:active { background: var(--accent-dim); color: white; }
 .drift-badge { position: absolute; right: calc(var(--hud-right) + 104px); bottom: var(--hud-bottom); color: white; background: var(--surface-3); border-radius: 7px; padding: 5px 8px; font-weight: 800; font-size: 11px; pointer-events: none; }
 .reverse-badge { position: absolute; left: var(--hud-left); bottom: calc(var(--hud-bottom) + var(--joy-size) + 4px); width: 22px; height: 22px; display: grid; place-items: center; border-radius: 6px; background: var(--surface-3); color: white; font-size: calc(11px * var(--ui-scale)); font-weight: 800; pointer-events: none; }
@@ -115,7 +119,8 @@
 .pedal span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .pedal.gas { color: var(--accent); border-color: #36ceff85; background: #0c2536e8; }
 .pedal:active { background: var(--accent-dim); box-shadow: inset 0 0 18px #36ceff22; }
-.touch-mode .power-brake { right: calc(var(--hud-right) + 90px); width: 70px; height: 64px; flex-direction: column; }
+.touch-mode .power-brake { right: calc(var(--hud-right) + 90px); width: 70px; height: 72px; flex-direction: column; flex-wrap: nowrap; gap: 3px; padding: 5px; font-size: calc(9px * var(--ui-scale)); }
+.touch-mode .power-brake svg { width: 22px; height: 22px; }
 .touch-mode .util-buttons { bottom: calc(var(--hud-bottom) + 116px); }
 .touch-mode .util.recover { right: calc(100% + 78px); bottom: -116px; }
 .touch-mode .look-hint { display: none; }
@@ -239,11 +244,11 @@
 @media (min-width: 1024px) and (min-height: 600px) {
   .app { --hud-rail: 230px; --map-size: 104px; }
   .ride-chip { display: flex; }
-  .hud-top-left { max-height: calc(100% - var(--hud-top) - var(--hud-bottom) - 160px); }
+  .hud-top-left { max-height: calc(100% - var(--hud-top) - var(--hud-bottom) - max(160px, var(--drive-height) + 8px)); }
 }
 @media (max-height: 340px) {
   .app { --hud-edge: 7px; --hud-gap: 4px; --map-size: 68px; --joy-size: 72px; }
-  .hud-top-left { max-height: calc(100% - var(--hud-top) - var(--hud-bottom) - 104px); }
+  .hud-top-left { max-height: calc(100% - var(--hud-top) - var(--hud-bottom) - max(104px, var(--drive-height) + 8px)); }
   .hud-top-left .cash, .hud-top-left .lvl { min-height: 26px; padding: 3px 6px; }
   .instruction { padding: 5px 6px; }
   .look-hint, .kbd-strip { display: none; }
@@ -270,14 +275,14 @@
   .garage-body, .controls-grid, .settings-body { grid-template-columns: 1fr; }
   .garage-head .wordmark { font-size: calc(17px * var(--ui-scale)); }
   .garage-head .wallet-pill { font-size: calc(11px * var(--ui-scale)); }
-  .hud-top-left { max-height: calc(100% - var(--hud-top) - var(--hud-bottom) - 142px); }
+  .hud-top-left { max-height: calc(100% - var(--hud-top) - var(--hud-bottom) - max(142px, var(--drive-height) + 8px)); }
   .kbd-strip { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .fuel-track i { transition: none; }
 }
 @media (max-height: 340px) {
-  .hud-top-left { max-height: calc(100% - var(--hud-top) - var(--hud-bottom) - 104px); }
+  .hud-top-left { max-height: calc(100% - var(--hud-top) - var(--hud-bottom) - max(104px, var(--drive-height) + 8px)); }
 }
 @media (max-height: 430px) and (min-width: 500px) {
   .garage-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
@@ -285,13 +290,11 @@
   .garage-panel .tabs button { font-size: calc(10px * var(--ui-scale)); padding: 5px 2px; }
   .garage-panel .vname { font-size: 1.2em !important; }
 }
-.app:has(.fuel-gauge.empty) .hud-top-left { max-height: calc(100% - var(--hud-top) - var(--hud-bottom) - 150px); }
+.app:has(.fuel-gauge.empty) .hud-top-left { max-height: calc(100% - var(--hud-top) - var(--hud-bottom) - max(150px, var(--drive-height) + 8px)); }
 
 .character-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; background: none; }
 .character-options button { min-height: 44px; padding: 8px; border-radius: 10px; }
 
-.power-brake:has(kbd) { flex-wrap: wrap; height: 72px; }
-.power-brake kbd { flex-basis: 100%; font-size: 10px; line-height: 1; opacity: .85; }
 
 @media (max-height: 290px) {
   .app { --map-size: 56px; }
