@@ -9,7 +9,7 @@ test('NPCs stay out of the garage; mobile sound, steering/pedals/drift, instant 
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await boot(page, { clear: true });
-  await fixture(page, {});
+  await fixture(page, { owned: ['bike_basic', 'bmw_i8'] });
   await page.evaluate(() => window.__cr.store.getState().updateSettings({ driver: 'cartethyia' }));
   await page.getByTestId('menu-garage').tap();
   expect(await page.locator('[data-testid^="vcard-pack_"]').count()).toBe(0);

@@ -97,7 +97,7 @@ test.describe('responsive touch UI', () => {
     const center = { x: home.x + home.width / 2, y: home.y + home.height / 2, id: 1 };
     const touch = await page.context().newCDPSession(page);
     await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [center] });
-    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...center, x: center.x + 30, y: center.y - 30 }] });
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...center, x: center.x + 42, y: center.y }] });
     await expect.poll(() => page.evaluate(() => window.__cr.input.joystick.x)).toBeGreaterThan(.9);
     const live = (await page.locator('.joy-live').boundingBox())!;
     expect(Math.abs(live.x - home.x)).toBeLessThan(1);

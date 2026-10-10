@@ -1,6 +1,6 @@
 import type { DriveInput } from '../vehicles/vehicleController';
 
-export type InputAction = 'camera' | 'horn' | 'recover' | 'context' | 'pause' | 'map' | 'door';
+export type InputAction = 'camera' | 'horn' | 'recover' | 'context' | 'pause' | 'map' | 'door' | 'decline' | 'mute' | 'fuel' | 'endTestDrive';
 
 const KEY_ACTIONS: Record<string, InputAction> = {
   KeyC: 'camera',
@@ -12,7 +12,14 @@ const KEY_ACTIONS: Record<string, InputAction> = {
   KeyP: 'pause',
   KeyM: 'map',
   KeyF: 'door',
+  KeyX: 'decline',
+  KeyV: 'mute',
+  KeyG: 'fuel',
+  KeyT: 'endTestDrive',
 };
+
+/** Shortcut labels shown as corner badges on desktop buttons (single source with KEY_ACTIONS). */
+export const SHORTCUTS = { accept: 'E', decline: 'X', pause: 'Esc', map: 'M', horn: 'H', camera: 'C', mute: 'V', door: 'F', recover: 'R', brake: 'Space', fuel: 'G', endTestDrive: 'T' } as const;
 
 /** Joystick creep top speed: 8 km/h. */
 export const JOYSTICK_CREEP = 8 / 3.6;

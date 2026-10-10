@@ -112,6 +112,7 @@ export async function installDevHooks() {
   ]);
   const [{ enforcement }, { police }, { violations }, { fuel }, { rideVisual }, cityMap, { audio }] = await Promise.all([import('../game/rules/enforcementState'), import('../game/rules/police'), import('../game/rules/violations'), import('../game/vehicles/fuel'), import('../game/missions/rides'), import('../game/data/cityMap'), import('../game/audio/audio')]);
   const { loadImportedModel } = await import('../game/render/importedVehicles');
+  const { events } = await import('../game/core/events');
   const { quoteRide } = await import('../game/progression/progression');
   const autopilot = makeAutopilot(
     () => (nav.active ? nav.route : null),
@@ -136,5 +137,42 @@ export async function installDevHooks() {
     },
   );
   runtime.register('zz-autopilot', () => autopilot.step());
-  (window as unknown as { __cr: unknown }).__cr = { runtime, vehicleEntry, vehicles: VEHICLES, loadImportedModel, quoteRide, input, debug, rides, nav, rideVisual, fuel, cityMap, audio, store: useGame, pauseManager, autopilot, recoverVehicle, platform: platformMod.platform, traffic, pedestrians, enforcement, police, violations, setWeather: (w: 'sunny' | 'rain') => useGame.getState().setWeather(w) };
+  const audioLab = {
+    /**
+     * Offline render of a vehicle's engine voice through a scripted ride (throttle/brake keyframes, simple
+     * longitudinal model). Returns a 16-bit mono WAV (base64), a 100 ms log and the one-shot counts.
+     */
+    async renderEngine(id: string, seconds: number, keys: { t: number; throttle: number; brake: number }[]) {
+      const { RecordedEngine } = await import('../game/audio/recordedEngine');
+      const spec = VEHICLES[id as keyof typeof VEHICLES], rate = 44100, step = 1 / 60;
+      const ctx = new OfflineAudioContext(1, Math.ceil(seconds * rate), rate), out = ctx.createGain(); out.connect(ctx.destination);
+      const engine = new RecordedEngine(ctx, out), drive = { steer: 0, throttle: 0, brake: 0, handbrake: false };
+      engine.update(spec, 0, true, { drive, seated: true });
+      for (let i = 0; i < 600 && engine.status === 'loading'; i++) await new Promise((r) => setTimeout(r, 50));
+      const at = (t: number) => keys.reduce((k, key) => key.t <= t ? key : k, keys[0]);
+      const log: { t: number; rpm: number; gear: number; stage: string; speed: number }[] = [];
+      let speed = 0;
+      const top = spec.topSpeedKmh / 3.6;
+      for (let i = 1; i * step < seconds - step; i++) {
+        const t = i * step;
+        void ctx.suspend(t).then(() => {
+          const k = at(t); drive.throttle = k.throttle; drive.brake = k.brake;
+          speed = Math.max(0, speed + (k.throttle * 9 * (1 - (speed / top) ** 2) - k.brake * 9 - .25) * step);
+          engine.update(spec, speed, true, { drive, seated: true });
+          if (i % 6 === 0) log.push({ t: +t.toFixed(2), rpm: Math.round(engine.rpm), gear: engine.gear, stage: engine.stage, speed: +(speed * 3.6).toFixed(1) });
+          void ctx.resume();
+        });
+      }
+      const data = (await ctx.startRendering()).getChannelData(0), effects = { ...engine.effects };
+      engine.dispose();
+      const view = new DataView(new ArrayBuffer(44 + data.length * 2)), text = (o: number, v: string) => [...v].forEach((c, j) => view.setUint8(o + j, c.charCodeAt(0)));
+      text(0, 'RIFF'); view.setUint32(4, 36 + data.length * 2, true); text(8, 'WAVEfmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+      view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true); text(36, 'data'); view.setUint32(40, data.length * 2, true);
+      data.forEach((v, j) => view.setInt16(44 + j * 2, Math.max(-1, Math.min(1, v)) * 32767, true));
+      let binary = ''; const bytes = new Uint8Array(view.buffer);
+      for (let j = 0; j < bytes.length; j += 32768) binary += String.fromCharCode(...bytes.subarray(j, j + 32768));
+      return { wav: btoa(binary), log, effects };
+    },
+  };
+  (window as unknown as { __cr: unknown }).__cr = { runtime, vehicleEntry, vehicles: VEHICLES, loadImportedModel, quoteRide, input, debug, rides, nav, rideVisual, fuel, cityMap, audio, store: useGame, pauseManager, autopilot, recoverVehicle, platform: platformMod.platform, traffic, pedestrians, enforcement, police, violations, setWeather: (w: 'sunny' | 'rain') => useGame.getState().setWeather(w), audioLab, events };
 }

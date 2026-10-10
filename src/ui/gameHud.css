@@ -296,3 +296,11 @@
 @media (max-height: 290px) {
   .app { --map-size: 56px; }
 }
+
+/* ---------- test drive ---------- */
+.test-drive-banner { position: absolute; top: max(10px, var(--safe-t)); left: 50%; transform: translateX(-50%); z-index: 6;
+  display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-radius: 999px;
+  background: #0d1a26e6; border: 1px solid #f4b544; color: #fff; font-size: calc(13px * var(--ui-scale)); white-space: nowrap; max-width: calc(100% - 260px); }
+.test-drive-banner span { overflow: hidden; text-overflow: ellipsis; }
+.test-drive-banner b { color: #f4b544; font-variant-numeric: tabular-nums; }
+.test-drive-banner .btn { width: auto; flex: none; min-height: 32px; padding: 4px 14px; }

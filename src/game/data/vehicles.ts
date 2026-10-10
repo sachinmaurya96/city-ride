@@ -14,6 +14,7 @@ export type VehicleId =
   | 'supercar'
   | 'bmw_i8'
   | 'bmw_m4_gt3'
+  | 'ducati_v4r'
   | ExtraVehicleId;
 
 export type VehicleKind = 'bike' | 'auto' | 'car' | 'bus';
@@ -96,9 +97,10 @@ function busWheels(track: number, wheelbase: number, radius: number, extraRearAx
 const BASE_VEHICLES = {
   bike_basic: {
     id: 'bike_basic',
-    name: 'Commuter',
-    nameRu: 'Коммьютер',
+    name: 'Ninja Bike',
+    nameRu: 'Ninja Bike',
     kind: 'bike',
+    importedModel: 'bike_basic',
     totalSeats: 2,
     passengerSeats: 1,
     unlockLevel: 1,
@@ -106,16 +108,16 @@ const BASE_VEHICLES = {
     upgradeReferencePrice: 1000,
     serviceMultiplier: 1.0,
     jobs: ['standard', 'office', 'rain'],
-    topSpeedKmh: 55,
-    accel0to40: 5,
-    brakeDecel: 5.2,
+    topSpeedKmh: 290,
+    accel0to40: .95,
+    brakeDecel: 6.4,
     maxSteerDeg: 34,
     highSpeedSteer: 0.32,
     steerResponse: 0.14,
     mass: 260,
-    width: 0.7,
-    length: 1.9,
-    height: 1.3,
+    width: 0.75,
+    length: 2.05,
+    height: 1.15,
     wheelRadius: 0.3,
     suspension: 0.25,
     chassisHalfHeight: 0.25,
@@ -135,7 +137,51 @@ const BASE_VEHICLES = {
     defaultColor: '#2fc4a8',
     accentColor: '#1d2b36',
     camera: { distance: 5.2, height: 2.4, highDistance: 9, highHeight: 6, eyeHeight: 1.45, eyeForward: 0.1 },
-    display: { speed: 45, handling: 80, brakes: 70, comfort: 45 },
+    display: { speed: 88, handling: 86, brakes: 84, comfort: 48 },
+  },
+  ducati_v4r: {
+    id: 'ducati_v4r',
+    name: 'Ducati V4 R',
+    nameRu: 'Ducati V4 R',
+    kind: 'bike',
+    importedModel: 'ducati_v4r',
+    totalSeats: 2,
+    passengerSeats: 1,
+    unlockLevel: 1,
+    price: 5000,
+    upgradeReferencePrice: 5000,
+    serviceMultiplier: 1.0,
+    jobs: ['standard', 'office', 'rain'],
+    topSpeedKmh: 310,
+    accel0to40: .85,
+    brakeDecel: 6.4,
+    maxSteerDeg: 34,
+    highSpeedSteer: 0.32,
+    steerResponse: 0.14,
+    mass: 260,
+    width: 0.75,
+    length: 2.1,
+    height: 1.15,
+    wheelRadius: 0.3,
+    suspension: 0.25,
+    chassisHalfHeight: 0.25,
+    // Invisible stable support footprint (plan §7.2); two visual wheels.
+    wheels: {
+      physics: [
+        { x: 0.36, z: 0.62, steer: true },
+        { x: -0.36, z: 0.62, steer: true },
+        { x: 0.36, z: -0.62, steer: false },
+        { x: -0.36, z: -0.62, steer: false },
+      ],
+      visual: [
+        { x: 0, z: 0.66, steer: true, radius: 0.3, width: 0.14 },
+        { x: 0, z: -0.62, steer: false, radius: 0.3, width: 0.16 },
+      ],
+    },
+    defaultColor: '#2fc4a8',
+    accentColor: '#1d2b36',
+    camera: { distance: 5.2, height: 2.4, highDistance: 9, highHeight: 6, eyeHeight: 1.45, eyeForward: 0.1 },
+    display: { speed: 95, handling: 92, brakes: 90, comfort: 50 },
   },
   auto_city: {
     id: 'auto_city',
@@ -145,7 +191,7 @@ const BASE_VEHICLES = {
     totalSeats: 4,
     passengerSeats: 3,
     unlockLevel: 3,
-    price: 1800,
+    price: 1500,
     upgradeReferencePrice: 1800,
     serviceMultiplier: 1.4,
     jobs: ['standard', 'office', 'family', 'rain'],
@@ -188,7 +234,7 @@ const BASE_VEHICLES = {
     totalSeats: 4,
     passengerSeats: 3,
     unlockLevel: 5,
-    price: 6500,
+    price: 2500,
     upgradeReferencePrice: 6500,
     serviceMultiplier: 2.0,
     jobs: ['standard', 'office', 'family', 'airport', 'rain'],
@@ -219,7 +265,7 @@ const BASE_VEHICLES = {
     totalSeats: 2,
     passengerSeats: 1,
     unlockLevel: 7,
-    price: 11000,
+    price: 3500,
     upgradeReferencePrice: 11000,
     serviceMultiplier: 2.4,
     jobs: ['standard', 'office', 'airport', 'vip', 'rain'],
@@ -250,7 +296,7 @@ const BASE_VEHICLES = {
     totalSeats: 7,
     passengerSeats: 6,
     unlockLevel: 10,
-    price: 22000,
+    price: 4500,
     upgradeReferencePrice: 22000,
     serviceMultiplier: 3.0,
     jobs: ['standard', 'office', 'family', 'airport', 'vip', 'rain'],
@@ -281,7 +327,7 @@ const BASE_VEHICLES = {
     totalSeats: 13,
     passengerSeats: 12,
     unlockLevel: 12,
-    price: 32000,
+    price: 5000,
     upgradeReferencePrice: 32000,
     serviceMultiplier: null,
     jobs: ['bus'],
@@ -312,7 +358,7 @@ const BASE_VEHICLES = {
     totalSeats: 25,
     passengerSeats: 24,
     unlockLevel: 16,
-    price: 52000,
+    price: 6500,
     upgradeReferencePrice: 52000,
     serviceMultiplier: null,
     jobs: ['bus'],
@@ -343,7 +389,7 @@ const BASE_VEHICLES = {
     totalSeats: 41,
     passengerSeats: 40,
     unlockLevel: 20,
-    price: 85000,
+    price: 8000,
     upgradeReferencePrice: 85000,
     serviceMultiplier: null,
     jobs: ['bus'],
@@ -374,7 +420,7 @@ const BASE_VEHICLES = {
     totalSeats: 2,
     passengerSeats: 1,
     unlockLevel: 25,
-    price: 140000,
+    price: 9500,
     upgradeReferencePrice: 140000,
     serviceMultiplier: 5.5,
     jobs: ['standard', 'office', 'vip', 'airport', 'rain'],
@@ -399,7 +445,7 @@ const BASE_VEHICLES = {
   },
   bmw_i8: {
     id: 'bmw_i8', name: 'BMW i8', nameRu: 'BMW i8', kind: 'car', importedModel: 'bmw_i8',
-    totalSeats: 4, passengerSeats: 3, unlockLevel: 1, price: 0, upgradeReferencePrice: 11000,
+    totalSeats: 4, passengerSeats: 3, unlockLevel: 1, price: 6000, upgradeReferencePrice: 11000,
     serviceMultiplier: 2.4, jobs: ['standard', 'office', 'airport', 'vip', 'rain'],
     topSpeedKmh: 270, accel0to40: .85, brakeDecel: 6.5, maxSteerDeg: 32,
     highSpeedSteer: 0.28, steerResponse: 0.13, mass: 1500,
@@ -411,7 +457,7 @@ const BASE_VEHICLES = {
   },
   bmw_m4_gt3: {
     id: 'bmw_m4_gt3', name: 'BMW M4 GT3 EVO', nameRu: 'BMW M4 GT3 EVO', kind: 'car', importedModel: 'bmw_m4_gt3',
-    totalSeats: 2, passengerSeats: 1, unlockLevel: 1, price: 0, upgradeReferencePrice: 14000,
+    totalSeats: 2, passengerSeats: 1, unlockLevel: 1, price: 7500, upgradeReferencePrice: 14000,
     serviceMultiplier: 2.4, jobs: ['standard', 'office', 'airport', 'vip', 'rain'],
     topSpeedKmh: 320, accel0to40: .75, brakeDecel: 6.8, maxSteerDeg: 30,
     highSpeedSteer: 0.24, steerResponse: 0.12, mass: 1350,
@@ -422,6 +468,12 @@ const BASE_VEHICLES = {
     display: { speed: 98, handling: 92, brakes: 90, comfort: 70 },
   },
 } satisfies Record<Exclude<VehicleId, ExtraVehicleId>, VehicleSpec>;
+
+/** Showroom prices (₹, all under 10,000) for the imported cars; NPC-only models are never sold. */
+const EXTRA_PRICES: Partial<Record<ExtraVehicleId, number>> = {
+  classic_sport: 2000, fast_72: 3000, western_star: 4000, supra_a80: 4500, mustang_rtr: 5500, porsche_718: 6500,
+  lambo_lp670: 8000, black_huracan: 8500, mclaren_p1: 9000, mercedes_maybach: 9500, rolls_spectre: 9900,
+};
 
 function extraSpec(car: typeof EXTRA_CARS[number]): VehicleSpec {
   const heavy = car.height > 2.4;
@@ -434,7 +486,7 @@ function extraSpec(car: typeof EXTRA_CARS[number]): VehicleSpec {
   return {
     id: car.id, name: car.name, nameRu: car.name, kind: 'car', importedModel: car.id,
     npcOnly: car.id === 'police_car' || car.id.startsWith('pack_'),
-    totalSeats: heavy || car.id === 'porsche_718' ? 2 : 4, passengerSeats: heavy || car.id === 'porsche_718' ? 1 : 3, unlockLevel: 1, price: 0, upgradeReferencePrice: 12000,
+    totalSeats: heavy || car.id === 'porsche_718' ? 2 : 4, passengerSeats: heavy || car.id === 'porsche_718' ? 1 : 3, unlockLevel: 1, price: EXTRA_PRICES[car.id] ?? 0, upgradeReferencePrice: 12000,
     serviceMultiplier: 2.4, jobs: ['standard', 'office', 'airport', 'rain'],
     topSpeedKmh: heavy ? 160 : Math.max(230, car.speed * 1.3), accel0to40: heavy ? .85 : .95, brakeDecel: heavy ? 4.8 : 6, maxSteerDeg: 32,
     highSpeedSteer: .28, steerResponse: .14, mass: car.mass, width: car.width, length: car.length, height: car.height,
@@ -450,6 +502,7 @@ export const VEHICLE_ORDER: VehicleId[] = [
   'bike_basic',
   'bmw_i8',
   'bmw_m4_gt3',
+  'ducati_v4r',
   ...EXTRA_CARS.filter((car) => !VEHICLES[car.id].npcOnly).map((car) => car.id),
   'auto_city',
   'car_compact',
@@ -460,6 +513,11 @@ export const VEHICLE_ORDER: VehicleId[] = [
   'bus_long',
   'supercar',
 ];
+
+/** The showroom: vehicles with a real 3D model, plus the free starter bike. Older procedural ones stay drivable when already owned. */
+export function inGarage(id: VehicleId, owned: readonly string[] = []) {
+  return id === 'bike_basic' || !!VEHICLES[id].importedModel || owned.includes(id);
+}
 
 export function isVehicleId(id: string): id is VehicleId {
   return Object.hasOwn(VEHICLES, id);

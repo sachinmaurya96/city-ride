@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import type * as THREE from 'three';
-import { boot, play, waitStage } from './helpers';
+import { boot, fixture, play, waitStage } from './helpers';
 
 test.setTimeout(240000);
 test.use({ viewport: { width: 800, height: 500 } });
@@ -24,22 +24,24 @@ test('all new vehicles load with original materials and usable wheel/door parts'
   await boot(page, { clear: true });
   const results = await page.evaluate(async () => {
     const { vehicles: VEHICLES, loadImportedModel } = window.__cr;
-    const results: { id: string; npc: boolean; doors: number[]; wheels: number[]; triangles: number; textures: number; dimensions: number[] }[] = [];
+    const results: { id: string; npc: boolean; bike: boolean; doors: number[]; wheels: number[]; triangles: number; textures: number; dimensions: number[] }[] = [];
     for (const spec of Object.values(VEHICLES)) {
       if (!spec.importedModel) continue;
       const root = await loadImportedModel(spec) as THREE.Group;
       let triangles = 0, textures = 0;
       root.traverse((o) => { const mesh = o as THREE.Mesh; if (mesh.isMesh) { triangles += mesh.geometry.getAttribute('position').count / 3; if ((mesh.material as THREE.MeshStandardMaterial).map) textures++; } });
-      results.push({ id: spec.id, npc: !!spec.npcOnly, triangles, textures, dimensions: root.userData.dimensions,
-        doors: [1, -1].map((side) => root.getObjectByName(`vehicle-door-${side}`)!.children.length),
+      results.push({ id: spec.id, npc: !!spec.npcOnly, bike: spec.kind === 'bike', triangles, textures, dimensions: root.userData.dimensions,
+        doors: [1, -1].map((side) => root.getObjectByName(`vehicle-door-${side}`)?.children.length ?? 0),
         wheels: spec.wheels.visual.map((_, i) => root.getObjectByName(`imported-wheel-spin-${i}`)!.children.length) });
     }
     return results;
   });
-  expect(results).toHaveLength(30);
+  // 31 cars (13 in the garage, 18 traffic-only) and the two imported superbikes.
+  expect(results).toHaveLength(33);
   for (const car of results) {
     expect(car.triangles, car.id).toBeGreaterThan(100);
-    if (!car.npc) {
+    if (car.bike) expect(car.wheels).toHaveLength(2);
+    if (!car.npc && !car.bike) {
       expect(car.doors.every((n) => n > 0), car.id).toBe(true);
       expect(car.wheels.every((n) => n > 0), car.id).toBe(true);
     }
@@ -59,6 +61,7 @@ test('all new vehicles load with original materials and usable wheel/door parts'
 test('native characters open doors before entry, sit, exit, preserve their appearance and use recorded engines', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', (e) => errors.push(e.message));
   await boot(page, { clear: true });
+  await fixture(page, { owned: ['bike_basic', 'supra_a80'] });
   await page.getByTestId('menu-settings').click();
   await page.getByTestId('driver-lynae').click();
   await page.getByTestId('passenger-character').selectOption('cartethyia');

@@ -85,7 +85,7 @@ describe('map data integrity', () => {
     }
     expect(FUEL_STATIONS).toHaveLength(SEGMENTS.length / 2);
     for (const bay of FUEL_STATIONS) {
-      expect(city.signs.some((s) => s.text === '⛽ FREE · FULL TANK' && Math.hypot(s.x - bay.x, s.z - bay.z) < 9)).toBe(true);
+      expect(city.signs.some((s) => s.text === '⛽ FULL TANK · ₹60' && Math.hypot(s.x - bay.x, s.z - bay.z) < 9)).toBe(true);
     }
   });
 

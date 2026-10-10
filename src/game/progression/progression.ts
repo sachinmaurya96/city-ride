@@ -2,7 +2,7 @@
 // (never mutates its input), so a whole reward commits atomically and replays are idempotent.
 
 import { ECONOMY, OFFICE_DEADLINE, RATING_BANDS, XP } from '../data/economy';
-import { VEHICLES, isPlayableVehicleId, type VehicleId } from '../data/vehicles';
+import { VEHICLES, VEHICLE_ORDER, inGarage, isPlayableVehicleId, type VehicleId } from '../data/vehicles';
 import type { DailyBoard, DailyTask, Quote, RewardReceipt, SaveData } from '../../storage/schema';
 import { emptyDaily } from '../../storage/schema';
 import { hashString, mulberry32 } from '../core/rng';
@@ -85,7 +85,7 @@ function hasTx(save: SaveData, key: string) {
   return save.transactionHistory.some((t) => t.key === key) || save.pendingReceipts.some((r) => r.id === key);
 }
 
-function pushTx(save: SaveData, key: string, kind: string, cash: number, xp: number, now: number) {
+export function pushTx(save: SaveData, key: string, kind: string, cash: number, xp: number, now: number) {
   save.transactionHistory.push({ key, kind, cash, xp, at: now });
   // Bounded journal: drop the oldest entries that no pending receipt/mission can reference.
   while (save.transactionHistory.length > 150) {
@@ -521,8 +521,20 @@ export function averageRating(save: SaveData) {
 
 /** Next vehicle the player is working toward (cheapest unowned). */
 export function nextVehicleGoal(save: SaveData) {
-  const order: VehicleId[] = ['auto_city', 'car_compact', 'car_coupe', 'mpv_seven', 'bus_small', 'bus_medium', 'bus_long', 'supercar'];
-  const id = order.find((v) => !save.ownedVehicleIds.includes(v));
+  // The cheapest showroom car not yet owned.
+  const id = VEHICLE_ORDER.filter((v) => inGarage(v) && !save.ownedVehicleIds.includes(v) && VEHICLES[v].price > 0)
+    .sort((a, b) => VEHICLES[a].price - VEHICLES[b].price)[0];
   if (!id) return null;
   return { id, price: VEHICLES[id].price, level: VEHICLES[id].unlockLevel };
+}
+
+export const WELCOME_BONUS = 1000;
+/** One-time starter cash for a new profile. */
+export function claimWelcomeBonus(save: SaveData, now: number): SaveData {
+  if (save.welcomeBonusClaimed) return save;
+  const s = structuredClone(save);
+  s.wallet += WELCOME_BONUS; s.welcomeBonusClaimed = true;
+  pushTx(s, 'welcome_bonus', 'bonus', WELCOME_BONUS, 0, now);
+  s.revision += 1; s.updatedAt = now;
+  return s;
 }

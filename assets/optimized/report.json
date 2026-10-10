@@ -1,177 +1,23 @@
 [
   {
-    "name": "2020_porsche_718_spyder",
+    "name": "ducativ4r",
     "kind": "vehicles",
-    "originalBytes": 9304984,
-    "runtimeBytes": 5241928,
+    "originalBytes": 9349276,
+    "runtimeBytes": 5175668,
+    "compressedViews": 2
+  },
+  {
+    "name": "maercedes",
+    "kind": "vehicles",
+    "originalBytes": 7614716,
+    "runtimeBytes": 2150100,
     "compressedViews": 4
   },
   {
-    "name": "2025_bmw_m4_gt3_evo_g82",
+    "name": "ninjabike",
     "kind": "vehicles",
-    "originalBytes": 7462116,
-    "runtimeBytes": 4242404,
-    "compressedViews": 4
-  },
-  {
-    "name": "arunangshubanerjee-police-car-2064",
-    "kind": "vehicles",
-    "originalBytes": 4830144,
-    "runtimeBytes": 335984,
-    "compressedViews": 6
-  },
-  {
-    "name": "banana-tree-pack",
-    "kind": "world",
-    "originalBytes": 1041824,
-    "runtimeBytes": 568644,
+    "originalBytes": 9060528,
+    "runtimeBytes": 4781724,
     "compressedViews": 3
-  },
-  {
-    "name": "black-lambo",
-    "kind": "vehicles",
-    "originalBytes": 11698360,
-    "runtimeBytes": 5877788,
-    "compressedViews": 4
-  },
-  {
-    "name": "bmw_i8",
-    "kind": "vehicles",
-    "originalBytes": 2747524,
-    "runtimeBytes": 1768296,
-    "compressedViews": 3
-  },
-  {
-    "name": "cartethyia_wuthering_waves",
-    "kind": "characters",
-    "originalBytes": 7936748,
-    "runtimeBytes": 2702416,
-    "compressedViews": 3
-  },
-  {
-    "name": "city-building-pack",
-    "kind": "world",
-    "originalBytes": 22326056,
-    "runtimeBytes": 2606508,
-    "compressedViews": 3
-  },
-  {
-    "name": "ergoninane-fast-72",
-    "kind": "vehicles",
-    "originalBytes": 677696,
-    "runtimeBytes": 427444,
-    "compressedViews": 18
-  },
-  {
-    "name": "female-rover",
-    "kind": "characters",
-    "originalBytes": 8310000,
-    "runtimeBytes": 1174360,
-    "compressedViews": 3
-  },
-  {
-    "name": "forest-tree-pack",
-    "kind": "world",
-    "originalBytes": 14498120,
-    "runtimeBytes": 2725676,
-    "compressedViews": 4
-  },
-  {
-    "name": "hp-petrol-pump",
-    "kind": "world",
-    "originalBytes": 190164,
-    "runtimeBytes": 92948,
-    "compressedViews": 3
-  },
-  {
-    "name": "lambo",
-    "kind": "vehicles",
-    "originalBytes": 2368248,
-    "runtimeBytes": 1086520,
-    "compressedViews": 3
-  },
-  {
-    "name": "lynae_from_wuthering_waves",
-    "kind": "characters",
-    "originalBytes": 15329904,
-    "runtimeBytes": 4517244,
-    "compressedViews": 6
-  },
-  {
-    "name": "male-rover",
-    "kind": "characters",
-    "originalBytes": 6473480,
-    "runtimeBytes": 1119104,
-    "compressedViews": 3
-  },
-  {
-    "name": "mclaren",
-    "kind": "vehicles",
-    "originalBytes": 2154120,
-    "runtimeBytes": 1327772,
-    "compressedViews": 3
-  },
-  {
-    "name": "mustang",
-    "kind": "vehicles",
-    "originalBytes": 4597584,
-    "runtimeBytes": 2684432,
-    "compressedViews": 4
-  },
-  {
-    "name": "night-city-building-pack",
-    "kind": "world",
-    "originalBytes": 10002480,
-    "runtimeBytes": 1176280,
-    "compressedViews": 4
-  },
-  {
-    "name": "palm-tree-pack",
-    "kind": "world",
-    "originalBytes": 11926888,
-    "runtimeBytes": 2035004,
-    "compressedViews": 4
-  },
-  {
-    "name": "road-pack",
-    "kind": "world",
-    "originalBytes": 1636292,
-    "runtimeBytes": 608440,
-    "compressedViews": 3
-  },
-  {
-    "name": "rr-spectr",
-    "kind": "vehicles",
-    "originalBytes": 16927324,
-    "runtimeBytes": 10044900,
-    "compressedViews": 3
-  },
-  {
-    "name": "sputnikjfkennedy-car-4473",
-    "kind": "vehicles",
-    "originalBytes": 8479780,
-    "runtimeBytes": 5868952,
-    "compressedViews": 589
-  },
-  {
-    "name": "toyota_supra_a80_1993",
-    "kind": "vehicles",
-    "originalBytes": 3291204,
-    "runtimeBytes": 816060,
-    "compressedViews": 4
-  },
-  {
-    "name": "traffic_racer_npc_vehicles_pack",
-    "kind": "vehicles",
-    "originalBytes": 2130580,
-    "runtimeBytes": 875980,
-    "compressedViews": 3
-  },
-  {
-    "name": "western_star_4900",
-    "kind": "vehicles",
-    "originalBytes": 8968256,
-    "runtimeBytes": 2933052,
-    "compressedViews": 9
   }
 ]

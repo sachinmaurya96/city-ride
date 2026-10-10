@@ -8,6 +8,8 @@ import { garageSpawn } from '../game/data/cityMap';
 import { isPlayableVehicleId, VEHICLES, type VehicleId } from '../game/data/vehicles';
 import { recoverySystem, recoverVehicle } from '../game/rules/recovery';
 import { rides } from '../game/missions/rides';
+import { Splash, SPLASH_MS } from '../ui/Splash';
+import { endTestDrive, stepTestDrive } from '../game/progression/testDrive';
 import { busService } from '../game/missions/bus';
 import { violations } from '../game/rules/violations';
 import { audio } from '../game/audio/audio';
@@ -20,11 +22,13 @@ import { persistence, pendingConflict } from '../storage/persistence';
 import { platform } from '../platform';
 import { TouchControls } from '../ui/TouchControls';
 import { Hud } from '../ui/Hud';
-import { BootScreen, CancelConfirm, CityMapOverlay, ConflictOverlay, ControlsOverlay, CreditsOverlay, MainMenu, PauseMenu, Receipt, RotateOverlay, SaveBanner } from '../ui/Screens';
+import { CancelConfirm, CityMapOverlay, ConflictOverlay, ControlsOverlay, CreditsOverlay, MainMenu, PauseMenu, Receipt, RotateOverlay, SaveBanner, WelcomeBonus } from '../ui/Screens';
 import { useGame } from './store';
 import type { SafeRoadPose } from '../game/vehicles/vehicleController';
 import { fmt } from '../i18n/strings';
 import { lazyOverlay } from '../ui/lazy';
+import { KeyHint } from '../ui/KeyHint';
+import { SHORTCUTS } from '../game/input/input';
 
 const GarageOverlay = lazyOverlay(() => import('../ui/Garage').then((m) => m.GarageOverlay));
 const DailyOverlay = lazyOverlay(() => import('../ui/Daily').then((m) => m.DailyOverlay));
@@ -123,6 +127,10 @@ export function App() {
   // ---------- boot ----------
   const boot = useCallback(async () => {
     const st = useGame.getState();
+    const bootStarted = performance.now();
+    // The splash gives the world download a head start: fetch it now, while the cover plays.
+    const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
+    if (!saveData) preloadGame();
     try {
       st.setBoot(0);
       await platform().initialize();
@@ -149,14 +157,10 @@ export function App() {
       }
       useGame.getState().commit(s, false);
       st.setBoot(4);
+      // Hold the cover for its full 3 s so the progress bar completes instead of flashing past.
+      await new Promise((resolve) => setTimeout(resolve, Math.max(0, SPLASH_MS - (performance.now() - bootStarted))));
       useGame.getState().setApp('MAIN_MENU');
       platform().gameReady();
-      // Most players tap Play within seconds: fetch the world while the menu is idle (skipped on Data Saver).
-      const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
-      if (!saveData) {
-        const idle = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
-        if (idle) idle(preloadGame, { timeout: 1500 }); else setTimeout(preloadGame, 500);
-      }
     } catch (e) {
       st.setBoot(0, e instanceof Error ? e.message : String(e));
       st.setApp('RECOVERABLE_ERROR');
@@ -260,6 +264,7 @@ export function App() {
   useEffect(() => runtime.register('violations', (dt) => violations.step(dt)), []);
   useEffect(() => runtime.register('police', (dt) => police.step(dt)), []);
   useEffect(() => runtime.register('fuel', (dt) => fuel.step(dt)), []);
+  useEffect(() => runtime.register('testDrive', stepTestDrive), []);
   useEffect(() => {
     const saveFuel = () => fuel.persist();
     window.addEventListener('pagehide', saveFuel);
@@ -362,6 +367,15 @@ export function App() {
           if (st.save.pendingReceipts.length) rides.nextRide();
           else if (rides.stage === 'OFFERED') rides.accept();
         }
+        if (a === 'decline' && rides.stage === 'OFFERED' && !rides.offer?.quote.tutorial) rides.decline();
+        if (a === 'mute') { st.updateSettings({ muted: !st.save.settings.muted }); audio.unlock(); }
+        if (a === 'endTestDrive') endTestDrive();
+        if (a === 'fuel') {
+          // Same order the HUD shows: refuel in a bay, else tow when empty and routed, else route to a pump.
+          if (fuel.inBay && fuel.percent < 100) fuel.openPump();
+          else if (fuel.percent === 0 && fuel.navigation) fuel.towToPump();
+          else if (fuel.percent === 0) fuel.navigateToPump();
+        }
         if (pauseManager.paused) return;
         if (a === 'camera') {
           const next = runtime.cameraMode === 'chase' ? 'high' : runtime.cameraMode === 'high' ? 'eye' : 'chase';
@@ -388,13 +402,20 @@ export function App() {
   );
 
   // ---------- vehicle ----------
-  const vehicleId: VehicleId = isPlayableVehicleId(save.equippedVehicleId) ? save.equippedVehicleId : 'bike_basic';
+  const testDrive = useGame((s) => s.testDrive);
+  const vehicleId: VehicleId = testDrive?.vehicleId ?? (isPlayableVehicleId(save.equippedVehicleId) ? save.equippedVehicleId : 'bike_basic');
   const lastVehicle = useRef(vehicleId);
+  const wasTestDrive = useRef(false);
   if (lastVehicle.current !== vehicleId) {
     // Changing vehicles happens in the garage: leave from a clear garage spawn point.
+    // A finished test drive instead hands back the player's own vehicle where they stopped.
     lastVehicle.current = vehicleId;
-    spawnRef.current = garageSpawn();
+    spawnRef.current = wasTestDrive.current && !testDrive ? runtime.lastSafePose ?? garageSpawn() : garageSpawn();
   }
+  wasTestDrive.current = !!testDrive;
+  // Starting a test drive from the main-menu garage goes straight into the city.
+  const startedTestDrive = !!testDrive;
+  useEffect(() => { if (startedTestDrive && useGame.getState().appState === 'MAIN_MENU') startPlaying(); }, [startedTestDrive, startPlaying]);
   const upgrades = useMemo(() => upgradeLevels(save, vehicleId), [save, vehicleId]);
   const paint = paintFor(save, vehicleId);
   const showGame = appState === 'PLAYING';
@@ -432,6 +453,13 @@ export function App() {
               labels={{ horn: t.horn, brake: t.brake, camera: t.camera, recover: t.recover, dragToLook: t.dragToLook, reverse: t.reverse }}
             />
             <Hud onPause={() => useGame.getState().openOverlay('pause')} tutorial={<TutorialHint />} />
+            {testDrive && (
+              <div className="test-drive-banner" data-testid="test-drive-banner" role="status">
+                <span title={t.testDriveActive}>🔑 {VEHICLES[testDrive.vehicleId].name}</span>
+                <b data-testid="test-drive-time">{Math.floor(testDrive.secondsLeft / 60)}:{String(testDrive.secondsLeft % 60).padStart(2, '0')}</b>
+                <button className="btn small" onClick={endTestDrive} data-testid="end-test-drive">{t.testDriveEnd}<KeyHint k={SHORTCUTS.endTestDrive} /></button>
+              </div>
+            )}
             {!touch && !save.tutorial.firstRideDone && !passengerMoving && <div className="kbd-strip">{t.keyboardHint}</div>}
             {notice && <NoticeCard />}
             {receipt && !overlay && <Receipt />}
@@ -444,6 +472,7 @@ export function App() {
           </>
         )}
         {appState === 'MAIN_MENU' && !overlay && <MainMenu onPlay={startPlaying} />}
+        {appState === 'MAIN_MENU' && !overlay && <WelcomeBonus />}
         {overlay === 'garage' && <GarageOverlay />}
         {overlay === 'daily' && <DailyOverlay />}
         {overlay === 'stats' && <StatsOverlay />}
@@ -452,7 +481,7 @@ export function App() {
         {overlay === 'conflict' && <ConflictOverlay />}
         {(appState === 'PLAYING' || appState === 'MAIN_MENU') && <SaveBanner />}
         {(appState === 'BOOT' || appState === 'LOADING' || appState === 'RECOVERABLE_ERROR') && (
-          <BootScreen stage={bootStage} error={bootError} onRetry={() => window.location.reload()} />
+          <Splash stage={bootStage} error={bootError} onRetry={() => window.location.reload()} loadingWorld={appState === 'LOADING'} />
         )}
         {portrait && showGame && !overlay && !receipt && <RotateOverlay />}
       </div>

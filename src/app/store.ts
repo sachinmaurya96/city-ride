@@ -4,6 +4,7 @@ import { persistence, type SaveStatus } from '../storage/persistence';
 import { strings, type Lang, type Strings } from '../i18n/strings';
 import { defaultQuality } from '../game/render/quality';
 import { utcDayKey } from '../game/progression/progression';
+import type { VehicleId } from '../game/data/vehicles';
 
 export type AppState = 'BOOT' | 'LOADING' | 'MAIN_MENU' | 'PLAYING' | 'RECOVERABLE_ERROR';
 export type Overlay = 'pause' | 'settings' | 'garage' | 'daily' | 'stats' | 'map' | 'controls' | 'credits' | 'bus' | 'cancel' | 'conflict' | 'fuel';
@@ -97,6 +98,9 @@ interface GameStore {
   t: Strings;
   /** Bumped when the vehicle must be (re)spawned, e.g. equip, capture, load. */
   spawnNonce: number;
+  /** Temporary free drive of an unowned car; never saved, so a reload ends it. */
+  testDrive: { vehicleId: VehicleId; secondsLeft: number } | null;
+  setTestDrive: (testDrive: { vehicleId: VehicleId; secondsLeft: number } | null) => void;
   setApp: (s: AppState) => void;
   setBoot: (stage: number, error?: string | null) => void;
   openOverlay: (o: Overlay | null, parent?: Overlay | null) => void;
@@ -134,6 +138,8 @@ export const useGame = create<GameStore>((set, get) => ({
   portrait: false,
   t: strings('en'),
   spawnNonce: 0,
+  testDrive: null,
+  setTestDrive: (testDrive) => set({ testDrive }),
   setApp: (appState) => set({ appState }),
   setBoot: (bootStage, bootError = null) => set({ bootStage, bootError }),
   openOverlay: (overlay, parent = null) => set({ overlay, overlayParent: parent }),

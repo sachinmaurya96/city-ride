@@ -19,7 +19,9 @@ import { NEUTRAL_INPUT, RaycastVehicle, type SafeRoadPose } from './vehicleContr
 import { fuel } from './fuel';
 import { useImportedModel } from '../render/useImportedModel';
 import { CarDriver, ImportedRider } from './CarDriver';
-import { cabinLayout, setDoorPose } from './cabin';
+import { cabinLayout, doorColliderPose, setDoorPose } from './cabin';
+import { CarEffects } from './CarEffects';
+import type { BikeRig } from '../render/importedVehicles';
 import { advanceVehicleEntry, resetVehicleEntry, entryPhase, vehicleEntry } from './entry';
 import { rideVisual } from '../missions/rides';
 import { events } from '../core/events';
@@ -124,13 +126,25 @@ export function PlayerVehicle({ vehicleId, paint, upgrades, rain, spawn, anchor,
   const doorCenter = useMemo(() => new THREE.Vector3(), []);
   const doorRotation = useMemo(() => new THREE.Quaternion(), []);
   const vehicle = useRef<RaycastVehicle | null>(null);
+  const walkVelocity = useRef(new THREE.Vector2());
   const lean = useRef<THREE.Group>(null);
   const steerRef = useRef<THREE.Group>(null);
   const gripRefs = useRef<(THREE.Object3D | null)[]>([]);
   const barAngle = useRef(0);
   const wheelRefs = useRef<(THREE.Group | null)[]>([]);
   const wheelSpinRefs = useRef<(THREE.Mesh | null)[]>([]);
-  const parts = useMemo(() => buildVehicleParts(spec, paint, false, false, true), [spec, paint]);
+  const builtParts = useMemo(() => buildVehicleParts(spec, paint, false, false, true), [spec, paint]);
+  // Imported bikes keep the procedural rig API, but seat, grips and pillion come from the measured model.
+  const bikeRig = model?.model?.userData.bike as BikeRig | undefined;
+  const parts = useMemo(() => {
+    if (spec.kind !== 'bike' || !spec.importedModel || !bikeRig || !builtParts.steer) return builtParts;
+    const pivot = new THREE.Vector3(0, 0, bikeRig.steerZ);
+    return { ...builtParts,
+      seat: { hip: bikeRig.hip.clone(), pose: 'bike' as const, scale: .96 },
+      steer: { ...builtParts.steer, pivot, rake: 0, ratio: 0, grips: bikeRig.grips.map((g) => g.clone().sub(pivot)) as [THREE.Vector3, THREE.Vector3] },
+      pegs: bikeRig.pegs.map((p) => p.clone()) as [THREE.Vector3, THREE.Vector3],
+      passengerSeat: bikeRig.hip.clone().add(new THREE.Vector3(0, .05, -.4)) };
+  }, [builtParts, bikeRig, spec]);
   const proceduralBody = useMemo(() => {
     if (spec.importedModel || spec.kind !== 'car') return null;
     const group = new THREE.Group();
@@ -154,11 +168,11 @@ export function PlayerVehicle({ vehicleId, paint, upgrades, rain, spawn, anchor,
   useLayoutEffect(() => resetVehicleEntry(spec.kind === 'car' && !useGame.getState().save.mission, spec), [spec]);
 
   useEffect(() => () => {
-    parts.body.dispose();
-    parts.glass?.dispose();
-    parts.steer?.geometry.dispose();
-    parts.wheel.forEach((w) => w.dispose());
-  }, [parts]);
+    builtParts.body.dispose();
+    builtParts.glass?.dispose();
+    builtParts.steer?.geometry.dispose();
+    builtParts.wheel.forEach((w) => w.dispose());
+  }, [builtParts]);
 
   // The raycast controller is bound lazily inside the physics step so it always targets the live
   // chassis body (React StrictMode may destroy/recreate the RigidBody during mount).
@@ -214,15 +228,15 @@ export function PlayerVehicle({ vehicleId, paint, upgrades, rain, spawn, anchor,
     advanceVehicleEntry(w.timestep);
     const passengerDoor = rideVisual.boardProgress >= 0 ? entryPhase(rideVisual.boardProgress).door : rideVisual.alightProgress >= 0 && rideVisual.departureAt < 0 ? entryPhase(rideVisual.alightProgress, true).door : 0;
     const openings = [passengerDoor, vehicleEntry.doorOpen];
-    openings.forEach((open, i) => {
+    // Only cars have doors to swing, collide and sound: a passenger simply climbs on or off a bike or auto,
+    // and buses use their own sliding doors (the vehicle is still held while anyone gets on or off).
+    if (spec.kind === 'car') openings.forEach((open, i) => {
       const side = i === 0 ? 1 : -1;
       const door = (imported?.body ?? proceduralBody)?.getObjectByName(`vehicle-door-${side}`);
       if (door) setDoorPose(door, spec, side, open);
       const collider = doorColliders.current[i];
       if (collider?.isValid()) {
-        const angle = -side * open * (spec.id === 'bmw_i8' ? .3 : 1.1);
-        doorRotation.setFromEuler(new THREE.Euler(0, angle, spec.id === 'bmw_i8' ? side * open * 1.05 : 0));
-        doorCenter.set(0, cabin.sill + cabin.doorHeight / 2 - cabin.hingeY, -cabin.doorLength / 2).applyQuaternion(doorRotation).add(new THREE.Vector3(side * cabin.doorX, cabin.hingeY - restH, cabin.front));
+        doorColliderPose(spec, side, open, doorCenter, doorRotation); doorCenter.y -= restH;
         collider.setTranslationWrtParent(doorCenter); collider.setRotationWrtParent(doorRotation); collider.setEnabled(open > .02);
       }
       const last = previousDoors.current[i];
@@ -233,9 +247,12 @@ export function PlayerVehicle({ vehicleId, paint, upgrades, rain, spawn, anchor,
     input.getDrive(drive);
     if (vehicleEntry.mode === 'outside') {
       // Walk in the parked car's coordinate system, with capsule sweeps against buildings/traffic.
+      // A brisk walk (1.6 m/s at full stick) that speeds up and slows down over a step or two.
       const x = -drive.steer, z = drive.throttle - drive.brake;
-      const length = Math.max(1, Math.hypot(x, z));
-      const dx = x / length * w.timestep * 2.4, dz = z / length * w.timestep * 2.4;
+      const length = Math.max(1, Math.hypot(x, z)), k = 1 - Math.exp(-w.timestep * 5);
+      walkVelocity.current.x += (x / length * 1.6 - walkVelocity.current.x) * k;
+      walkVelocity.current.y += (z / length * 1.6 - walkVelocity.current.y) * k;
+      const dx = walkVelocity.current.x * w.timestep, dz = walkVelocity.current.y * w.timestep;
       const position = vehicleEntry.outside;
       const nextX = position.x + dx, nextZ = position.z + dz;
       const carClear = Math.abs(nextX) > spec.width / 2 + .3 || Math.abs(nextZ) > spec.length / 2 + .3;
@@ -246,10 +263,10 @@ export function PlayerVehicle({ vehicleId, paint, upgrades, rain, spawn, anchor,
       const hit = world.castShape({ ...foot, y: foot.y + .85 }, { x: 0, y: 0, z: 0, w: 1 }, movement, walkerShape, .02, 1, true, undefined, groups(0xffff, G_STATIC | G_TRAFFIC), undefined, v.body);
       const fraction = hit ? Math.max(0, hit.time_of_impact - .05) : 1;
       if (carClear) { position.x += dx * fraction; position.z += dz * fraction; }
-      if (Math.hypot(dx, dz) > .0001) vehicleEntry.outsideHeading = Math.atan2(dx, dz);
+      if (Math.hypot(x, z) > .05) vehicleEntry.outsideHeading = Math.atan2(x, z);
       const ground = world.castRay(new rapier.Ray({ x: foot.x, y: 4, z: foot.z }, { x: 0, y: -1, z: 0 }), 6, true, undefined, GROUND_QUERY_GROUPS, undefined, v.body);
       if (ground) position.y = 4 - ground.timeOfImpact - p.y + restH + .01;
-    }
+    } else walkVelocity.current.set(0, 0);
     if (vehicleEntry.mode !== 'seated' || openings.some((open) => open > .01)) { drive.throttle = 0; drive.brake = 0; drive.steer = 0; drive.handbrake = true; drive.powerBrake = true; }
     if (fuel.percent <= 0) {
       drive.throttle = 0;
@@ -298,7 +315,8 @@ export function PlayerVehicle({ vehicleId, paint, upgrades, rain, spawn, anchor,
         const { steer, spin } = imported.wheels[i];
         if (!steer || !spin) return;
         steer.position.y = steer.userData.restY + connY - suspension + restH - spec.wheelRadius;
-        steer.rotation.y = w.steer ? steerVis : 0;
+        // Imported bikes cannot turn their fork/bars, so the front wheel only hints at the steer angle.
+        steer.rotation.y = w.steer ? steerVis * (spec.kind === 'bike' ? .3 : 1) : 0;
         spin.rotation.x = v.wheelSpinAngle(i);
         return;
       }
@@ -323,6 +341,8 @@ export function PlayerVehicle({ vehicleId, paint, upgrades, rain, spawn, anchor,
       const fade = Math.min(1, sp / 6);
       // lean into the turn (right turn → negative yaw rate → lean right = +z rotation)
       targetRoll = THREE.MathUtils.clamp(tel.steerAngle * 0.3 * fade - (tel.lateralAccel / 9.81) * 0.5 * fade, -0.31, 0.31);
+      // Stopped, an imported bike rests on the rider's left foot (−roll leans toward +x, the left side).
+      if (spec.importedModel && sp < .6) targetRoll = -.06;
     } else {
       // body rolls outward
       targetRoll = THREE.MathUtils.clamp((tel.lateralAccel / 9.81) * 0.06, -0.05, 0.05);
@@ -367,16 +387,19 @@ export function PlayerVehicle({ vehicleId, paint, upgrades, rain, spawn, anchor,
       <group ref={anchor}>
         <group position-y={-restH} name={imported ? `imported-vehicle-${spec.id}` : undefined}>
           <group ref={lean}>
-            {imported ? <primitive object={imported.body} dispose={null} /> : (
+            {imported && <primitive object={imported.body} dispose={null} />}
+            {/* Imported bikes lean as one piece, wheels included. */}
+            {imported && spec.kind === 'bike' && imported.wheels.map((w, i) => <primitive key={i} object={w.steer} dispose={null} />)}
+            {(!imported || spec.kind === 'bike') && (
               <>
-                {proceduralBody ? <primitive object={proceduralBody} dispose={null} /> : <>
+                {imported ? null : proceduralBody ? <primitive object={proceduralBody} dispose={null} /> : <>
                   <mesh geometry={parts.body} material={MATERIALS.world} castShadow receiveShadow />
                   {parts.glass && <mesh geometry={parts.glass} material={GLASS_MAT} renderOrder={1} />}
                 </>}
                 {parts.steer && (
                   <group position={parts.steer.pivot} rotation-x={parts.steer.rake}>
                     <group ref={steerRef}>
-                      <mesh geometry={parts.steer.geometry} material={MATERIALS.world} castShadow />
+                      {!imported && <mesh geometry={parts.steer.geometry} material={MATERIALS.world} castShadow />}
                       {parts.steer.grips.map((g, i) => (
                         <object3D key={i} name={`player-steering-grip-${i}`} position={g} ref={(o) => void (gripRefs.current[i] = o)} />
                       ))}
@@ -386,11 +409,12 @@ export function PlayerVehicle({ vehicleId, paint, upgrades, rain, spawn, anchor,
                 {parts.seat && spec.kind !== 'car' && <ImportedRider parts={parts} look={look} gripRefs={gripRefs} roll={leanState} steerAngle={barAngle} />}
               </>
             )}
-            {spec.kind === 'car' && <CarDriver spec={spec} look={look} />}
+            {spec.kind === 'car' && <CarDriver spec={spec} look={look} steeringWheel={imported?.body.getObjectByName('steering-wheel') ?? null} />}
             {parts.passengerSeat && seatAnchor && <group ref={seatAnchor} position={spec.kind === 'car' ? [cabin.seatX, cabin.hipY, cabin.seatZ] : parts.passengerSeat} />}
             {spec.kind === 'bus' && <BusDoors spec={spec} />}
           </group>
-          {imported ? imported.wheels.map((w, i) => <primitive key={i} object={w.steer} dispose={null} />) : spec.wheels.visual.map((w, i) => (
+          {spec.kind === 'car' && <CarEffects spec={spec} />}
+          {imported ? spec.kind === 'bike' ? null : imported.wheels.map((w, i) => <primitive key={i} object={w.steer} dispose={null} />) : spec.wheels.visual.map((w, i) => (
             <group key={i} ref={(g) => void (wheelRefs.current[i] = g)} position={[w.x === 0 ? 0 : Math.sign(w.x) * (Math.abs(w.x) + 0.02), w.radius, w.z]}>
               <mesh ref={(m) => void (wheelSpinRefs.current[i] = m)} geometry={parts.wheel[i]} material={MATERIALS.world} castShadow />
             </group>

@@ -1,0 +1,137 @@
+/* =====================================================================
+   Glass theme + boot splash. Loaded last: overrides styles.css / gameHud.css.
+   ===================================================================== */
+:root {
+  --glass: linear-gradient(160deg, #1a2a40b8, #0a1422c4);
+  --glass-strong: linear-gradient(160deg, #1b2c44e0, #08111ee8);
+  --glass-edge: #9fd8ff38;
+  --glass-hi: inset 0 1px 0 #ffffff1f, inset 0 0 0 1px #ffffff08;
+  --surface: #0c1828b3;
+  --surface-2: #142538c4;
+  --radius: 0px;
+}
+
+/* ---------- square corners everywhere (round controls stay round) ---------- */
+*, *::before, *::after { border-radius: 0 !important; }
+.joy-home, .joy-live, .joy-knob, .minimap, .minimap canvas { border-radius: 50% !important; }
+
+/* ---------- glass surfaces ---------- */
+/* Popups and menus: true frosted glass. */
+.modal, .menu-card, .boot-error {
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-hi), 0 24px 60px #00000066;
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+.modal-backdrop { background: #050a1259; -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.modal-head { background: transparent; }
+/* HUD over the live 3D view: the same glass look without per-frame blur (keeps phones fast). */
+.cash, .lvl, .instruction, .ride-chip, .pause-btn, .heat, .util, .power-brake, .pedal, .speed-pill, .fuel-gauge,
+.steer-pad, .look-hint, .drift-badge, .reverse-badge, .test-drive-banner, .toast, .offer-card, .hud-top-left > * {
+  background: var(--glass);
+  border-color: var(--glass-edge);
+  box-shadow: var(--glass-hi), 0 4px 16px #0000003d;
+}
+.btn { box-shadow: var(--glass-hi); }
+.btn.primary { box-shadow: inset 0 1px 0 #ffffff59, 0 6px 18px #36ceff33; }
+.btn.tile, .btn.outline, .seg button { background: #ffffff0d; border: 1px solid var(--glass-edge); }
+
+/* Main menu sits on the supercar cover, darkened. */
+.main-menu { background: linear-gradient(90deg, #050a12f2 0%, #050a12b3 45%, #050a1240 100%), var(--menu-cover, none) center / cover no-repeat; }
+
+/* ---------- boot splash ---------- */
+.splash { position: absolute; inset: 0; z-index: 30; overflow: hidden; background: #03070d; color: #fff; display: flex; flex-direction: column; justify-content: space-between; }
+.splash-slides, .splash-shade, .splash-scan { position: absolute; inset: 0; pointer-events: none; }
+.splash-slides img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(1.12); transition: opacity .55s ease, transform 3.2s ease-out; }
+.splash-slides img.on { opacity: 1; transform: scale(1.02); }
+.splash-shade { background:
+  linear-gradient(180deg, #03070dd9 0%, #03070d26 28%, #03070d00 50%, #03070db3 74%, #03070df5 100%),
+  radial-gradient(ellipse at center, #0000 55%, #000a 100%); }
+/* Faint scanlines + a sweeping sensor beam for the "machine booting" feel. */
+.splash-scan { background: repeating-linear-gradient(180deg, #ffffff06 0 1px, #0000 1px 3px); }
+.splash-scan::after { content: ''; position: absolute; left: 0; right: 0; height: 18%; top: -20%;
+  background: linear-gradient(180deg, #0000, #36ceff14, #0000); animation: splash-sweep 2.4s linear infinite; }
+@keyframes splash-sweep { to { top: 110%; } }
+
+.splash-top { position: relative; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding: max(16px, var(--safe-t)) max(20px, var(--safe-r)) 0 max(20px, var(--safe-l)); }
+.splash .wordmark { text-align: left; text-shadow: 0 0 24px #36ceff66; }
+.splash .wordmark .w1, .splash .wordmark .w2 { font-size: clamp(30px, 6vw, 64px); }
+.splash-car-name { font: 700 clamp(11px, 1.6vw, 15px) ui-monospace, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase;
+  color: #9fe6ff; padding: 6px 10px; border: 1px solid var(--glass-edge); background: #03070d80; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); white-space: nowrap; }
+
+.splash-bottom { position: relative; display: flex; flex-direction: column; gap: 12px;
+  padding: 0 max(20px, var(--safe-r)) max(14px, var(--safe-b)) max(20px, var(--safe-l)); }
+.splash-thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-width: 640px; }
+.splash-thumb { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid #ffffff26; opacity: .55; transform: translateY(2px); transition: opacity .3s, transform .3s, border-color .3s, box-shadow .3s; background: #000; }
+.splash-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.splash-thumb span { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 5px; font: 700 9px ui-monospace, Menlo, monospace; letter-spacing: .06em;
+  text-transform: uppercase; color: #dff6ff; background: linear-gradient(0deg, #000c, #0000); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.splash-thumb.on { opacity: 1; transform: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 18px #36ceff66; }
+
+/* Segmented robotic progress bar with corner brackets. */
+.robo-bar { position: relative; padding: 10px 12px 8px; background: #03070dad; border: 1px solid #36ceff40;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; }
+.robo-bar::before, .robo-bar::after { content: ''; position: absolute; width: 14px; height: 14px; border: 2px solid var(--accent); }
+.robo-bar::before { left: -2px; top: -2px; border-right: 0; border-bottom: 0; }
+.robo-bar::after { right: -2px; bottom: -2px; border-left: 0; border-top: 0; }
+.robo-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 7px; min-width: 0; }
+.robo-status { color: var(--accent); font-weight: 800; font-size: 12px; letter-spacing: .14em; white-space: nowrap; }
+.robo-caret { display: inline-block; width: 7px; height: 11px; margin-left: 4px; background: var(--accent); vertical-align: -1px; animation: robo-blink .7s steps(1) infinite; }
+@keyframes robo-blink { 50% { opacity: 0; } }
+.robo-stage { flex: 1; min-width: 0; color: #9db4c8; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.robo-pct { color: #fff; font-size: 20px; letter-spacing: .06em; text-shadow: 0 0 12px #36ceffaa; font-variant-numeric: tabular-nums; }
+.robo-track { display: grid; grid-template-columns: repeat(28, 1fr); gap: 3px; height: 14px; }
+.robo-track i { display: block; background: #36ceff14; border: 1px solid #36ceff26; transform: skewX(-18deg); transition: background .12s, box-shadow .12s; }
+.robo-track i.lit { background: linear-gradient(180deg, #8ae9ff, #1aa8e0); border-color: #8ae9ff; box-shadow: 0 0 8px #36ceff99; }
+.robo-track i.head { background: #36ceff66; animation: robo-blink .25s steps(1) infinite; }
+.robo-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 6px; font-size: 10px; color: #7f97ab; letter-spacing: .06em; }
+.robo-foot span:last-child { font-family: system-ui, sans-serif; letter-spacing: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.splash .boot-error { position: relative; align-self: center; margin-bottom: max(24px, var(--safe-b)); padding: 16px; max-width: 80vw; text-align: center; }
+
+/* Short landscape phones: tighter, thumbnails stay but shrink. */
+@media (max-height: 420px) {
+  .splash-top { padding-top: max(10px, var(--safe-t)); }
+  .splash .wordmark .w1, .splash .wordmark .w2 { font-size: clamp(24px, 5vw, 40px); }
+  .splash-bottom { gap: 8px; padding-bottom: max(8px, var(--safe-b)); }
+  .splash-thumbs { max-width: 420px; gap: 6px; }
+  .robo-bar { padding: 7px 10px 6px; }
+  .robo-pct { font-size: 16px; }
+  .robo-track { height: 10px; }
+  .robo-foot span:last-child { display: none; }
+}
+/* Portrait phones / narrow screens. */
+@media (max-width: 560px) {
+  .splash-top { flex-direction: column; }
+  .robo-stage { display: none; }
+  .robo-track { gap: 2px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash-slides img { transition: opacity .3s; transform: none !important; }
+  .splash-scan::after, .robo-caret, .robo-track i.head { animation: none; }
+}
+
+/* ---------- garage selector cards with real photos ---------- */
+.vcard { width: 150px; padding: 0 0 8px; gap: 4px; overflow: hidden; background: #ffffff0a; border: 1px solid var(--glass-edge); box-shadow: var(--glass-hi); }
+.vcard .vthumb { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: #03070d; border-bottom: 1px solid var(--glass-edge); }
+.vcard .vico { margin-top: 8px; }
+.vcard .vn, .vcard .chip { padding: 0 6px; }
+.vcard.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 16px #36ceff40; }
+@media (max-height: 420px) { .vcard { width: 128px; } }
+
+/* ---------- desktop shortcut badges ---------- */
+.key-hint { display: none; }
+.desktop-mode .key-hint { display: block; position: absolute; top: 3px; right: 3px; min-width: 15px; padding: 1px 4px;
+  font: 700 9px/1.25 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: .02em; text-align: center; text-transform: uppercase;
+  color: #cfefff; background: #03070dcc; border: 1px solid #36ceff59; box-shadow: 0 1px 0 #36ceff33; pointer-events: none; }
+/* Only in-flow buttons need a positioning context; .power-brake and .pause-btn are already absolutely placed. */
+.desktop-mode :is(.util:not(.recover), .pedal, .offer-actions .btn, .fuel-gauge button, .test-drive-banner .btn) { position: relative; }
+.desktop-mode :is(.offer-actions .btn, .fuel-gauge button, .test-drive-banner .btn) { padding-right: 24px; }
+.desktop-mode :is(.util, .pause-btn) .key-hint { top: 2px; right: 2px; min-width: 13px; padding: 0 3px; font-size: 8px; }
+.desktop-mode .offer-actions .btn .key-hint, .desktop-mode .btn.primary .key-hint { color: #03121c; background: #ffffffd9; border-color: #ffffff; }
+.desktop-mode .map-key { top: calc(var(--map-size) - 16px); right: auto; left: -2px; z-index: 2; }
+.desktop-mode .offer-actions kbd.key-hint { display: block; }
+
+/* Alert actions (recover, fuel help): amber glass instead of the old pale fill. */
+.util.recover, .fuel-gauge button { background: linear-gradient(160deg, #f4b54459, #f4b54426); border: 1px solid #f4b544b3; color: #fff; box-shadow: var(--glass-hi), 0 0 14px #f4b54433; }

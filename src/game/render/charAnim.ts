@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { BONE, type Rig } from './characters';
+import { WALK, footAt, smooth } from './gait';
 
 // Procedural character animation.
-// - Locomotion: a gait cycle advanced by the distance actually travelled (no foot sliding).
-//   Hip height comes from the extended-leg geometry, so the stance foot stays planted on the ground;
-//   pelvis yaw/roll, lateral weight shift, counter-rotating shoulders, arm swing and a stabilised head
-//   follow real walking biomechanics, scaled by speed and blended into a breathing idle.
+// - Locomotion: the shared gait (see gait.ts) places each ankle — planted through stance, rolling heel to toe,
+//   lifting through the swing — and planar two-bone IK bends hip and knee to reach it; the hips ride as high as
+//   both legs allow. Pelvis yaw/roll, lateral weight shift, counter-rotating shoulders, arm swing and a
+//   stabilised head follow walking biomechanics, scaled by speed and blended into a breathing idle.
 // - Seated: per-vehicle sitting poses with inertia (lean back on throttle, forward on braking, sway in
 //   corners) and two-bone arm IK that keeps both hands on the steering wheel / handlebar grips.
 
@@ -13,6 +14,9 @@ const TAU = Math.PI * 2;
 
 export interface AnimState {
   phase: number;
+  /** Gait cycle 0…1 (0 = left heel strike) and current step length (m). */
+  cycle: number;
+  step: number;
   speed: number;
   t: number;
   seed: number;
@@ -24,10 +28,11 @@ export interface AnimState {
 }
 
 export function newAnimState(seed = Math.random() * 1000): AnimState {
-  return { phase: seed % TAU, speed: 0, t: seed, seed, wave: 0, look: 0, lookTarget: 0, lookTimer: 2, footDown: 0 };
+  return { phase: seed % TAU, cycle: (seed * .37) % 1, step: .1, speed: 0, t: seed, seed, wave: 0, look: 0, lookTarget: 0, lookTimer: 2, footDown: 0 };
 }
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+const legTarget = [new THREE.Vector3(), new THREE.Vector3()], legPitch = [0, 0];
 
 /**
  * Walk / idle. `moved` = metres travelled since last frame along the facing direction.
@@ -38,14 +43,16 @@ export function animateLocomotion(rig: Rig, st: AnimState, dt: number, moved: nu
   const P = rig.P;
   const fem = rig.gender === 'female';
   st.t += dt;
-  const inst = dt > 0 ? moved / dt : 0;
-  st.speed += (inst - st.speed) * Math.min(1, dt * 8);
+  const travel = Math.min(.25, moved);
+  const inst = dt > 0 ? travel / dt : 0;
+  st.speed += (inst - st.speed) * Math.min(1, dt * 6);
   const v = Math.max(0, st.speed);
-  const w = clamp(v / 1.25, 0, 1.35);
-  const amp = 0.4 * Math.min(1, w) + 0.1 * Math.max(0, w - 1);
   const L = P.thighLen + P.shinLen;
-  const cycle = Math.max(0.45, 4 * L * Math.sin(Math.max(amp, 0.1)));
-  st.phase = (st.phase + (moved / cycle) * TAU) % TAU;
+  // Steps lengthen with speed (short when shuffling, ~0.65 m at a brisk walk); the cycle advances with distance.
+  st.step += (clamp(.08 + .45 * v, .08, .9) * L / .8 - st.step) * (1 - Math.exp(-dt * 5));
+  st.cycle = (st.cycle + travel / (2 * st.step)) % 1;
+  const w = smooth(v / .8);
+  st.phase = st.cycle * TAU;
   const ph = st.phase;
 
   // look-around while idle
@@ -56,36 +63,42 @@ export function animateLocomotion(rig: Rig, st: AnimState, dt: number, moved: nu
   }
   st.look += (st.lookTarget - st.look) * Math.min(1, dt * 2.5);
 
-  // legs
-  let maxExt = 0;
+  // Pelvis: sways over the stance foot, rotates with the swing leg, drops on the swing side.
+  const toStance = Math.cos(TAU * (st.cycle - WALK.duty / 2));
+  const sway = (fem ? 0.028 : 0.018) * w * toStance;
+  const roll = (fem ? 0.075 : 0.045) * w * toStance;
+  const yaw = -0.075 * w * Math.cos(ph);
+  const idleW = 1 - w;
+  const breathe = Math.sin(st.t * 1.7);
+  // Legs: ankle targets relative to each hip joint (sagittal plane), then planar two-bone IK.
+  const hipJoint = P.joints[BONE.thighL].y, a = P.thighLen, bl = P.shinLen;
+  let drop = 0;
+  for (let i = 0; i < 2; i++) {
+    legPitch[i] = footAt((st.cycle + i * .5) % 1, st.step, w, P.ankleH, legTarget[i]);
+    const reach = L * .985;
+    drop = Math.min(drop, legTarget[i].y + Math.sqrt(Math.max(0, reach * reach - legTarget[i].z * legTarget[i].z)) - hipJoint);
+  }
+  drop = Math.min(drop, -0.01 - 0.025 * w) + idleW * 0.004 * breathe;
   for (const side of [1, -1] as const) {
-    const p = side > 0 ? ph : ph + Math.PI;
-    const s = Math.sin(p);
-    const c = Math.cos(p);
-    const thigh = -amp * s - 0.05 * w;
-    const knee = w * (0.1 + 0.95 * Math.pow(Math.max(0, c), 2) * Math.max(0, 1 - Math.max(0, s) * 0.5)) + 0.04;
-    const pushOff = w * 0.35 * Math.max(0, -s) * Math.max(0, -c * 0.5 + 0.5) * (c < 0.2 ? 1 : 0);
-    const ankle = -(thigh + knee) * 0.92 + pushOff - w * 0.12 * Math.max(0, c);
+    const i = side > 0 ? 0 : 1, target = legTarget[i];
+    const dz = target.z, dy = target.y - (hipJoint + drop);
+    const d = clamp(Math.hypot(dz, dy), Math.abs(a - bl) + 1e-3, a + bl - 1e-3);
+    const knee = Math.PI - Math.acos(clamp((a * a + bl * bl - d * d) / (2 * a * bl), -1, 1));
+    const thigh = Math.atan2(dz, -dy) + Math.acos(clamp((a * a + d * d - bl * bl) / (2 * a * d), -1, 1));
     const T = side > 0 ? BONE.thighL : BONE.thighR;
     const S = side > 0 ? BONE.shinL : BONE.shinR;
     const F = side > 0 ? BONE.footL : BONE.footR;
-    b[T].rotation.set(thigh, 0, side * (0.02 + (fem ? -0.012 : 0)));
+    // Thigh forward is negative X; the knee folds back (positive); the foot stays level plus its heel/toe roll.
+    // The thigh also undoes the pelvis yaw, roll and sideways sway, so a planted foot keeps its line on the ground.
+    const hang = Math.max(.2, hipJoint + drop - target.y);
+    b[T].rotation.set(-thigh, -yaw, side * (0.02 + (fem ? -0.012 : 0)) - roll - sway / hang);
     b[S].rotation.set(knee, 0, 0);
-    b[F].rotation.set(ankle, 0, 0);
-    const ext = P.thighLen * Math.cos(thigh) + P.shinLen * Math.cos(thigh + knee);
-    maxExt = Math.max(maxExt, ext);
+    b[F].rotation.set(thigh - knee + legPitch[i], 0, 0);
   }
-
-  // pelvis: height from the planted leg, yaw, hip drop, weight shift
-  const sway = (fem ? 0.028 : 0.018) * Math.min(1, w);
-  const roll = -(fem ? 0.075 : 0.04) * Math.min(1, w) * Math.cos(ph);
-  const yaw = -0.11 * Math.min(1, w) * Math.sin(ph);
-  const idleW = 1 - Math.min(1, w * 2);
-  const breathe = Math.sin(st.t * 1.7);
   const hips = b[BONE.hips];
   hips.position.set(
-    -sway * Math.cos(ph) + idleW * 0.012 * Math.sin(st.t * 0.45 + st.seed),
-    P.joints[0].y - (L - maxExt),
+    sway + idleW * 0.012 * Math.sin(st.t * 0.45 + st.seed),
+    P.joints[0].y + drop,
     P.joints[0].z,
   );
   hips.rotation.set(0, yaw, roll + idleW * 0.025 * Math.sin(st.t * 0.45 + st.seed));
@@ -97,15 +110,14 @@ export function animateLocomotion(rig: Rig, st: AnimState, dt: number, moved: nu
   const head = b[BONE.head];
   head.rotation.set(-lean * 0.6 + 0.025 * w * Math.sin(2 * ph), -(yaw - yaw * 1.6) * 0.8 + st.look, -(roll * 0.3));
 
-  // arms: counter-swing to the legs, elbows bend more on the forward swing
-  const armAmp = (fem ? 0.3 : 0.42) * Math.min(1.2, w);
+  // arms: counter-swing to the legs (left arm forward with the right leg), elbows bend more on the forward swing
+  const armAmp = (fem ? 0.3 : 0.4) * w;
   for (const side of [1, -1] as const) {
     const U = side > 0 ? BONE.uArmL : BONE.uArmR;
     const Fa = side > 0 ? BONE.fArmL : BONE.fArmR;
-    const swing = side * armAmp * Math.sin(ph);
-    const fwd = Math.max(0, -swing);
-    b[U].rotation.set(swing - 0.03, 0, side * (0.08 + idleW * 0.02 * breathe + (fem ? 0.02 : 0)));
-    b[Fa].rotation.set(-(0.14 + 0.4 * fwd + 0.15 * w), 0, 0);
+    const forward = side * Math.cos(TAU * (st.cycle - .5));
+    b[U].rotation.set(-armAmp * forward - 0.03, 0, side * (0.08 + idleW * 0.02 * breathe + (fem ? 0.02 : 0)));
+    b[Fa].rotation.set(-(0.14 + 0.4 * Math.max(0, forward) * w + 0.15 * w), 0, 0);
   }
 
   // hail wave (right arm)
@@ -132,6 +144,10 @@ export interface SeatDynamics {
   roll: number;
   /** Visual handlebar / steering-wheel angle (radians); the torso twists to follow handlebars. */
   bar?: number;
+  /** Smoothed player controls (steer -1…1, drive = throttle − brake), so the body answers the joystick even at a standstill. */
+  control?: { steer: number; drive: number };
+  /** Extra forward torso lean (bike riders fold down until the bars are within reach). */
+  extraLean?: number;
 }
 
 const LEGS: Record<SeatPose, { thigh: number; spread: number; knee: number; lean: number }> = {
@@ -176,9 +192,15 @@ export function poseSeated(rig: Rig, pose: SeatPose, st: AnimState, dt: number, 
   let sideLean = 0;
   let look = 0;
   if (dyn) {
-    lean += clamp(-dyn.longAccel * 0.022, -0.12, 0.14);
+    lean += clamp(-dyn.longAccel * 0.022, -0.12, 0.14) + (dyn.extraLean ?? 0) * .5;
     sideLean = pose === 'bike' || pose === 'pillion' ? 0 : clamp(dyn.lateralAccel * 0.014, -0.11, 0.11);
     look = -dyn.steer * 0.32;
+    if (dyn.control) {
+      const two = pose === 'bike' || pose === 'pillion';
+      lean += dyn.control.drive * (two ? 0.07 : 0.04);
+      sideLean += -dyn.control.steer * (two ? 0.12 : 0.08);
+      look += -dyn.control.steer * 0.18;
+    }
   }
   const twist = (pose === 'bike' || pose === 'auto') && dyn?.bar ? dyn.bar * 0.75 : 0;
   b[BONE.spine].rotation.set(lean, twist, sideLean);

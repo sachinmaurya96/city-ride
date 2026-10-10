@@ -12,7 +12,7 @@ class Param {
   exponentialRampToValueAtTime(value: number) { this.value = value; }
 }
 class Node {
-  gain = new Param(); frequency = new Param(); playbackRate = new Param();
+  gain = new Param(); frequency = new Param(); playbackRate = new Param(); Q = new Param();
   type = ''; loop = false; buffer: unknown; onended: (() => void) | null = null;
   connect() { return this; }
   disconnect() {}

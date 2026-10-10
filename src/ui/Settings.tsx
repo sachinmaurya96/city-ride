@@ -127,7 +127,7 @@ export function SettingsOverlay() {
           {character.state?.status === 'error' && <button className="link" onClick={() => { void loadCharacter(st.driver, true).catch(() => {}); }}>{t.retry}</button>}
           <label className="graphics-field"><span>{st.language === 'ru' ? 'Пассажиры' : 'Passenger characters'}</span>
             <select value={st.passengerCharacter} onChange={(e) => update({ passengerCharacter: e.target.value as typeof st.passengerCharacter })} data-testid="passenger-character">
-              <option value="mixed">Lynae / Cartethyia</option><option value="lynae">Lynae</option><option value="cartethyia">Cartethyia</option><option value="original">{st.language === 'ru' ? 'Оригинальные' : 'Original characters'}</option>
+              <option value="mixed">{st.language === 'ru' ? 'Разные пассажиры' : 'Mixed passengers'}</option><option value="lynae">Lynae</option><option value="cartethyia">Cartethyia</option><option value="original">{st.language === 'ru' ? 'Оригинальные' : 'Original characters'}</option>
             </select>
           </label>
           {passengerModel.state?.status === 'loading' && <p className="graphics-hint">{t.characterLoading}</p>}

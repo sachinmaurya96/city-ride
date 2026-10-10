@@ -6,12 +6,33 @@ import { input } from '../input/input';
 import { routeFrom } from '../navigation/routing';
 import { progressAlong, routeInstruction, type Route } from '../navigation/roadGraph';
 import { vehicleEntry } from './entry';
+import { FUEL_TANK_PRICE } from '../data/economy';
+import { pushTx } from '../progression/progression';
+import { fmt, money } from '../../i18n/strings';
+import type { SaveData } from '../../storage/schema';
 
 export const FUEL = {
   rangeMeters: { bike: 24000, auto: 20000, car: 18000, bus: 16000 } as Record<VehicleKind, number>,
   capacityLiters: { bike: 12, auto: 24, car: 80, bus: 180 } as Record<VehicleKind, number>,
   lowPercent: 20, stopHold: .5,
+  /** Flat price (₹) of a full tank for any vehicle. */
+  fullTankPrice: FUEL_TANK_PRICE,
 };
+/** What a refuel costs now: this tank plus any earlier unpaid fuel. */
+export function fuelBill(save: Pick<SaveData, 'wallet' | 'fuelDebt'>) {
+  const total = FUEL.fullTankPrice + save.fuelDebt;
+  const paid = Math.min(save.wallet, total);
+  return { price: FUEL.fullTankPrice, debt: save.fuelDebt, total, paid, owed: total - paid };
+}
+/** Fill the tank and charge it; cash that is short becomes fuel debt for the next visit. */
+export function chargeFullTank(save: SaveData, vehicleId: VehicleId, now: number): SaveData {
+  const bill = fuelBill(save);
+  const s: SaveData = { ...save, wallet: save.wallet - bill.paid, fuelDebt: bill.owed,
+    fuelByVehicle: { ...save.fuelByVehicle, [vehicleId]: 100 }, transactionHistory: [...save.transactionHistory],
+    revision: save.revision + 1, updatedAt: now };
+  if (bill.paid > 0) pushTx(s, `fuel:${now}`, 'fuel', -bill.paid, 0, now);
+  return s;
+}
 export function insideFuelBay(bay: Bay, x: number, z: number) {
   const dx = x - bay.x, dz = z - bay.z;
   return Math.abs(dx * Math.sin(bay.heading) + dz * Math.cos(bay.heading)) <= bay.length / 2
@@ -77,16 +98,16 @@ export class FuelSystem {
     const st = useGame.getState(), prompt = this.prompt;
     if (st.overlay !== 'fuel' || !prompt || prompt.vehicleId !== runtime.vehicleId || !runtime.vehicle
       || vehicleEntry.mode !== 'seated' || runtime.vehicle.horizontalSpeed() > .3 || !insideFuelBay(prompt.station, runtime.pose.x, runtime.pose.z)) return false;
-    // Only the saved tank changes: even a player with no cash receives a full tank.
-    st.commit({ ...st.save, fuelByVehicle: { ...st.save.fuelByVehicle, [prompt.vehicleId]: 100 },
-      revision: st.save.revision + 1, updatedAt: Date.now() }, true);
-    this.tank.percent = 100; this.navigation = null; this.dismiss(); return true;
+    // A player with no cash still receives a full tank; the shortfall is charged next time.
+    this.refill(prompt.vehicleId);
+    this.navigation = null; this.dismiss(); return true;
   }
-  private refillFree(vehicleId: VehicleId) {
-    const st = useGame.getState();
-    st.commit({ ...st.save, fuelByVehicle: { ...st.save.fuelByVehicle, [vehicleId]: 100 },
-      revision: st.save.revision + 1, updatedAt: Date.now() }, true);
+  private refill(vehicleId: VehicleId) {
+    const st = useGame.getState(), bill = fuelBill(st.save);
+    st.commit(chargeFullTank(st.save, vehicleId, Date.now()), true);
     this.tank.percent = 100;
+    const t = useGame.getState().t;
+    st.toast(bill.owed > 0 ? fmt(t.fuelCredit, { amount: money(bill.owed) }) : fmt(t.fuelPaid, { amount: money(bill.paid) }), bill.owed > 0 ? 'warn' : 'good');
   }
   navigateToPump() {
     if (!runtime.vehicle || useGame.getState().appState !== 'PLAYING') return false;
@@ -108,7 +129,7 @@ export class FuelSystem {
     const bay = this.navigation!.targetBay; input.reset(); runtime.vehicle.stopImmediately();
     runtime.requestRecovery({ x: bay.x, z: bay.z, heading: bay.heading });
     // An empty tank locks the throttle, so the tow arrives refueled instead of waiting on the pump popup.
-    if (this.vehicleId) this.refillFree(this.vehicleId);
+    if (this.vehicleId) this.refill(this.vehicleId);
     this.navigation = null; this.visitedBay = bay.id; this.tank.stopTime = 0; return true;
   }
   private updateNavigation(dt: number) {

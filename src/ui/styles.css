@@ -281,3 +281,9 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--amber)
 .signal-ico { background: var(--surface-3); }
 select { color: var(--text); background: var(--surface-3); }
 .preview { border: 1px solid var(--line); }
+
+/* ---------- welcome bonus ---------- */
+.welcome-bonus { text-align: center; }
+.welcome-bonus .welcome-coin { font-size: 44px; line-height: 1; margin-top: 4px; }
+.welcome-bonus .welcome-amount { font-size: 2em; font-weight: 900; color: var(--good, #35d07f); margin: 2px 0 6px; }
+.welcome-bonus .btn { width: 100%; margin-top: 8px; }

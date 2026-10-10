@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../app/store';
+import { startTestDrive } from '../game/progression/testDrive';
 import { events } from '../game/core/events';
-import { VEHICLES, VEHICLE_ORDER, type VehicleId } from '../game/data/vehicles';
+import { VEHICLES, VEHICLE_ORDER, inGarage, type VehicleId } from '../game/data/vehicles';
 import { deriveHandling } from '../game/vehicles/handling';
 import {
   PAINTS,
@@ -23,6 +24,9 @@ import { useImportedModel } from '../game/render/useImportedModel';
 import { loadImportedModel } from '../game/render/importedVehicles';
 
 const KIND_ICON: Record<string, string> = { bike: '🛵', auto: '🛺', car: '🚗', bus: '🚌' };
+/** Real in-game photos for the selector cards (scripts/splash-shots.mjs with THUMB=1); emoji remain the fallback. */
+const THUMBS = Object.fromEntries(Object.entries(import.meta.glob<string>('../assets/thumbs/*.webp', { eager: true, import: 'default' }))
+  .map(([path, url]) => [path.split('/').pop()!.replace('.webp', ''), url]));
 const CATS: { id: UpgradeCategory; icon: string }[] = [
   { id: 'engine', icon: '⚙️' },
   { id: 'brakes', icon: '🛑' },
@@ -132,7 +136,10 @@ export function GarageOverlay() {
   const ups = upgradeLevels(save, sel);
   const paint = paintFor(save, sel);
   const busyJob = !!save.mission;
-  const list = VEHICLE_ORDER.filter((v) => (filter === 'all' ? true : filter === 'buses' ? VEHICLES[v].kind === 'bus' : VEHICLES[v].kind !== 'bus'));
+  const testDrive = useGame((s) => s.testDrive);
+  const showroom = VEHICLE_ORDER.filter((v) => inGarage(v, save.ownedVehicleIds));
+  const hasBuses = showroom.some((v) => VEHICLES[v].kind === 'bus');
+  const list = showroom.filter((v) => (filter === 'all' || !hasBuses ? true : filter === 'buses' ? VEHICLES[v].kind === 'bus' : VEHICLES[v].kind !== 'bus'));
 
   /** Single-flight guard: a double click / repeated render can never buy twice (domain also checks ownership). */
   const act = (fn: () => void) => {
@@ -167,6 +174,11 @@ export function GarageOverlay() {
       }
       if (!r.error) commit(r.save, true);
     });
+
+  const doTestDrive = () => act(() => {
+    if (!startTestDrive(sel)) return;
+    useGame.getState().openOverlay(null);
+  });
 
   const doTryCar = () => act(() => {
     const current = useGame.getState().save;
@@ -254,7 +266,7 @@ export function GarageOverlay() {
                 <b>{spec.price === 0 ? t.free : money(spec.price)}</b>
               </div>
               {state === 'equipped' && <button className="btn disabled" disabled>✓ {t.equipped}</button>}
-              {spec.importedModel && state !== 'equipped' && (
+              {spec.importedModel && state === 'owned' && (
                 <button className="btn primary" onClick={doTryCar} disabled={busyJob || model?.status !== 'ready'} data-testid="try-car">
                   {t.tryCar}
                 </button>
@@ -264,12 +276,17 @@ export function GarageOverlay() {
                   {t.equip}
                 </button>
               )}
+              {state !== 'equipped' && !owned && !spec.npcOnly && (
+                <button className="btn outline" onClick={doTestDrive} disabled={busyJob || !!testDrive || (!!spec.importedModel && model?.status !== 'ready')} data-testid="test-drive">
+                  🔑 {t.testDrive}
+                </button>
+              )}
               {state === 'locked' && (
                 <button className="btn disabled" disabled data-testid="locked">
                   🔒 {fmt(t.reachLevel, { level: spec.unlockLevel })}
                 </button>
               )}
-              {state === 'affordable' && !spec.importedModel && (
+              {state === 'affordable' && (
                 <button className="btn primary" onClick={() => setConfirm(sel)} data-testid="buy">
                   {fmt(t.buy, { price: money(spec.price) })}
                 </button>
@@ -279,7 +296,7 @@ export function GarageOverlay() {
                   {fmt(t.buy, { price: money(spec.price) })} · {t.notEnough}
                 </button>
               )}
-              {busyJob && (owned || spec.importedModel) && state !== 'equipped' && <small className="muted">{t.garageOnlyIdle}</small>}
+              {busyJob && owned && state !== 'equipped' && <small className="muted">{t.garageOnlyIdle}</small>}
               {spec.kind === 'bus' && state === 'equipped' && appState === 'PLAYING' && (
                 <button className="btn outline" onClick={() => open('bus')} data-testid="open-dispatch">
                   🚌 {t.busDispatch}
@@ -340,7 +357,7 @@ export function GarageOverlay() {
       </div>
       <div className="garage-strip">
         <div className="seg small">
-          {(['all', 'cars', 'buses'] as const).map((f) => (
+          {(hasBuses ? (['all', 'cars', 'buses'] as const) : (['all', 'cars'] as const)).map((f) => (
             <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>
               {f === 'all' ? t.filterAll : f === 'cars' ? t.filterCars : t.filterBuses}
             </button>
@@ -362,9 +379,13 @@ export function GarageOverlay() {
                 }}
                 data-testid={`vcard-${id}`}
               >
-                <span className="vico" style={{ color: paintFor(save, id) }}>
-                  {KIND_ICON[v.kind]}
-                </span>
+                {THUMBS[id] ? (
+                  <img className="vthumb" src={THUMBS[id]} alt="" loading="lazy" draggable={false} />
+                ) : (
+                  <span className="vico" style={{ color: paintFor(save, id) }}>
+                    {KIND_ICON[v.kind]}
+                  </span>
+                )}
                 <span className="vn">{save.settings.language === 'ru' ? v.nameRu : v.name}</span>
                 <span className={`chip ${st}`}>
                   {st === 'equipped' ? t.equipped : st === 'owned' ? t.owned : st === 'locked' ? `🔒 ${t.level} ${v.unlockLevel}` : v.price === 0 ? t.free : money(v.price)}

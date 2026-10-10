@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import type * as THREE from 'three';
-import { boot, play } from './helpers';
+import { boot, fixture, play } from './helpers';
 
 test.setTimeout(180000);
 test.use({ viewport: { width: 1000, height: 650 } });
@@ -11,9 +11,11 @@ async function carState(page: Page, id: string) {
     const car = scene.getObjectByName(`imported-vehicle-${id}`);
     if (!car) return null;
     let meshes = 0, triangles = 0, reflected = 0, textured = 0;
+    // The seated driver rides inside the car group; count only the car's own meshes.
+    const driver = new Set<THREE.Object3D>(); car.getObjectByName('player-driver')?.traverse((o) => driver.add(o));
     car.traverse((o) => {
       const mesh = o as THREE.Mesh;
-      if (!mesh.isMesh || mesh.name === 'player-driver') return;
+      if (!mesh.isMesh || driver.has(mesh)) return;
       meshes++;
       triangles += mesh.geometry.getAttribute('position').count / 3;
       const mat = mesh.material as THREE.MeshStandardMaterial;
@@ -31,6 +33,7 @@ test('both supplied cars preview, drive with animated wheels and persist without
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('request', (r) => { if (r.url().includes('.glb') && r.resourceType() === 'fetch') modelRequests.push(r.url()); });
   await boot(page);
+  await fixture(page, { owned: ['bike_basic', 'bmw_i8', 'bmw_m4_gt3'] });
   expect(modelRequests.filter(url => /bmw_|lambo|mustang|mclaren|rr-spectr/.test(url))).toEqual([]);
   const wallet = await page.evaluate(() => window.__cr.store.getState().save.wallet);
   for (const id of ['bmw_i8', 'bmw_m4_gt3']) {
@@ -47,7 +50,8 @@ test('both supplied cars preview, drive with animated wheels and persist without
     await expect.poll(() => page.evaluate(() => window.__cr.vehicleEntry.active), { timeout: 60000 }).toBe(false);
     const car = (await carState(page, id))!;
     await test.info().attach(`${id}-render.json`, { body: JSON.stringify(car, null, 2), contentType: 'application/json' });
-    expect(car.triangles).toBe(id === 'bmw_i8' ? 39933 : 107980);
+    // The M4 GT3 adds a mirrored copy of its single race seat (1297 triangles) for the passenger side.
+    expect(car.triangles).toBe(id === 'bmw_i8' ? 39933 : 109277);
     expect(car.meshes).toBeLessThan(70);
     expect(car.reflected).toBe(car.meshes);
     expect(car.textured).toBeGreaterThan(0);
@@ -67,7 +71,10 @@ test('both supplied cars preview, drive with animated wheels and persist without
   expect(modelRequests.filter((url) => /bmw_/i.test(url))).toHaveLength(2);
   await page.reload();
   await page.getByTestId('play').waitFor({ timeout: 90000 });
+  await page.waitForFunction(() => !!window.__cr?.store);
   expect(await page.evaluate(() => window.__cr.store.getState().save.equippedVehicleId)).toBe('bmw_m4_gt3');
+  // The menu shows the cover art; the saved car appears once the city loads.
+  await play(page);
   await expect.poll(() => carState(page, 'bmw_m4_gt3'), { timeout: 60000 }).not.toBeNull();
   await expect.poll(async () => {
     const car = await carState(page, 'bmw_m4_gt3');
@@ -80,6 +87,7 @@ test.describe('touch garage', () => {
 test.use({ viewport: { width: 667, height: 375 }, hasTouch: true, isMobile: true });
 test('a failed model download offers a retry, new cars fit mobile menus and active rides stay protected', async ({ page }) => {
   await boot(page);
+  await fixture(page, { owned: ['bike_basic', 'bmw_i8', 'bmw_m4_gt3'] });
   let fail = true;
   await page.route('**/*bmw_i8*.glb*', (route) => fail ? route.abort() : route.continue());
   await page.getByTestId('menu-garage').click();

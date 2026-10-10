@@ -59,7 +59,7 @@ test('supplied city packs and petrol pumps render, with filling only in the off-
 
 test.describe('mobile pump', () => {
   test.use({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
-  test('free full-tank confirmation fits touch screens and works with zero cash', async ({ page }) => {
+  test('₹60 full-tank confirmation fits touch screens and fills on credit with zero cash', async ({ page }) => {
     await boot(page, { clear: true });
     await fixture(page, { owned: ['mclaren_p1'], equipped: 'mclaren_p1', wallet: 0 });
     await play(page);
@@ -72,11 +72,13 @@ test.describe('mobile pump', () => {
     const dialog = page.getByTestId('fuel-station'); await expect(dialog).toBeVisible();
     expect(await page.evaluate(() => window.__cr.fuel.percent)).toBe(0);
     await expect(dialog).toContainText('Current tank: 0%');
-    await expect(dialog).toContainText('No money required');
+    await expect(dialog).toContainText('Full tank: ₹60');
+    await expect(dialog.getByTestId('fuel-short')).toContainText('₹60 will be added to your due');
     const button = dialog.getByTestId('fuel-confirm'); const bounds = (await button.boundingBox())!;
     expect(bounds.height).toBeGreaterThanOrEqual(44); expect(bounds.y).toBeGreaterThanOrEqual(0); expect(bounds.y + bounds.height).toBeLessThanOrEqual(390);
     await page.screenshot({ path: 'test-results/mobile-pump.png' });
     await button.tap(); await expect(dialog).toBeHidden();
     expect(await page.evaluate(() => ({ fuel: window.__cr.fuel.percent, cash: window.__cr.store.getState().save.wallet }))).toEqual({ fuel: 100, cash: 0 });
+    expect(await page.evaluate(() => window.__cr.store.getState().save.fuelDebt)).toBe(60);
   });
 });

@@ -14,12 +14,13 @@ test('desktop drifting keeps speed through countersteering, leaves ten-second tr
   await expect.poll(() => page.evaluate(() => window.__cr.vehicleEntry.mode), { timeout: 60000 }).toBe('seated');
   await expect.poll(() => page.evaluate(() => (window.__cr.debug.extra.scene as THREE.Scene).getObjectByName('player-driver')?.userData.character), { timeout: 60000 }).toBe('cartethyia');
   expect(await page.evaluate(() => (window.__cr.debug.extra.scene as THREE.Scene).getObjectByName('player-driver')!.scale.y)).toBeGreaterThan(.9);
-  await expect(page.getByTestId('power-brake')).toContainText('Space / Shift');
+  await expect(page.getByTestId('power-brake')).toContainText('Space'); // Shift also brakes; the badge names the main key
   expect(await page.getByTestId('heat').count()).toBe(0);
   expect(await page.getByTestId('red-hint').count()).toBe(0);
   await page.evaluate(() => {
     const c = window.__cr, seg = c.cityMap.SEGMENTS.find(s => s.dir === 'N' && s.length > 160)!;
-    const [x, z] = c.cityMap.segmentPoint(seg, 35, c.cityMap.laneOffset(seg, 0));
+    // Mid-segment: the drift's slide stays clear of the curb strip's parked cars.
+    const [x, z] = c.cityMap.segmentPoint(seg, 90, c.cityMap.laneOffset(seg, 0));
     c.runtime.requestRecovery({ x, z, heading: Math.PI });
   });
   await expect.poll(() => page.evaluate(() => window.__cr.runtime.pendingRecovery)).toBeNull();

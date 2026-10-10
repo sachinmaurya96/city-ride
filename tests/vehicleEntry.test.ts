@@ -90,7 +90,11 @@ describe('asset compatibility and recorded engine selection', () => {
     expect(engineProfile(VEHICLES.bmw_i8).recording).toBe('supercar');
     expect(engineProfile(VEHICLES.supercar).recording).toBe('supercar');
     expect(engineProfile(VEHICLES.western_star).recording).toBe('diesel');
-    expect(engineProfile(VEHICLES.bike_basic).recording).toBe('bike');
+    // Both superbikes play the start-to-ride-away recording, each with its own tuning, gearing and EQ.
+    expect(engineProfile(VEHICLES.bike_basic).recording).toBe('bikeSound2');
+    expect(engineProfile(VEHICLES.ducati_v4r).recording).toBe('bikeSound2');
+    expect(engineProfile(VEHICLES.ducati_v4r).pitch).toBeLessThan(engineProfile(VEHICLES.bike_basic).pitch);
+    expect(engineProfile(VEHICLES.ducati_v4r).tone).not.toEqual(engineProfile(VEHICLES.bike_basic).tone);
     expect(engineProfile(VEHICLES.bmw_i8).pitch).not.toBe(engineProfile(VEHICLES.bmw_m4_gt3).pitch);
     expect(engineProfile(VEHICLES.western_star).redline).toBeLessThan(engineProfile(VEHICLES.supra_a80).redline);
   });
