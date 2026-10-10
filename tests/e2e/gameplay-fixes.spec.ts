@@ -10,7 +10,7 @@ import type { input } from '../../src/game/input/input';
 import type { audio } from '../../src/game/audio/audio';
 import type * as THREE from 'three';
 
-type GameDebug = { vehicles: typeof import('../../src/game/data/vehicles').VEHICLES; loadImportedModel: typeof import('../../src/game/render/importedVehicles').loadImportedModel; quoteRide: typeof import('../../src/game/progression/progression').quoteRide; vehicleEntry: typeof import('../../src/game/vehicles/entry').vehicleEntry; traffic: typeof import('../../src/game/traffic/traffic').traffic; runtime: typeof runtime; rides: typeof rides; rideVisual: typeof rideVisual; fuel: typeof fuel; store: typeof useGame; cityMap: typeof cityMap; debug: typeof debug; input: typeof input; audio: typeof audio };
+type GameDebug = { nav: typeof import('../../src/game/missions/rides').nav; autopilot: { start(speed?: number): void; stop(): void }; vehicles: typeof import('../../src/game/data/vehicles').VEHICLES; loadImportedModel: typeof import('../../src/game/render/importedVehicles').loadImportedModel; quoteRide: typeof import('../../src/game/progression/progression').quoteRide; vehicleEntry: typeof import('../../src/game/vehicles/entry').vehicleEntry; traffic: typeof import('../../src/game/traffic/traffic').traffic; runtime: typeof runtime; rides: typeof rides; rideVisual: typeof rideVisual; fuel: typeof fuel; store: typeof useGame; cityMap: typeof cityMap; debug: typeof debug; input: typeof input; audio: typeof audio };
 declare global { interface Window { __cr: GameDebug } }
 test.setTimeout(120000);
 
@@ -83,7 +83,7 @@ test('passenger visibly boards, rides and walks away from the original dropoff',
   expect(errors).toEqual([]);
 });
 
-test('fuel drains while driving, sells a chosen fill at a station, survives reload and offers help when empty', async ({ page }) => {
+test('fuel drains while driving, fills for free only at a pump, survives reload and offers help when empty', async ({ page }) => {
   await boot(page, { clear: true });
   await play(page);
   await expect(page.getByRole('progressbar', { name: 'Fuel' })).toBeVisible();
@@ -96,19 +96,19 @@ test('fuel drains while driving, sells a chosen fill at a station, survives relo
     window.__cr.fuel.tank.percent = 30;
   });
   await stopAt(page, 'petrol_south_bay1');
-  // Stopping in the highlighted bay opens a priced purchase; nothing is added before confirmation.
   const dialog = page.getByTestId('fuel-station');
   await expect(dialog).toBeVisible();
   expect(await page.evaluate(() => window.__cr.fuel.percent)).toBeLessThan(31);
-  await dialog.getByTestId('fuel-option-50').click();
-  await expect(dialog.getByTestId('fuel-quote')).toContainText(/Add \d+\.\d\d L · Total: ₹\d+/);
-  const total = Number((await dialog.getByTestId('fuel-quote').textContent())!.match(/₹([\d,]+)/)![1].replace(/,/g, ''));
-  expect(total).toBeGreaterThan(0);
+  await expect(dialog).toContainText('Free refueling');
+  await expect(dialog.getByTestId('fuel-quote')).toContainText('Full tank · 100%');
   await page.screenshot({ path: 'test-results/fuel-station.png' });
+  await dialog.getByTestId('fuel-cancel').click();
+  expect(await page.evaluate(() => window.__cr.fuel.percent)).toBeLessThan(31);
+  await page.getByTestId('open-fuel').click();
   await dialog.getByTestId('fuel-confirm').click();
   await expect(dialog).toBeHidden();
-  expect(await page.evaluate(() => window.__cr.fuel.percent)).toBe(50);
-  expect(await page.evaluate(() => window.__cr.store.getState().save.wallet)).toBe(5000 - total);
+  expect(await page.evaluate(() => window.__cr.fuel.percent)).toBe(100);
+  expect(await page.evaluate(() => window.__cr.store.getState().save.wallet)).toBe(5000);
   await page.getByTestId('pause').click();
   await expect(page.getByTestId('pause-menu')).toBeVisible();
   await page.evaluate(() => { window.__cr.fuel.tank.percent = 31; window.__cr.fuel.persist(); });
@@ -122,8 +122,14 @@ test('fuel drains while driving, sells a chosen fill at a station, survives relo
   await expect.poll(() => page.evaluate(() => window.__cr.runtime.simTime)).toBeGreaterThan(heldAt + 0.65);
   await page.keyboard.up('KeyS');
   expect(await page.evaluate(() => Math.abs(window.__cr.runtime.telemetry.speed))).toBeLessThan(0.3);
-  await page.getByTestId('emergency-fuel').click();
-  await expect.poll(() => page.evaluate(() => window.__cr.fuel.percent)).toBe(15);
+  await page.getByTestId('navigate-fuel').click();
+  await expect(page.getByTestId('instruction')).toContainText(/Petrol/);
+  await page.getByTestId('tow-fuel').click();
+  await expect(dialog).toBeVisible();
+  expect(await page.evaluate(() => window.__cr.fuel.percent)).toBe(0);
+  await dialog.getByTestId('fuel-confirm').click();
+  await expect.poll(() => page.evaluate(() => window.__cr.fuel.percent)).toBe(100);
+  expect(await page.evaluate(() => window.__cr.store.getState().save.wallet)).toBe(5000);
 });
 
 test('horn sounds from both keyboard and button, including after audio is suspended', async ({ page }) => {

@@ -11,6 +11,7 @@ import { buildCharacterGeometry, createCharacterMesh, genderForName, randomLook,
 import { animateLocomotion, newAnimState, poseSeated, type AnimState } from '../render/charAnim';
 import { useGame } from '../../app/store';
 import { MATERIALS } from '../render/materials';
+import { fuel } from '../vehicles/fuel';
 import { nav, rideVisual } from './rides';
 
 const AMBER = new THREE.Color('#f4b544');
@@ -48,18 +49,19 @@ function RouteArrows() {
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), q: new THREE.Quaternion(), p: new THREE.Vector3(), s: new THREE.Vector3(1, 1, 1), up: new THREE.Vector3(0, 1, 0) }), []);
   const phase = useRef(0);
   useFrame((_, dt) => {
-    const r = nav.route;
-    if (!nav.active || !r || r.points.length < 2) {
+    const navigation = fuel.navigation ?? nav;
+    const r = navigation.route;
+    if (!navigation.active || !r || r.points.length < 2) {
       mesh.count = 0;
       return;
     }
     const mat = mesh.material as THREE.MeshBasicMaterial;
-    mat.color.copy(nav.target === 'pickup' ? AMBER : TEAL);
+    mat.color.copy(navigation.target === 'pickup' ? AMBER : TEAL);
     phase.current = (phase.current + dt * 6) % 5;
-    const start = nav.along + 4 + phase.current;
-    const end = Math.min(r.length - 1, nav.along + 260);
+    const start = navigation.along + 4 + phase.current;
+    const end = Math.min(r.length - 1, navigation.along + 260);
     let n = 0;
-    let idx = Math.max(0, nav.progressIndex - 2);
+    let idx = Math.max(0, navigation.progressIndex - 2);
     for (let d = start; d < end && n < MAX_ARROWS; d += 5) {
       while (idx < r.cumulative.length - 2 && r.cumulative[idx + 1] < d) idx++;
       const a = r.points[idx];
@@ -70,7 +72,7 @@ function RouteArrows() {
       const z = a[1] + (b[1] - a[1]) * t;
       tmp.q.setFromAxisAngle(tmp.up, Math.atan2(b[0] - a[0], b[1] - a[1]));
       tmp.p.set(x, 0.06, z);
-      const fade = Math.min(1, (d - nav.along) / 12);
+      const fade = Math.min(1, (d - navigation.along) / 12);
       tmp.s.setScalar(0.9 * fade + 0.1);
       tmp.m.compose(tmp.p, tmp.q, tmp.s);
       mesh.setMatrixAt(n++, tmp.m);

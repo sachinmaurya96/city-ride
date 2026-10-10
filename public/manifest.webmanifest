@@ -1,0 +1,9 @@
+{
+  "name": "City Ride",
+  "short_name": "City Ride",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#14212B",
+  "theme_color": "#14212B"
+}

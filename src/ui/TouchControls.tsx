@@ -22,7 +22,8 @@ interface Props {
 
 /**
  * Full-screen gesture layer. The region where a pointer goes down owns it until release:
- * left zone → driving joystick (or steering pad), right zone → camera orbit. Mouse drag anywhere → camera.
+ * left zone → horizontal steering, right zone → camera orbit. Mouse drag anywhere → camera.
+ * Acceleration/reverse use separate pedals so steering never changes the car's speed.
  * Buttons stop propagation, so pressing them never rotates the camera.
  */
 export function TouchControls({ preset, showTouch, canRecover, reversing, onCamera, onHorn, onRecover, labels }: Props) {
@@ -56,7 +57,7 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
       if (!o) return;
       map.delete(id);
       if (o.role === 'joy') {
-        input.setJoystick(0, 0);
+        input.setSteering(0);
         input.joystick.active = false;
         setJoy(null);
       } else if (o.role === 'steer') {
@@ -95,15 +96,9 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
       const o = map.get(e.pointerId);
       if (!o) return;
       if (o.role === 'joy') {
-        let dx = e.clientX - o.ox;
-        let dy = e.clientY - o.oy;
-        const len = Math.hypot(dx, dy);
-        if (len > o.radius) {
-          dx = (dx / len) * o.radius;
-          dy = (dy / len) * o.radius;
-        }
-        input.setJoystick(dx / o.radius, -dy / o.radius);
-        setJoy((old) => old ? { ...old, kx: dx, ky: dy } : null);
+        const dx = Math.max(-o.radius, Math.min(o.radius, e.clientX - o.ox));
+        input.setSteering(dx / o.radius);
+        setJoy((old) => old ? { ...old, kx: dx, ky: 0 } : null);
       } else if (o.role === 'steer') {
         input.pedals.steer = Math.max(-1, Math.min(1, (e.clientX - o.ox) / 70));
       } else if (o.role === 'cam') {
@@ -171,8 +166,8 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
       {preset === 'joystick' && (
         <div ref={joyHome} className="joy-home" aria-hidden style={{ visibility: showTouch ? undefined : 'hidden', opacity: joy ? 0 : undefined }}>
           <div className="joy-knob" />
-          <span className="joy-label up">▲</span>
-          <span className="joy-label down">▼</span>
+          <span className="joy-label left">◀</span>
+          <span className="joy-label right">▶</span>
         </div>
       )}
       {showTouch && joy && (
@@ -185,15 +180,17 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
           <div className="steer-pad" aria-hidden>
             ◀ ▶
           </div>
-          <div className="pedals">
-            <button className="pedal brake" aria-label={labels.brake} {...hold((v) => (input.pedals.brake = v ? 1 : 0))}>
-              {labels.brake}
-            </button>
-            <button className="pedal gas" aria-label="Gas" {...hold((v) => (input.pedals.gas = v ? 1 : 0))}>
-              ▲
-            </button>
-          </div>
         </>
+      )}
+      {showTouch && (
+        <div className="pedals" data-testid="drive-pedals">
+          <button className="pedal gas" data-testid="accelerate" aria-label={t.accelerate} {...hold((v) => (input.pedals.gas = v ? 1 : 0))}>
+            <ControlIcon name="accelerate" /><span>{t.speedUp}</span>
+          </button>
+          <button className="pedal reverse" data-testid="reverse" aria-label={labels.reverse} {...hold((v) => (input.pedals.brake = v ? 1 : 0))}>
+            <ControlIcon name="reverse" /><span>{labels.reverse}</span>
+          </button>
+        </div>
       )}
       <div className={`util-buttons ${showTouch ? '' : 'desktop'}`}>
         <button className="util" aria-label={labels.horn} title={`${labels.horn} (H)`} {...tap(onHorn)}>

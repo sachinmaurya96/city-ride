@@ -31,7 +31,7 @@ test('both supplied cars preview, drive with animated wheels and persist without
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('request', (r) => { if (r.url().includes('.glb') && r.resourceType() === 'fetch') modelRequests.push(r.url()); });
   await boot(page);
-  expect(modelRequests).toEqual([]);
+  expect(modelRequests.filter(url => /bmw_|lambo|mustang|mclaren|rr-spectr/.test(url))).toEqual([]);
   const wallet = await page.evaluate(() => window.__cr.store.getState().save.wallet);
   for (const id of ['bmw_i8', 'bmw_m4_gt3']) {
     await page.evaluate(() => window.__cr.store.getState().openOverlay('garage'));

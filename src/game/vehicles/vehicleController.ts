@@ -287,6 +287,9 @@ export class RaycastVehicle {
     this.afterPhysicsStep();
   }
   afterPhysicsStep() {
+    // Wheel/contact impulses can add motion after the pre-step stop. Keep an
+    // explicitly held Power Brake stationary while preserving throttle drifting.
+    if (this.input.powerBrake && !this.drifting) { this.stopImmediately(); return; }
     if (this.npcImpactTime <= 0) return;
     const velocity = this.body.linvel(), backward = velocity.x * this.approachX + velocity.z * this.approachZ;
     if (backward < 0) this.body.setLinvel({ x: velocity.x - this.approachX * backward, y: velocity.y, z: velocity.z - this.approachZ * backward }, true);

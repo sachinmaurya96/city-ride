@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { DIR_VEC, INTERSECTIONS, SEGMENTS, CURB_HEIGHT, roadHalfWidth, segmentPoint } from './data/cityMap';
 import { VEHICLES } from './data/vehicles';
-import { useGame } from '../app/store';
 import { loadImportedModel } from './render/importedVehicles';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { runtime } from './core/runtime';
@@ -50,10 +49,8 @@ function Traffic() {
     out.set('police', police);
     return out;
   }, []);
-  const appState = useGame((s) => s.appState);
   const [packMeshes, setPackMeshes] = useState<Map<string, THREE.InstancedMesh[]>>(new Map());
   useEffect(() => {
-    if (appState !== 'PLAYING') return;
     let disposed = false;
     const owned: THREE.InstancedMesh[] = [];
     void Promise.allSettled([...PACK_TRAFFIC_MODELS, 'police_car' as const].map(async (id) => {
@@ -73,7 +70,7 @@ function Traffic() {
       if (!disposed) setPackMeshes(new Map(entries)); else owned.forEach((m) => { m.geometry.dispose(); m.dispose(); });
     });
     return () => { disposed = true; setPackMeshes(new Map()); owned.forEach((m) => { m.geometry.dispose(); m.dispose(); }); };
-  }, [appState]);
+  }, []);
   useEffect(() => {
     const physics = new TrafficPhysics(world, rapier, traffic);
     recoveryOccupancy.test = (x, z) => traffic.occupied(x, z, 7);

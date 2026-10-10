@@ -434,7 +434,26 @@ for (const def of BAY_DEFS) {
 }
 
 export const BAY_BY_ID = new Map(BAYS.map((b) => [b.id, b]));
-export const FUEL_STATIONS = BAYS.filter((b) => b.landmark === 'petrol_west' || b.landmark === 'petrol_south');
+export interface FuelStation extends Bay { name: string; pumpX: number; pumpZ: number; pumpHeading: number }
+/** One off-road forecourt per street section. Existing named stations keep their saved IDs. */
+export const FUEL_STATIONS: FuelStation[] = SEGMENTS.filter(s => s.dir === 'E' || s.dir === 'S').map(section => {
+  const existing = BAYS.find(b => (b.landmark === 'petrol_west' || b.landmark === 'petrol_south')
+    && (b.segmentId === section.id || b.segmentId === `${section.to}-${section.from}`));
+  const innerSide = section.dir === 'E' && section.lineCoord === -480 || section.dir === 'S' && section.lineCoord === 480;
+  const seg = existing ? SEGMENT_BY_ID.get(existing.segmentId)! : innerSide ? SEGMENT_BY_ID.get(`${section.to}-${section.from}`)! : section;
+  const candidates = [.24, .76, .38, .62].map(t => t * seg.length);
+  const s = existing?.s ?? candidates.reduce((best, value) => {
+    const clearance = (v: number) => Math.min(...BAYS.filter(b => b.segmentId === seg.id || b.segmentId === `${seg.to}-${seg.from}`).map(b => Math.abs(v - (b.segmentId === seg.id ? b.s : seg.length - b.s))), seg.length);
+    return clearance(value) > clearance(best) ? value : best;
+  });
+  const offset = roadHalfWidth(seg.cls) + SIDEWALK_WIDTH;
+  const [x, z] = segmentPoint(seg, s, offset + 4.2), [pumpX, pumpZ] = segmentPoint(seg, s, offset + 20);
+  const bay: FuelStation = { id: existing?.id ?? `fuel_${section.id}`, landmark: existing?.landmark ?? 'petrol_west', segmentId: seg.id, s,
+    x, z, length: 18, width: 6, heading: headingOf(seg.dir), roadSide: 'left', bus: false, allowed: ['bike', 'auto', 'car', 'bus'],
+    waitX: x, waitZ: z, name: existing ? LANDMARK_BY_ID.get(existing.landmark)!.name : `${seg.name} Petrol Pump`,
+    pumpX, pumpZ, pumpHeading: Math.atan2(-leftOf(seg.dir)[0], -leftOf(seg.dir)[1]) };
+  BAY_BY_ID.set(bay.id, bay); return bay;
+});
 
 export function baysFor(landmark: LandmarkId, kind: VehicleKind) {
   return BAYS.filter((b) => b.landmark === landmark && b.allowed.includes(kind));

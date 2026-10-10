@@ -7,10 +7,10 @@ import type { SeatDynamics, SeatPose } from './charAnim';
 export type CharacterId = 'male' | 'female' | 'lynae' | 'cartethyia';
 export const CHARACTER_NAMES: Record<CharacterId, string> = { male: 'Male Rover', female: 'Female Rover', lynae: 'Lynae', cartethyia: 'Cartethyia' };
 const urls = {
-  male: new URL('../../../assets/glb-files/male-rover.glb', import.meta.url).href,
-  female: new URL('../../../assets/glb-files/female-rover.glb', import.meta.url).href,
-  lynae: new URL('../../../assets/glb-files/lynae_from_wuthering_waves.glb', import.meta.url).href,
-  cartethyia: new URL('../../../assets/glb-files/cartethyia_wuthering_waves.glb', import.meta.url).href,
+  male: new URL('../../../assets/optimized/characters/male-rover.glb', import.meta.url).href,
+  female: new URL('../../../assets/optimized/characters/female-rover.glb', import.meta.url).href,
+  lynae: new URL('../../../assets/optimized/characters/lynae_from_wuthering_waves.glb', import.meta.url).href,
+  cartethyia: new URL('../../../assets/optimized/characters/cartethyia_wuthering_waves.glb', import.meta.url).href,
 };
 type CharacterState = { status: 'loading' | 'ready' | 'error'; model?: THREE.Group };
 const loading: CharacterState = { status: 'loading' };

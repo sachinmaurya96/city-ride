@@ -10,8 +10,12 @@ export function cabinLayout(spec: VehicleSpec) {
   const back = frontCab ? spec.length * .25 : truck ? spec.length * .12 : -spec.length * .20;
   const sill = truck ? height * .30 : height * .28;
   const hipY = truck ? height * .51 : height * .37;
-  return { front, back, sill, hingeY: spec.id === 'bmw_i8' ? height * .86 : sill, hipY, seatZ: (front + back) * .5, seatX: spec.width * .24,
-    roofY: height * .88, floorY: height * .08, doorX: spec.width * .46, doorHeight: height * .58, doorLength: front - back };
+  // The McLaren export's 1.43 m high rear wing sits above its curved cockpit roof.
+  // Measured headroom and seats keep both occupants under the roof rather than fitting to the wing.
+  const mclaren = spec.id === 'mclaren_p1';
+  return { front, back, sill, hingeY: spec.id === 'bmw_i8' ? height * .86 : sill, hipY: mclaren ? .40 : hipY,
+    seatZ: mclaren ? 0 : (front + back) * .5, seatX: mclaren ? .32 : spec.width * .24,
+    roofY: mclaren ? 1.04 : height * .88, floorY: height * .08, doorX: spec.width * .46, doorHeight: height * .58, doorLength: front - back };
 }
 
 /** Fit hair, head, sleeves and legs inside this cabin using the posed mesh, for every character. */

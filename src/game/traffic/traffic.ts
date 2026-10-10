@@ -1,4 +1,4 @@
-import { DIR_VEC, SEGMENTS, laneOffset, leftOf, segmentPoint, type Intersection, type Segment } from '../data/cityMap';
+import { CROSSWALK_GAP, CROSSWALK_WIDTH, DIR_VEC, SEGMENTS, laneOffset, leftOf, segmentPoint, type Intersection, type Segment } from '../data/cityMap';
 import { EXTRA_CARS, type ExtraVehicleId } from '../data/importedCatalog';
 import { VEHICLES } from '../data/vehicles';
 import { mulberry32, pick } from '../core/rng';
@@ -157,6 +157,7 @@ export class TrafficSystem {
       if (this.cars.some((o) => o.active && o.seg === seg && o.lane === lane && Math.abs(o.s - s) < 14)) continue;
       const model = police ? 'police_car' : pick(this.rng, MODEL_WEIGHTS);
       const spec = VEHICLES[model];
+      if (this.cars.some(o => o.active && Math.hypot(o.x - x, o.z - z) < (o.length + spec.length) / 2 + 8)) continue;
       c.active = true;
       c.police = police;
       c.model = model;
@@ -229,11 +230,12 @@ export class TrafficSystem {
   /** May car `c` enter its next junction now? (signals + reservations + protected crossing turns) */
   private mayEnter(c: Car, distToLine: number): boolean {
     const j = INTERSECTION_BY_ID.get(c.seg.to)!;
-    if (c.police && c.chase) return this.boxClearOfCrossTraffic(c, j);
     const light = lightFor(j, c.seg.dir, runtime.simTime);
     c.atSignal = light !== 'G';
     if (light === 'R') return false;
     if (light === 'A' && distToLine > Math.max(3, c.speed * 0.9)) return false;
+    if (pedestrianObstacles.some(p => Math.abs(p.x - j.x) < j.hx + CROSSWALK_GAP + CROSSWALK_WIDTH + 2
+      && Math.abs(p.z - j.z) < j.hz + CROSSWALK_GAP + CROSSWALK_WIDTH + 2)) return false;
     if (!this.boxClearOfCrossTraffic(c, j)) return false;
     // space on the exit lane (no gridlock)
     if (c.next && this.cars.some((o) => o.active && o !== c && !o.turn && o.seg === c.next && o.lane === c.nextLane && o.s < o.length + 3)) return false;
@@ -255,7 +257,7 @@ export class TrafficSystem {
     const axis = c.seg.dir === 'N' || c.seg.dir === 'S' ? 'ns' : 'ew';
     for (const o of inside) {
       const oa = o.seg.dir === 'N' || o.seg.dir === 'S' ? 'ns' : 'ew';
-      if (oa !== axis) return false;
+      if (o !== c && (oa !== axis || o.turnKind !== 'straight' || c.turnKind !== 'straight')) return false;
     }
     return true;
   }
@@ -279,7 +281,7 @@ export class TrafficSystem {
       if (!o.active || o === c) continue;
       // only consider cars broadly travelling the same way or inside a junction we share
       const hd = Math.cos(o.heading - c.heading);
-      if (hd < -0.3 && !o.turn) continue;
+      if (hd < -0.3 && !o.turn && Math.abs((o.x - c.x) * fz - (o.z - c.z) * fx) > o.halfWidth + c.halfWidth + .5) continue;
       consider(o.x, o.z, o.length / 2, o.halfWidth);
     }
     const p = runtime.pose;
@@ -311,13 +313,10 @@ export class TrafficSystem {
     for (const c of this.cars) {
       if (!c.active) continue;
       if (c.impactTime > 0) { c.impactTime = Math.max(0, c.impactTime - dt); c.speed = 0; c.stopped += dt; continue; }
-      if (c.chase && (c.homing || Math.hypot(c.chase.x - c.x, c.chase.z - c.z) < 40)) {
-        this.home(c, dt);
-        continue;
-      }
-      let vTarget = c.chase ? c.cruise * 1.35 : c.cruise;
+      c.chase = null; c.homing = false;
+      let vTarget = Math.min(c.cruise, c.seg.limitKmh / 3.6);
       if (c.turn) {
-        vTarget = Math.min(vTarget, c.turnKind === 'straight' ? c.cruise : 5.2);
+        vTarget = Math.min(vTarget, c.turnKind === 'straight' ? c.cruise : 4);
       } else {
         if (!c.next && c.seg.length - c.s < 45) this.choose(c);
         const dist = c.seg.length - c.s;
@@ -325,10 +324,10 @@ export class TrafficSystem {
         c.atSignal = false;
         if (c.next && dist < 40) {
           // slow for the turn
-          if (c.turnKind !== 'straight') vTarget = Math.min(vTarget, 5.2 + dist * 0.25);
+          if (c.turnKind !== 'straight') vTarget = Math.min(vTarget, 4 + dist * 0.2);
           c.allow = this.mayEnter(c, dist);
           if (!c.allow) {
-            const stopGap = Math.max(0, dist - 0.6);
+            const stopGap = Math.max(0, dist - c.length / 2 - 1);
             vTarget = Math.min(vTarget, Math.sqrt(2 * 3.2 * stopGap));
             if (stopGap < 0.3) vTarget = 0;
           }
@@ -362,9 +361,9 @@ export class TrafficSystem {
         }
       } else {
         c.s += move;
-        if (c.s >= c.seg.length && !c.allow) {
+        if (c.s >= c.seg.length - c.length / 2 - 1 && !c.allow) {
           // never creep over the stop line without permission
-          c.s = c.seg.length - 0.05;
+          c.s = c.seg.length - c.length / 2 - 1;
           c.speed = 0;
         }
         if (c.s >= c.seg.length) {
@@ -398,28 +397,6 @@ export class TrafficSystem {
       }
     }
     void decide;
-  }
-
-  /** Close-range police pursuit: steer straight at the target with limited turn rate and speed. */
-  private home(c: Car, dt: number) {
-    if (!c.homing) {
-      c.homing = true;
-      if (c.turn) this.inJunction.get(c.turn.junction.id)?.delete(c);
-      c.turn = null;
-    }
-    const t = c.chase!;
-    const dx = t.x - c.x;
-    const dz = t.z - c.z;
-    const dist = Math.hypot(dx, dz);
-    const want = Math.atan2(dx, dz);
-    let diff = want - c.heading;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    c.heading += Math.max(-1.8 * dt, Math.min(1.8 * dt, diff));
-    const vTarget = dist < 1.5 ? 0 : Math.min(17, dist * 0.7) * (Math.abs(diff) > 1 ? 0.4 : 1);
-    c.speed += Math.max(-7 * dt, Math.min(3 * dt, vTarget - c.speed));
-    c.x += Math.sin(c.heading) * c.speed * dt;
-    c.z += Math.cos(c.heading) * c.speed * dt;
   }
 
   /** Gap from a vehicle pose to the nearest traffic car / pedestrian in its path (used by the test autopilot). */

@@ -16,7 +16,8 @@
     "test:e2e": "playwright test",
     "size": "node scripts/size-report.mjs",
     "release": "node scripts/release.mjs",
-    "build:e2e": "vite build --mode e2e --outDir dist-e2e"
+    "build:e2e": "vite build --mode e2e --outDir dist-e2e",
+    "optimize:assets": "node scripts/optimize-assets.mjs"
   },
   "dependencies": {
     "@playgama/bridge": "^2.3.1",
@@ -43,6 +44,7 @@
     "typescript": "5.9",
     "typescript-eslint": "^8.71.1",
     "vite": "^8.3.4",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "meshoptimizer": "0.22.0"
   }
 }

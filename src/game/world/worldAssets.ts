@@ -2,14 +2,15 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { loadGlb, releaseGlb } from '../render/glbAssets';
 
-export type WorldPack = 'buildings' | 'skyline' | 'forest' | 'palms' | 'bananas' | 'roads';
+export type WorldPack = 'buildings' | 'skyline' | 'forest' | 'palms' | 'bananas' | 'roads' | 'petrol';
 export const WORLD_URLS: Record<WorldPack, string> = {
-  buildings: new URL('../../../assets/glb-files/city-building-pack.glb', import.meta.url).href,
-  skyline: new URL('../../../assets/glb-files/night-city-building-pack.glb', import.meta.url).href,
-  forest: new URL('../../../assets/glb-files/forest-tree-pack.glb', import.meta.url).href,
-  palms: new URL('../../../assets/glb-files/palm-tree-pack.glb', import.meta.url).href,
-  bananas: new URL('../../../assets/glb-files/banana-tree-pack.glb', import.meta.url).href,
-  roads: new URL('../../../assets/glb-files/road-pack.glb', import.meta.url).href,
+  buildings: new URL('../../../assets/optimized/world/city-building-pack.glb', import.meta.url).href,
+  skyline: new URL('../../../assets/optimized/world/night-city-building-pack.glb', import.meta.url).href,
+  forest: new URL('../../../assets/optimized/world/forest-tree-pack.glb', import.meta.url).href,
+  palms: new URL('../../../assets/optimized/world/palm-tree-pack.glb', import.meta.url).href,
+  bananas: new URL('../../../assets/optimized/world/banana-tree-pack.glb', import.meta.url).href,
+  roads: new URL('../../../assets/optimized/world/road-pack.glb', import.meta.url).href,
+  petrol: new URL('../../../assets/optimized/world/hp-petrol-pump.glb', import.meta.url).href,
 };
 export interface WorldModel { name: string; size: THREE.Vector3; parts: { geometry: THREE.BufferGeometry; material: THREE.Material }[] }
 export const worldAssets = new Map<WorldPack, WorldModel[]>();
@@ -19,7 +20,7 @@ let task: Promise<void> | null = null;
 export function prepareWorldPack(scene: THREE.Group, pack: WorldPack): WorldModel[] {
   scene.updateMatrixWorld(true);
   const container = scene.getObjectByName(pack === 'palms' ? 'Palm_2' : 'RootNode');
-  const nodes = container?.children ?? [scene];
+  const nodes = pack === 'petrol' ? [scene] : container?.children ?? [scene];
   return nodes.filter(node => {
     if (pack === 'buildings') return node.name.startsWith('BACKGROUND_BUILDING');
     if (pack === 'forest') return node.name.startsWith('Background_Tree_Atlas') && new THREE.Box3().setFromObject(node).getSize(new THREE.Vector3()).y > 10;
@@ -41,7 +42,7 @@ export function prepareWorldPack(scene: THREE.Group, pack: WorldPack): WorldMode
         let geometry: THREE.BufferGeometry;
         if (groups.length === 1) geometry = source.clone();
         else {
-          geometry = source.toNonIndexed();
+          geometry = source.index ? source.toNonIndexed() : source.clone();
           for (const [key, attribute] of Object.entries(geometry.attributes)) {
             const array = attribute.array.slice(group.start * attribute.itemSize, (group.start + group.count) * attribute.itemSize);
             geometry.setAttribute(key, new THREE.BufferAttribute(array, attribute.itemSize, attribute.normalized));
@@ -61,25 +62,13 @@ export function prepareWorldPack(scene: THREE.Group, pack: WorldPack): WorldMode
   });
 }
 
-function capTexture(texture: THREE.Texture) {
-  const image = texture.image as { width?: number; height?: number } | undefined;
-  const width = image?.width ?? 0, height = image?.height ?? 0;
-  if (Math.max(width, height) <= 2048 || typeof document === 'undefined') return;
-  const factor = 2048 / Math.max(width, height), canvas = document.createElement('canvas');
-  canvas.width = Math.round(width * factor); canvas.height = Math.round(height * factor);
-  canvas.getContext('2d')!.drawImage(texture.image as CanvasImageSource, 0, 0, canvas.width, canvas.height);
-  texture.image = canvas; texture.needsUpdate = true;
-}
 export function loadWorldAssets() {
   task ??= Promise.all((Object.keys(WORLD_URLS) as WorldPack[]).map(async pack => {
+    if (worldAssets.has(pack)) return;
     const { scene } = await loadGlb(WORLD_URLS[pack]);
-    const seen = new Set<THREE.Texture>();
-    scene.traverse(o => { if (o instanceof THREE.Mesh) for (const material of Array.isArray(o.material) ? o.material : [o.material]) {
-      for (const value of Object.values(material)) if (value instanceof THREE.Texture && !seen.has(value)) { seen.add(value); capTexture(value); }
-    } });
     worldAssets.set(pack, prepareWorldPack(scene, pack));
     scene.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
     releaseGlb(WORLD_URLS[pack]);
-  })).then(() => undefined);
+  })).then(() => undefined).catch(error => { task = null; throw error; });
   return task;
 }

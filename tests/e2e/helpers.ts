@@ -25,20 +25,23 @@ export async function state(page: Page) {
 }
 
 export async function boot(page: Page, opts: { clear?: boolean; quality?: 'low' | 'medium' } = {}) {
+  // The touch landscape lock enters fullscreen on tap, which would block viewport resizing in tests.
+  await page.addInitScript(() => { Element.prototype.requestFullscreen = () => Promise.reject(new Error('disabled in tests')); });
   if (opts.clear) {
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
   }
   await page.goto('/');
   await page.waitForSelector('[data-testid=play]', { timeout: 90000 });
+  await page.waitForFunction(() => !!window.__cr?.store);
   await page.evaluate((q) => (window as unknown as { __cr: { store: { getState(): { updateSettings(p: object): void } } } }).__cr.store.getState().updateSettings({ quality: q }), opts.quality ?? 'low');
 }
 
 export async function play(page: Page) {
   await page.click('[data-testid=play]');
+  await expect.poll(async () => (await state(page)).app, { timeout: 90000 }).toBe('PLAYING');
   const ok = page.locator('[data-testid=controls-ok]');
   if (await ok.isVisible({ timeout: 2500 }).catch(() => false)) await ok.click();
-  await expect.poll(async () => (await state(page)).app).toBe('PLAYING');
 }
 
 export async function waitStage(page: Page, stages: string[], timeout = 300000) {

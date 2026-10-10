@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { FuelTank, FuelSystem, FUEL, fuelQuote } from '../src/game/vehicles/fuel';
+import { FuelTank, FuelSystem, FUEL } from '../src/game/vehicles/fuel';
 import { createDefaultSave, defaultSettings, validateSave } from '../src/storage/schema';
-import { FUEL_STATIONS } from '../src/game/data/cityMap';
+import { FUEL_STATIONS, SEGMENT_BY_ID, segmentPoint, laneOffset } from '../src/game/data/cityMap';
 import { runtime } from '../src/game/core/runtime';
 import { useGame } from '../src/app/store';
 
@@ -9,12 +9,20 @@ describe('fuel consumption and refilling', () => {
   it('uses fuel by distance, including reversing, and does not drain while parked', () => {
     const tank = new FuelTank();
     tank.step(1, 600, 'bike', false);
-    expect(tank.percent).toBeCloseTo(90);
+    expect(tank.percent).toBeCloseTo(97.5);
     tank.step(600, 0, 'bike', false);
-    expect(tank.percent).toBeCloseTo(90);
+    expect(tank.percent).toBeCloseTo(97.5);
     tank.step(1, 600, 'bike', false);
-    expect(tank.percent).toBeCloseTo(80);
-    tank.step(1, 9000, 'bike', false);
+    expect(tank.percent).toBeCloseTo(95);
+    tank.step(1, 30000, 'bike', false);
+    expect(tank.percent).toBe(0);
+  });
+
+  it('allows four previous car-tank ranges per full tank', () => {
+    const tank = new FuelTank();
+    tank.step(60, 4500, 'car', false);
+    expect(tank.percent).toBe(75);
+    tank.step(180, 13500, 'car', false);
     expect(tank.percent).toBe(0);
   });
 
@@ -50,41 +58,60 @@ describe('fuel consumption and refilling', () => {
   });
 });
 
-describe('fuel purchases', () => {
-  afterEach(() => { runtime.vehicle = null; useGame.setState({ appState: 'MAIN_MENU', overlay: null }); });
-  function pump(wallet = 5000) {
+describe('free pump refueling and empty-tank navigation', () => {
+  afterEach(() => { runtime.vehicle = null; runtime.pendingRecovery = null; useGame.setState({ appState: 'MAIN_MENU', overlay: null }); });
+  function pump(wallet = 0) {
     const save = createDefaultSave(Date.now(), '2026-10-09', defaultSettings('low', 'en'));
     save.wallet = wallet; save.fuelByVehicle.car_compact = 20;
     useGame.setState({ save, appState: 'PLAYING', overlay: null });
     runtime.vehicleId = 'car_compact';
     runtime.vehicle = { horizontalSpeed: () => 0, stopImmediately: () => {} } as unknown as NonNullable<typeof runtime.vehicle>;
-    const bay = FUEL_STATIONS[0]; runtime.pose.x = bay.x; runtime.pose.z = bay.z;
+    const bay = FUEL_STATIONS[0]; runtime.pose = { x: bay.x, y: .5, z: bay.z, heading: bay.heading, fx: Math.sin(bay.heading), fz: Math.cos(bay.heading) };
     const system = new FuelSystem(); system.step(.6); return system;
   }
-  it('opens once per visit and dismissing spends nothing', () => {
+  it('opens once per visit, and canceling does not add fuel or change cash', () => {
     const system = pump(); expect(useGame.getState().overlay).toBe('fuel'); expect(system.percent).toBe(20);
     system.dismiss(); system.step(10);
-    expect(useGame.getState().overlay).toBeNull(); expect(useGame.getState().save.wallet).toBe(5000); expect(system.percent).toBe(20);
+    expect(useGame.getState().overlay).toBeNull(); expect(useGame.getState().save.wallet).toBe(0); expect(system.percent).toBe(20);
   });
-  it('calculates the requested tank target and charges only for added liters', () => {
-    expect(fuelQuote(20, 50, 'car')).toEqual({ target: 50, liters: 15, cost: 1500 });
-    expect(fuelQuote(60, 50, 'car').liters).toBe(0);
+  it.each([0, 300, 5000])('fills to 100%% with cash %i and never charges, including duplicate confirmation', wallet => {
+    const system = pump(wallet); expect(system.fillTank()).toBe(true);
+    expect(system.percent).toBe(100); expect(useGame.getState().save.fuelByVehicle.car_compact).toBe(100);
+    expect(useGame.getState().save.wallet).toBe(wallet); expect(system.fillTank()).toBe(false);
+    system.step(5); expect(useGame.getState().overlay).toBeNull();
   });
-  it('confirmation atomically saves fuel and money and blocks duplicate clicks', () => {
-    const system = pump(); expect(system.purchase(50)).toBe(true);
-    expect(system.percent).toBe(50); expect(useGame.getState().save.fuelByVehicle.car_compact).toBe(50);
-    expect(useGame.getState().save.wallet).toBe(3500); expect(system.purchase(100)).toBe(false);
-    expect(useGame.getState().save.wallet).toBe(3500);
+  it('does not offer filling on the travel lane or curb parking strip', () => {
+    const system = pump(), station = FUEL_STATIONS[0], seg = SEGMENT_BY_ID.get(station.segmentId)!;
+    system.dismiss();
+    for (const offset of [laneOffset(seg, 0), laneOffset(seg, seg.lanes - 1), 0]) {
+      const [x, z] = segmentPoint(seg, station.s, offset); runtime.pose.x = x; runtime.pose.z = z;
+      system.step(10); expect(system.inBay).toBe(false); expect(system.openPump()).toBe(false);
+      expect(useGame.getState().overlay).toBeNull(); expect(system.percent).toBe(20);
+    }
   });
-  it('insufficient cash changes neither fuel nor wallet, and a smaller fill remains available', () => {
-    const system = pump(300); expect(system.purchase(100)).toBe(false); expect(system.percent).toBe(20);
-    expect(useGame.getState().save.wallet).toBe(300); expect(system.purchase(25)).toBe(true);
-    expect(system.percent).toBe(25); expect(useGame.getState().save.wallet).toBe(50);
+  it('rejects filling after moving away or switching the vehicle', () => {
+    const system = pump(); runtime.pose.x += 40; expect(system.fillTank()).toBe(false);
+    runtime.pose.x -= 40; runtime.vehicleId = 'bike_basic'; expect(system.fillTank()).toBe(false);
+    expect(useGame.getState().save.wallet).toBe(0); expect(system.percent).toBe(20);
   });
-  it('rejects purchases away from the pump, for another vehicle, or with an invalid amount', () => {
-    const system = pump(); expect(system.purchase(NaN)).toBe(false);
-    runtime.pose.x += 30; expect(system.purchase(50)).toBe(false);
-    runtime.pose.x -= 30; runtime.vehicleId = 'bike_basic'; expect(system.purchase(50)).toBe(false);
-    expect(useGame.getState().save.wallet).toBe(5000);
+  it('routes to a real pump, offers towing when empty, and the tow arrives refueled', () => {
+    const system = pump(); system.dismiss(); system.tank.percent = 0;
+    runtime.pose.x += 65; system.step(.6);
+    expect(system.navigateToPump()).toBe(true);
+    const station = system.navigation!.targetBay, last = system.navigation!.route.points.at(-1)!;
+    expect(last).toEqual([station.x, station.z]); expect(system.towToPump()).toBe(true);
+    expect(runtime.pendingRecovery).toEqual({ x: station.x, z: station.z, heading: station.heading });
+    expect(system.percent).toBe(100); expect(useGame.getState().save.fuelByVehicle[runtime.vehicleId]).toBe(100);
+    expect(useGame.getState().overlay).toBeNull(); expect(system.navigation).toBeNull();
+    runtime.pose.x = station.x; runtime.pose.z = station.z; runtime.pendingRecovery = null; system.step(.6);
+    expect(useGame.getState().overlay).toBeNull();
+  });
+  it('keeps the selected petrol station when rerouting after a detour', () => {
+    const system = pump(); system.dismiss();
+    expect(system.navigateToPump()).toBe(true);
+    const station = system.navigation!.targetBay;
+    runtime.pose.x = 400; runtime.pose.z = 400; system.step(.3);
+    expect(system.navigation!.targetBay.id).toBe(station.id);
+    expect(system.navigation!.route.points.at(-1)).toEqual([station.x, station.z]);
   });
 });

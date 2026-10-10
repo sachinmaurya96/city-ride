@@ -37,6 +37,7 @@ function setup(id: VehicleId) {
     for (let i = 0; i < steps; i++) {
       vehicle.beforePhysicsStep(DT);
       world.step();
+      vehicle.afterPhysicsStep();
       if (until?.()) return (i + 1) * DT;
     }
     return seconds;
@@ -59,6 +60,11 @@ describe('raycast vehicle feasibility', () => {
       expect(t.vehicle.horizontalSpeed()).toBeLessThan(.03);
       expect(Math.abs(t.body.angvel().y)).toBeLessThan(.01);
       expect(t.speed()).toBeGreaterThan(-.03);
+      // Contact resolution may nudge the chassis after its pre-step brake.
+      t.body.setLinvel({ x: .2, y: -.1, z: .15 }, true);
+      t.vehicle.afterPhysicsStep();
+      expect(t.vehicle.horizontalSpeed()).toBe(0);
+      expect(t.body.linvel().y).toBeCloseTo(-.1);
       t.world.free();
     });
   }

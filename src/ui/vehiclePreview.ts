@@ -20,15 +20,15 @@ let pixels = new Uint8Array(0);
 function ensure(w: number, h: number) {
   if (!scene) {
     scene = new THREE.Scene();
-    scene.add(new THREE.HemisphereLight('#ffffff', '#d9c9ad', 2.2));
-    const d = new THREE.DirectionalLight('#fff3dc', 2.2);
+    scene.add(new THREE.HemisphereLight('#ffffff', '#12263b', 2.2));
+    const d = new THREE.DirectionalLight('#dbf4ff', 2.2);
     d.position.set(4, 8, 6);
     scene.add(d);
-    const turntable = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.2, 48), new THREE.MeshStandardMaterial({ color: '#efe3cf', roughness: 0.9 }));
+    const turntable = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.2, 48), new THREE.MeshStandardMaterial({ color: '#132338', roughness: 0.9 }));
     turntable.position.y = -0.1;
     turntable.name = 'turntable';
     scene.add(turntable);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.03, 8, 64), new THREE.MeshBasicMaterial({ color: '#f4b544' }));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.03, 8, 64), new THREE.MeshBasicMaterial({ color: '#36ceff' }));
     ring.rotation.x = Math.PI / 2;
     ring.name = 'ring';
     scene.add(ring);
@@ -42,7 +42,7 @@ function ensure(w: number, h: number) {
   }
 }
 
-export function renderVehiclePreview(canvas: HTMLCanvasElement, id: VehicleId, paint: string, yaw: number, bg = '#f7efe1') {
+export function renderVehiclePreview(canvas: HTMLCanvasElement, id: VehicleId, paint: string, yaw: number, bg = '#08121f') {
   const renderer = runtime.renderer;
   if (!renderer) return false;
   const w = canvas.width;

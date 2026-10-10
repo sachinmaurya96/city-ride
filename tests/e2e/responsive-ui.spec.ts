@@ -16,7 +16,7 @@ async function checkHud(page: Page, width: number, height: number, preset: 'joys
   const selectors = ['.hud-top-left', '.minimap', '.pause-btn', '.hud-instruments', '.util-buttons', '.power-brake'];
   if (await page.locator('.util.recover').isVisible()) selectors.push('.util.recover');
   if (touch) selectors.push(preset === 'joystick' ? '.joy-home' : '.steer-pad');
-  if (touch && preset === 'pedals') selectors.push('.pedals');
+  if (touch) selectors.push('.pedals');
   const boxes: { selector: string; box: Box }[] = [];
   for (const selector of selectors) {
     const box = (await page.locator(selector).boundingBox())!;
@@ -65,7 +65,7 @@ test.describe('responsive touch UI', () => {
       await page.setViewportSize({ width, height });
       await page.evaluate((controls) => { window.__cr.store.getState().updateSettings({ controls }); window.__cr.fuel.tank.percent = 0; }, preset);
       await expect(page.locator('.app')).toHaveAttribute('data-controls', preset);
-      await expect(page.getByTestId('emergency-fuel')).toBeVisible();
+      await expect(page.getByTestId('navigate-fuel')).toBeVisible();
       await expect(page.locator('.util.recover')).toBeVisible();
       await checkHud(page, width, height, preset);
       await page.screenshot({ path: `test-results/ui-empty-${preset}-${width}x${height}.png` });
@@ -97,8 +97,8 @@ test.describe('responsive touch UI', () => {
     const center = { x: home.x + home.width / 2, y: home.y + home.height / 2, id: 1 };
     const touch = await page.context().newCDPSession(page);
     await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [center] });
-    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...center, y: center.y - 30 }] });
-    await expect.poll(() => page.evaluate(() => window.__cr.input.joystick.y)).toBeGreaterThan(.9);
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...center, x: center.x + 30, y: center.y - 30 }] });
+    await expect.poll(() => page.evaluate(() => window.__cr.input.joystick.x)).toBeGreaterThan(.9);
     const live = (await page.locator('.joy-live').boundingBox())!;
     expect(Math.abs(live.x - home.x)).toBeLessThan(1);
     expect(Math.abs(live.y - home.y)).toBeLessThan(1);

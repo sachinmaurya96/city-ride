@@ -1,6 +1,7 @@
 import { ASSET_CREDITS } from '../game/data/assetCredits';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useGame } from '../app/store';
+import { fuel } from '../game/vehicles/fuel';
 import { rides, nav } from '../game/missions/rides';
 import { busService } from '../game/missions/bus';
 import { runtime } from '../game/core/runtime';
@@ -11,6 +12,7 @@ import { drawMap } from './mapDraw';
 import { pendingConflict } from '../storage/persistence';
 import type { SaveData } from '../storage/schema';
 import { CashLevel } from './Hud';
+import { ControlIcon } from './ControlIcon';
 
 /** Accessible modal: traps focus, Escape closes (when closable), restores focus on close. */
 export function Modal({ children, onClose, label, className = '', testId }: { children: ReactNode; onClose?: () => void; label: string; className?: string; testId?: string }) {
@@ -19,7 +21,9 @@ export function Modal({ children, onClose, label, className = '', testId }: { ch
     const prev = document.activeElement as HTMLElement | null;
     const el = ref.current;
     const first = el?.querySelector<HTMLElement>('button, [href], input, select, [tabindex]:not([tabindex="-1"])');
-    first?.focus();
+    // Focusing a bottom button must not scroll tall dialogs past their title on short screens.
+    first?.focus({ preventScroll: true });
+    if (el) el.scrollTop = 0;
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && onClose) {
         e.stopPropagation();
@@ -163,22 +167,22 @@ export function MainMenu({ onPlay }: { onPlay: () => void }) {
           <div className="w3">{t.subtitle}</div>
         </div>
         <CashLevel />
-        <div className="menu-vehicle">{vehicle?.kind === 'car' ? '🚗' : vehicle?.kind === 'bus' ? '🚌' : vehicle?.kind === 'auto' ? '🛺' : '🛵'} {vehicle?.name}</div>
+        <div className="menu-vehicle">{vehicle?.name}</div>
         <button className="btn primary big" onClick={onPlay} data-testid="play">
           {started ? t.continue : t.play}
         </button>
         <div className="menu-grid">
           <button className="btn tile" onClick={() => open('garage')} data-testid="menu-garage">
-            🔧 {t.garage}
+            <ControlIcon name="garage" /> {t.garage}
           </button>
           <button className="btn tile" onClick={() => open('daily')} data-testid="menu-daily">
-            📅 {t.dailyTasks}
+            <ControlIcon name="tasks" /> {t.dailyTasks}
           </button>
           <button className="btn tile" onClick={() => open('stats')} data-testid="menu-stats">
-            📊 {t.statistics}
+            <ControlIcon name="stats" /> {t.statistics}
           </button>
           <button className="btn tile" onClick={() => open('settings')} data-testid="menu-settings">
-            ⚙️ {t.settings}
+            <ControlIcon name="settings" /> {t.settings}
           </button>
         </div>
         <button className="link" onClick={() => open('credits')}>
@@ -201,16 +205,16 @@ export function PauseMenu({ onResume, onMainMenu }: { onResume: () => void; onMa
         ▶ {t.resume}
       </button>
       <button className="btn" onClick={() => open('map', 'pause')}>
-        🗺️ {t.cityMap}
+        <ControlIcon name="map" /> {t.cityMap}
       </button>
       <button className="btn" onClick={() => open('daily', 'pause')}>
-        📅 {t.dailyTasks}
+        <ControlIcon name="tasks" /> {t.dailyTasks}
       </button>
       <button className="btn" onClick={() => open('garage', 'pause')}>
-        🔧 {t.garage}
+        <ControlIcon name="garage" /> {t.garage}
       </button>
       <button className="btn" onClick={() => open('settings', 'pause')}>
-        ⚙️ {t.settings}
+        <ControlIcon name="settings" /> {t.settings}
       </button>
       <button className="btn" onClick={() => open('controls', 'pause')}>
         🎮 {t.controls}
@@ -273,14 +277,15 @@ export function CityMapOverlay() {
       c.style.height = `${size}px`;
       const ctx = c.getContext('2d')!;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const route = fuel.navigation ?? nav;
       drawMap(
         ctx,
         { cx: 0, cz: 0, scale: size / 1060, rotation: 0, width: size, height: size },
         {
-          route: nav.active ? nav.route : null,
-          routeFrom: nav.along,
-          routeColor: nav.target === 'pickup' ? '#f4b544' : '#13c4b4',
-          target: nav.active && nav.targetBay ? { x: nav.targetBay.x, z: nav.targetBay.z, color: nav.target === 'pickup' ? '#f4b544' : '#13a89e', icon: nav.target === 'pickup' ? '👤' : '⚑' } : null,
+          route: route.active ? route.route : null,
+          routeFrom: route.along,
+          routeColor: route.target === 'pickup' ? '#d5eaff' : '#36ceff',
+          target: route.active && route.targetBay ? { x: route.targetBay.x, z: route.targetBay.z, color: route.target === 'pickup' ? '#d5eaff' : '#36ceff', icon: route.target === 'fuel' ? '⛽' : route.target === 'pickup' ? '👤' : '⚑' } : null,
           player: runtime.pose,
           labels: true,
         },
@@ -302,13 +307,13 @@ export function CityMapOverlay() {
       <div className="map-viewport" ref={viewport}><canvas ref={ref} /></div>
       <div className="legend">
         <span>
-          <i style={{ background: '#13a89e' }} /> You
+          <i style={{ background: '#36ceff' }} /> You
         </span>
         <span>
-          <i style={{ background: '#f4b544' }} /> {t.pickup}
+          <i style={{ background: '#d5eaff' }} /> {t.pickup}
         </span>
         <span>
-          <i style={{ background: '#13c4b4' }} /> {t.dropoff}
+          <i style={{ background: '#36ceff' }} /> {t.dropoff}
         </span>
       </div>
     </Modal>
@@ -324,18 +329,18 @@ export function ControlsOverlay({ onClose }: { onClose: () => void }) {
         <div className="ctl-left">
           <h3>{t.leftDrive}</h3>
           <div className="ctl-joy">
-            <span>▲ {t.accelerate}</span>
+            <span>◀ · ▶</span>
             <div className="joy-demo">
               <div />
             </div>
-            <span>▼ {t.brakeReverse}</span>
+            <span>{t.sensitivity}</span>
           </div>
           <small>{t.releaseToSlow}</small>
         </div>
         <div className="ctl-right">
           <h3>{t.rightLook}</h3>
           <div className="ctl-drag">👆 ⟲</div>
-          <small>{t.dragToLook}</small>
+          <small>{t.accelerate} · {t.brakeReverse}<br />{t.dragToLook}</small>
         </div>
       </div>
       <p className="kbd-hint">⌨️ {t.keyboardHint}</p>

@@ -18,9 +18,11 @@ export function roadPlacements(): WorldPlacement[] {
   }));
   for (const junction of INTERSECTIONS) {
     const edgeX = junction.i === 0 || junction.i === GRID.length - 1, edgeZ = junction.j === 0 || junction.j === GRID.length - 1;
+    const ry = edgeX ? junction.i === 0 ? 0 : Math.PI : edgeZ ? junction.j === 0 ? Math.PI / 2 : -Math.PI / 2 : 0;
+    const rotated = Math.abs(Math.sin(ry)) > .5;
     out.push({ pack: 'roads', variant: index(edgeX && edgeZ ? 'Road_L_Intersection' : edgeX || edgeZ ? 'Road_T_Intersection' : 'Road_X_Intersection'),
-      x: junction.x, y: .004, z: junction.z, ry: edgeX ? junction.i === 0 ? 0 : Math.PI : edgeZ ? junction.j === 0 ? Math.PI / 2 : -Math.PI / 2 : 0,
-      width: junction.hx * 2, depth: junction.hz * 2, height: .008 });
+      x: junction.x, y: .004, z: junction.z, ry,
+      width: (rotated ? junction.hz : junction.hx) * 2, depth: (rotated ? junction.hx : junction.hz) * 2, height: .008 });
   }
   // Connect the outer junctions to the drivable perimeter rather than ending the artwork abruptly.
   for (const coord of GRID) for (const side of [-1, 1]) for (const axis of ['x', 'z']) {
@@ -57,18 +59,30 @@ export function ImportedCity({ city }: { city: CityBuild }) {
     });
   }, [city]);
   const acc = useRef(1);
-  const previousView = useRef({ x: Infinity, z: Infinity, preset: quality.current });
-  const scratch = useMemo(() => ({ matrix: new THREE.Matrix4(), position: new THREE.Vector3(), scale: new THREE.Vector3(), rotation: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0) }), []);
+  const previousView = useRef({ x: Infinity, z: Infinity, yaw: Infinity, preset: quality.current });
+  const scratch = useMemo(() => ({ matrix: new THREE.Matrix4(), view: new THREE.Matrix4(), frustum: new THREE.Frustum(),
+    sphere: new THREE.Sphere(), direction: new THREE.Vector3(), position: new THREE.Vector3(), scale: new THREE.Vector3(), rotation: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0) }), []);
   useFrame((_, dt) => {
     acc.current += dt;
     const previous = previousView.current;
-    if (acc.current < .2 && Math.hypot(camera.position.x - previous.x, camera.position.z - previous.z) < 15 && previous.preset === quality.current) return;
-    acc.current = 0; previous.x = camera.position.x; previous.z = camera.position.z; previous.preset = quality.current;
+    camera.getWorldDirection(scratch.direction);
+    const yaw = Math.atan2(scratch.direction.x, scratch.direction.z);
+    if (acc.current < .2 && Math.hypot(camera.position.x - previous.x, camera.position.z - previous.z) < 15
+      && Math.abs(yaw - previous.yaw) < .08 && previous.preset === quality.current) return;
+    acc.current = 0; previous.x = camera.position.x; previous.z = camera.position.z; previous.yaw = yaw; previous.preset = quality.current;
+    // Overscan keeps edge buildings and their nearby shadows stable while orbiting the camera.
+    scratch.view.copy(camera.projectionMatrix);
+    scratch.view.elements[0] *= .8; scratch.view.elements[5] *= .8;
+    scratch.frustum.setFromProjectionMatrix(scratch.view.multiply(camera.matrixWorldInverse));
     for (const { mesh, list, pack } of batches) {
       let count = 0;
       const range = pack === 'bananas' ? Math.min(65, quality.current.detailDistance) : pack === 'forest' || pack === 'palms' ? quality.current.treeLodDistance * 1.5 : quality.current.drawDistance + 50;
       for (const p of list) {
         if (Math.hypot(p.x - camera.position.x, p.z - camera.position.z) - Math.max(p.width, p.depth) / 2 > range) continue;
+        scratch.sphere.center.set(p.x, p.y + p.height / 2, p.z);
+        scratch.sphere.radius = Math.hypot(p.width, p.height, p.depth) / 2;
+        // Buildings are only distance-culled: frustum results go stale between throttled updates and made them pop out.
+        if ((pack === 'forest' || pack === 'palms' || pack === 'bananas') && !scratch.frustum.intersectsSphere(scratch.sphere)) continue;
         scratch.matrix.compose(scratch.position.set(p.x, p.y, p.z), scratch.rotation.setFromAxisAngle(scratch.up, p.ry), scratch.scale.set(p.width, p.height, p.depth));
         mesh.setMatrixAt(count++, scratch.matrix);
       }

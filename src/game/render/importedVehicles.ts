@@ -8,9 +8,20 @@ import { cabinLayout, doorPivot } from '../vehicles/cabin';
 
 export type ImportedModelId = NonNullable<VehicleSpec['importedModel']>;
 const urls: Record<string, string> = {
-  ...Object.fromEntries(EXTRA_CARS.map((car) => [car.id, new URL(`../../../assets/glb-files/${car.file}`, import.meta.url).href])),
-  bmw_i8: new URL('../../../assets/glb-files/bmw_i8.glb', import.meta.url).href,
-  bmw_m4_gt3: new URL('../../../assets/glb-files/2025_bmw_m4_gt3_evo_g82.glb', import.meta.url).href,
+  lambo_lp670: new URL('../../../assets/optimized/vehicles/lambo.glb', import.meta.url).href,
+  black_huracan: new URL('../../../assets/optimized/vehicles/black-lambo.glb', import.meta.url).href,
+  mclaren_p1: new URL('../../../assets/optimized/vehicles/mclaren.glb', import.meta.url).href,
+  mustang_rtr: new URL('../../../assets/optimized/vehicles/mustang.glb', import.meta.url).href,
+  rolls_spectre: new URL('../../../assets/optimized/vehicles/rr-spectr.glb', import.meta.url).href,
+  porsche_718: new URL('../../../assets/optimized/vehicles/2020_porsche_718_spyder.glb', import.meta.url).href,
+  supra_a80: new URL('../../../assets/optimized/vehicles/toyota_supra_a80_1993.glb', import.meta.url).href,
+  western_star: new URL('../../../assets/optimized/vehicles/western_star_4900.glb', import.meta.url).href,
+  fast_72: new URL('../../../assets/optimized/vehicles/ergoninane-fast-72.glb', import.meta.url).href,
+  police_car: new URL('../../../assets/optimized/vehicles/arunangshubanerjee-police-car-2064.glb', import.meta.url).href,
+  classic_sport: new URL('../../../assets/optimized/vehicles/sputnikjfkennedy-car-4473.glb', import.meta.url).href,
+  ...Object.fromEntries(EXTRA_CARS.filter(car => car.id.startsWith('pack_')).map(car => [car.id, new URL('../../../assets/optimized/vehicles/traffic_racer_npc_vehicles_pack.glb', import.meta.url).href])),
+  bmw_i8: new URL('../../../assets/optimized/vehicles/bmw_i8.glb', import.meta.url).href,
+  bmw_m4_gt3: new URL('../../../assets/optimized/vehicles/2025_bmw_m4_gt3_evo_g82.glb', import.meta.url).href,
 };
 
 type ModelState = { status: 'loading' | 'ready' | 'error'; model?: THREE.Group };

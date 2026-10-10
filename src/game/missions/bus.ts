@@ -4,7 +4,7 @@ import { RIDE_TIMING } from '../data/economy';
 import { runtime } from '../core/runtime';
 import { events } from '../core/events';
 import { mulberry32 } from '../core/rng';
-import { findRoute, progressAlong, turnType, vehicleMinRadius } from '../navigation/roadGraph';
+import { findRoute, progressAlong, routeInstruction, vehicleMinRadius } from '../navigation/roadGraph';
 import { routeFrom } from '../navigation/routing';
 import { enforcement } from '../rules/enforcementState';
 import { levelForXP, quoteBus, settleBus } from '../progression/progression';
@@ -172,7 +172,7 @@ class BusService {
     const b = this.mission!.bus!;
     const bay = this.bay(b.nextStop);
     const p = runtime.pose;
-    nav.route = routeFrom(p.x, p.z, p.fx, p.fz, { segmentId: bay.segmentId, s: bay.s, bay: true }, 'bus', { minTurnRadius: vehicleMinRadius(runtime.vehicleId) });
+    nav.route = routeFrom(p.x, p.z, p.fx, p.fz, { segmentId: bay.segmentId, s: bay.s, bay: true, position: [bay.x, bay.z] }, 'bus', { minTurnRadius: vehicleMinRadius(runtime.vehicleId) });
     nav.routeVersion++;
     nav.progressIndex = 0;
     nav.target = 'bus';
@@ -396,30 +396,7 @@ class BusService {
       st.toast(st.t.missedStop, 'info');
       return;
     }
-    let acc = 0;
-    let found: 'left' | 'right' | null = null;
-    let dist = 0;
-    for (let i = 0; i < r.segments.length; i++) {
-      const segLen = (i === r.segments.length - 1 ? r.goalS : r.segments[i].length) - (i === 0 ? r.startS : 0);
-      acc += segLen + (i < r.segments.length - 1 ? 22 : 0);
-      if (acc < prog.along || i >= r.segments.length - 1) continue;
-      const tt = turnType(r.segments[i], r.segments[i + 1]);
-      if (tt === 'left' || tt === 'right') {
-        found = tt;
-        dist = acc - 22 - prog.along;
-        break;
-      }
-    }
-    if (nav.remaining < 45) {
-      nav.instruction = nav.remaining < 20 ? 'stop' : 'arriving';
-      nav.instructionDist = nav.remaining;
-    } else if (found) {
-      nav.instruction = found;
-      nav.instructionDist = Math.max(0, dist);
-    } else {
-      nav.instruction = 'continue';
-      nav.instructionDist = nav.remaining;
-    }
+    Object.assign(nav, routeInstruction(r, prog.along, 20));
   }
 }
 

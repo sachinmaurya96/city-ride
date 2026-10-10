@@ -1,5 +1,10 @@
 /** Dimensions and handling are game tuning values, not manufacturer specifications. */
 export const EXTRA_CARS = [
+  { id: 'lambo_lp670', name: 'Lamborghini LP670', file: 'lambo.glb', length: 4.70, width: 2.05, height: 1.24, radius: .33, wheelbase: 2.70, mass: 1600, speed: 250, engine: 'v8', yaw: .242 },
+  { id: 'black_huracan', name: 'Black Lamborghini Huracán', file: 'black-lambo.glb', length: 4.65, width: 2.33, height: 1.13, radius: .33, wheelbase: 2.62, mass: 1550, speed: 250, engine: 'v8' },
+  { id: 'mclaren_p1', name: 'McLaren P1 GTR', file: 'mclaren.glb', length: 4.73, width: 2.00, height: 1.43, radius: .33, wheelbase: 2.68, mass: 1500, speed: 260, engine: 'v8' },
+  { id: 'mustang_rtr', name: 'Ford Mustang RTR', file: 'mustang.glb', length: 4.82, width: 2.08, height: 1.39, radius: .34, wheelbase: 2.72, mass: 1750, speed: 230, engine: 'v8' },
+  { id: 'rolls_spectre', name: 'Rolls-Royce Spectre', file: 'rr-spectr.glb', length: 5.45, width: 2.15, height: 1.59, radius: .40, wheelbase: 3.21, mass: 2800, speed: 220, engine: 'petrol' },
   { id: 'porsche_718', name: 'Porsche 718 Spyder', file: '2020_porsche_718_spyder.glb', length: 4.43, width: 1.80, height: 1.28, radius: .34, wheelbase: 2.47, mass: 1450, speed: 210, engine: 'flat6' },
   { id: 'supra_a80', name: 'Toyota Supra A80', file: 'toyota_supra_a80_1993.glb', length: 4.52, width: 1.81, height: 1.27, radius: .33, wheelbase: 2.55, mass: 1550, speed: 205, engine: 'inline6' },
   { id: 'western_star', name: 'Western Star 4900', file: 'western_star_4900.glb', length: 9.05, width: 2.65, height: 3.65, radius: .50, wheelbase: 6.13, mass: 7000, speed: 95, engine: 'diesel' },

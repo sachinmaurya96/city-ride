@@ -95,6 +95,9 @@ test('a real head-on collision pushes an NPC backward and pauses its driving wit
     const npc = window.__cr.traffic.cars[id]; return (npc.x - x) * fx + (npc.z - z) * fz;
   }, collision), { intervals: [50] }).toBeLessThan(-.4);
   expect(await page.evaluate(id => window.__cr.traffic.cars[id].speed, collision.id)).toBe(0);
+  expect(await page.evaluate(({ fx, fz }) => {
+    const v = window.__cr.runtime.vehicle!.body.linvel(); return v.x * fx + v.z * fz;
+  }, collision)).toBeLessThanOrEqual(.05);
   expect(await page.evaluate(() => window.__cr.store.getState().save.wallet)).toBe(collision.wallet);
   await page.screenshot({ path: 'test-results/npc-collision-response.png' });
   expect(errors).toEqual([]);

@@ -7,11 +7,13 @@ import {
   CROSSWALK_WIDTH,
   CURB_HEIGHT,
   DIR_VEC,
+  FUEL_STATIONS,
   INTERSECTIONS,
   LANDMARKS,
   MAP_HALF,
   ROAD_SPEC,
   SEGMENTS,
+  SEGMENT_BY_ID,
   SIDEWALK_WIDTH,
   STOP_LINE_GAP,
   STREET_NAMES_X,
@@ -431,9 +433,13 @@ function buildBlock(block: Block, ctx: BuildCtx): CityChunk {
 
   for (const side of sides) {
     const yaw = sideYaw(side);
+    const pumps = FUEL_STATIONS.filter(p => p.segmentId === side.segment?.id && blockAt(p.pumpX, p.pumpZ) === block);
+    const pumpRanges = pumps.map(p => ({ start: (p.pumpX - side.ox) * side.ax + (p.pumpZ - side.oz) * side.az - 20,
+      end: (p.pumpX - side.ox) * side.ax + (p.pumpZ - side.oz) * side.az + 20 }));
     // Street furniture along the sidewalk
     for (let u = CORNER_RADIUS + 8; u < side.length - CORNER_RADIUS - 8; u += 9) {
       const segS = sideUToSegmentS(side, u);
+      if (pumpRanges.some(r => u >= r.start - 3 && u <= r.end + 3)) continue;
       if (nearBay(side.segment, segS, 2.5)) continue;
       const k = Math.round(u / 9);
       const [x, z] = sidePoint(side, u, 1.1);
@@ -459,12 +465,6 @@ function buildBlock(block: Block, ctx: BuildCtx): CityChunk {
       b.add('box', sx, CURB_HEIGHT + 1.2, sz, 0.12, 2.4, 0.12, '#2f3a4a');
       const [px, pz] = sidePoint(side, u, SIDEWALK_WIDTH + 1);
       b.add('box', px, CURB_HEIGHT + 0.01, pz, 3, 0.02, 3, '#f6efe2', yaw);
-      if (isFuel) {
-        // The usable pump is directly beside the curb bay; the forecourt pumps are scenery.
-        const [qx, qz] = sidePoint(side, u + 4, 2.4);
-        b.add('rbox', qx, CURB_HEIGHT + 0.9, qz, 0.8, 1.8, 0.7, '#ef7b4f', yaw);
-        ctx.signs.push({ text: '⛽ STOP HERE', x: qx, y: 3.8, z: qz, ry: yaw, w: 6, h: 1.2, bg: '#ef7b4f', fg: '#ffffff' });
-      }
     }
 
     if (isPark) continue;
@@ -472,7 +472,7 @@ function buildBlock(block: Block, ctx: BuildCtx): CityChunk {
     // Match every pickup/dropoff frontage, including the secondary side of a landmark.
     let resA = -1;
     let resB = -1;
-    if (lm && BAYS.some((bay) => bay.landmark === lm.id && bay.segmentId === side.segment?.id && !bay.bus)) {
+    if (lm && !isFuel && BAYS.some((bay) => bay.landmark === lm.id && bay.segmentId === side.segment?.id && !bay.bus)) {
       const width = LANDMARK_WIDTH[lm.id];
       const bay = BAYS.find((bb) => bb.landmark === lm.id && bb.segmentId === side.segment?.id && !bb.bus);
       let uc = side.length / 2;
@@ -513,11 +513,14 @@ function buildBlock(block: Block, ctx: BuildCtx): CityChunk {
     // Frontage buildings
     let u = cornerReserve;
     while (u < side.length - cornerReserve - 6) {
+      const pumpRange = pumpRanges.find(r => u + 7 > r.start && u < r.end);
+      if (pumpRange) { u = pumpRange.end + 3; continue; }
       if (resA >= 0 && u + 6 > resA && u < resB) {
         u = resB + 3;
         continue;
       }
-      const maxW = Math.min(26, (resA >= 0 && u < resA ? resA - 2 : side.length - cornerReserve) - u);
+      const nextPump = Math.min(...pumpRanges.filter(r => r.start > u).map(r => r.start - 2), side.length - cornerReserve);
+      const maxW = Math.min(26, (resA >= 0 && u < resA ? resA - 2 : nextPump) - u);
       if (maxW < 7) {
         u += 4;
         continue;
@@ -852,6 +855,19 @@ export function buildCity(): CityBuild {
     platformHulls.push(hullPoints(block.minX, block.maxX, block.minZ, block.maxZ, CORNER_RADIUS, CURB_HEIGHT));
   }
   chunks.push(buildOuter(ctx, platformBoxes));
+  for (const station of FUEL_STATIONS) {
+    ctx.worldPlacements.push({ pack: 'petrol', variant: 0, x: station.pumpX, y: CURB_HEIGHT, z: station.pumpZ,
+      ry: station.pumpHeading, width: 30, height: 9.04, depth: 30.86 });
+    // A clear paved entrance connects the marked filling area to the model's forecourt.
+    const [lx, lz] = leftOf(SEGMENT_BY_ID.get(station.segmentId)!.dir);
+    const x = station.pumpX - lx * 2, z = station.pumpZ - lz * 2;
+    const builder = new GeoBuilder(); builder.flat(34, 38, x, CURB_HEIGHT + .016, z, '#d4d0c7', station.pumpHeading);
+    chunks.push({ id: station.id, center: new THREE.Vector3(x, 0, z), radius: 40, merged: builder.build(), batches: new BatchSet() });
+    const horizontal = Math.abs(lx) < .5;
+    platformBoxes.push({ x, y: CURB_HEIGHT / 2, z, hx: horizontal ? 17 : 19, hy: CURB_HEIGHT / 2, hz: horizontal ? 19 : 17, ry: 0 });
+    ctx.signs.push({ text: '⛽ FREE · FULL TANK', x: station.x + lx * 7, y: 3.5, z: station.z + lz * 7, ry: station.pumpHeading,
+      w: 9, h: 1.2, bg: '#ed693c', fg: '#ffffff' });
+  }
   const markings = buildMarkings(ctx);
   ctx.stats.colliders = ctx.staticBoxes.length + platformBoxes.length + platformHulls.length;
   return { worldPlacements: ctx.worldPlacements, chunks, markings, platformHulls, platformBoxes, staticBoxes: ctx.staticBoxes, cameraBalls: ctx.cameraBalls, signs: ctx.signs, parked: ctx.parked, boards: ctx.boards, streetNames: [...STREET_NAMES_Z, ...STREET_NAMES_X], patrons: ctx.patrons, stats: ctx.stats };

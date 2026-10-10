@@ -31,7 +31,10 @@ export class TrafficPhysics {
   step(dt: number) {
     for (const c of this.traffic.cars) {
       const s = this.states.get(c.id)!; const b = s.body;
-      if (!c.active) { b.setEnabled(false); s.active = false; continue; }
+      if (!c.active) {
+        if (s.active) { b.setLinvel({ x: 0, y: 0, z: 0 }, false); b.setAngvel({ x: 0, y: 0, z: 0 }, false); }
+        b.setEnabled(false); s.active = false; continue;
+      }
       if (s.model !== c.model) {
         s.model = c.model; const spec = VEHICLES[c.model], col = b.collider(0);
         col.setHalfExtents({ x: spec.width / 2, y: spec.height / 2, z: spec.length / 2 });
@@ -50,6 +53,17 @@ export class TrafficPhysics {
       if (c.impactTime <= 0) {
         c.speed = Math.max(0, v.x * Math.sin(c.heading) + v.z * Math.cos(c.heading));
         if (!c.turn) { const [dx, dz] = DIR_VEC[c.seg.dir]; c.s = Math.max(0, Math.min(c.seg.length - .01, (c.x - c.seg.sx) * dx + (c.z - c.seg.sz) * dz)); }
+        else {
+          // Follow the body's actual progress around the curve instead of advancing a clock ahead of it.
+          let nearest = Infinity, along = c.t;
+          for (let i = 0; i < c.turn.pts.length - 1; i++) {
+            const a = c.turn.pts[i], next = c.turn.pts[i + 1], dx = next[0] - a[0], dz = next[1] - a[1];
+            const length = Math.hypot(dx, dz), t = Math.max(0, Math.min(1, ((c.x - a[0]) * dx + (c.z - a[1]) * dz) / (length * length || 1)));
+            const distance = Math.hypot(c.x - a[0] - dx * t, c.z - a[1] - dz * t);
+            if (distance < nearest) { nearest = distance; along = c.turn.cum[i] + length * t; }
+          }
+          c.t = along;
+        }
       }
     }
     this.traffic.step(dt);
@@ -64,15 +78,29 @@ export class TrafficPhysics {
         b.setLinvel({ x: velocity.x * factor, y: 0, z: velocity.z * factor }, true);
       } else {
         b.setLinearDamping(.15); b.setAngularDamping(1.5);
-        const goalX = Math.sin(c.heading) * c.speed + (c.x - position.x) * 1.2;
-        const goalZ = Math.cos(c.heading) * c.speed + (c.z - position.z) * 1.2;
+        // The AI target already includes this step's movement. Do not add it again as correction:
+        // doing so continually accelerates traffic and cancels the driver's braking.
+        const correctionX = c.x - position.x - Math.sin(c.heading) * c.speed * dt;
+        const correctionZ = c.z - position.z - Math.cos(c.heading) * c.speed * dt;
+        const correction = Math.min(1, 1.5 / Math.max(.001, Math.hypot(correctionX, correctionZ) * 1.2));
+        const goalX = Math.sin(c.heading) * c.speed + correctionX * 1.2 * correction;
+        const goalZ = Math.cos(c.heading) * c.speed + correctionZ * 1.2 * correction;
         const dx = goalX - velocity.x, dz = goalZ - velocity.z;
         const change = Math.min(1, dt * 7 / Math.max(.001, Math.hypot(dx, dz)));
         b.setLinvel({ x: velocity.x + dx * change, y: 0, z: velocity.z + dz * change }, true);
         const q = b.rotation(), actualHeading = Math.atan2(2 * q.y * q.w, 1 - 2 * q.y * q.y);
-        const desiredYaw = Math.max(-.9, Math.min(.9, wrap(c.heading - actualHeading) * 3));
+        const desiredYaw = Math.max(-1.8, Math.min(1.8, wrap(c.heading - actualHeading) * 6));
         const yaw = b.angvel().y, blend = 1 - Math.exp(-dt * 6);
         b.setAngvel({ x: 0, y: yaw + (desiredYaw - yaw) * blend, z: 0 }, true);
+        if (!c.turn && !c.allow) {
+          const [fx, fz] = DIR_VEC[c.seg.dir], actualS = (position.x - c.seg.sx) * fx + (position.z - c.seg.sz) * fz;
+          const stopS = c.seg.length - c.length / 2 - 1;
+          const current = b.linvel(), forward = current.x * fx + current.z * fz;
+          const allowed = Math.max(0, (stopS - actualS) / dt);
+          if (forward > allowed) b.setLinvel({ x: current.x - fx * (forward - allowed), y: 0, z: current.z - fz * (forward - allowed) }, true);
+        }
+        const legal = c.seg.limitKmh / 3.6, current = b.linvel(), speed = Math.hypot(current.x, current.z);
+        if (speed > legal) b.setLinvel({ x: current.x * legal / speed, y: 0, z: current.z * legal / speed }, true);
       }
       const v = b.linvel(); s.vx = v.x; s.vz = v.z;
       this.readPose(c, s);

@@ -36,7 +36,7 @@ test('all new vehicles load with original materials and usable wheel/door parts'
     }
     return results;
   });
-  expect(results).toHaveLength(25);
+  expect(results).toHaveLength(30);
   for (const car of results) {
     expect(car.triangles, car.id).toBeGreaterThan(100);
     if (!car.npc) {
@@ -46,7 +46,7 @@ test('all new vehicles load with original materials and usable wheel/door parts'
     expect(car.dimensions.every((n) => Number.isFinite(n) && n > .5 && n < 12), car.id).toBe(true);
   }
   await test.info().attach('all-models.json', { body: JSON.stringify(results, null, 2), contentType: 'application/json' });
-  for (const id of ['porsche_718', 'western_star', 'classic_sport', 'fast_72']) {
+  for (const id of ['lambo_lp670', 'black_huracan', 'mclaren_p1', 'mustang_rtr', 'rolls_spectre']) {
     await page.evaluate(() => window.__cr.store.getState().openOverlay('garage'));
     await page.getByTestId(`vcard-${id}`).click();
     await expect(page.getByTestId('vehicle-preview')).toHaveAttribute('data-model-state', 'ready');
@@ -118,6 +118,7 @@ test('native characters open doors before entry, sit, exit, preserve their appea
   await waitStage(page, ['COMPLETED']);
   expect((await state(page)).passenger).toBe('cartethyia'); expect((await state(page)).passengerVisible).toBe(true);
   await page.reload(); await page.getByTestId('play').waitFor({ timeout: 90000 });
+  await page.waitForFunction(() => !!window.__cr?.store);
   expect(await page.evaluate(() => window.__cr.store.getState().save.settings.driver)).toBe('lynae');
   expect(errors).toEqual([]);
 });

@@ -18,7 +18,7 @@ export function FuelMarkers() {
     });
   });
   return <group name="fuel-station-markers">{FUEL_STATIONS.map((bay, i) => (
-    <group name={`fuel-bay-${bay.id}`} key={bay.id} ref={o => { groups.current[i] = o; }} position={[bay.x, .026, bay.z]} rotation-y={bay.heading}>
+    <group name={`fuel-bay-${bay.id}`} key={bay.id} ref={o => { groups.current[i] = o; }} position={[bay.x, .18, bay.z]} rotation-y={bay.heading}>
       <mesh rotation-x={-Math.PI / 2} renderOrder={3}>
         <planeGeometry args={[bay.width + 1.6, bay.length]} />
         <meshBasicMaterial color="#35ebaa" transparent opacity={.18} depthWrite={false} />

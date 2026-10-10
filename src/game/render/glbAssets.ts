@@ -42,11 +42,15 @@ export function loadGlb(url: string, retry = false): Promise<GLTF> {
   if (cached) return cached;
   const task = Promise.all([
     import('three/addons/loaders/GLTFLoader.js'),
+    import('three/addons/libs/meshopt_decoder.module.js'),
     fetch(url).then((response) => {
       if (!response.ok) throw new Error(`Model download failed (${response.status})`);
       return response.arrayBuffer();
     }),
-  ]).then(([{ GLTFLoader }, buffer]) => new GLTFLoader().parseAsync(upgradeLegacyMaterials(buffer), new URL('.', url).href));
+  ]).then(([{ GLTFLoader }, { MeshoptDecoder }, buffer]) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(upgradeLegacyMaterials(buffer), new URL('.', url).href)).catch(error => {
+    if (assets.get(url) === task) assets.delete(url);
+    throw error;
+  });
   assets.set(url, task);
   return task;
 }

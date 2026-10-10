@@ -2,14 +2,15 @@
 
 | Input | Action |
 | --- | --- |
-| Left joystick (touch, default) | Steer (x), accelerate (push up), brake (pull down); hold down ≥0.4 s near standstill = reverse (≤10 km/h). Release = gentle slow-down then auto-hold. Dead zone 0.12, circle→square mapping so diagonals keep full throttle. |
+| Left joystick (touch, default) | Steer left/right only; vertical movement never accelerates or reverses. Horizontal dead zone 0.12. |
+| Right Speed up / Reverse pedals (both touch presets) | Hold Speed up to accelerate. Hold Reverse to brake, then reverse near standstill. Release Speed up to coast. Steering and each pedal keep independent pointer ownership. |
 | Right-side drag (touch) / mouse drag | Orbit camera (yaw free, pitch clamped); auto re-centers after 1.5 s while moving (toggle in Settings) |
 | Right utility buttons | Horn · Camera mode · Sound on/off · Enter/Get out · Recover (appears when stuck) |
-| Power Brake (right side, both presets) | Hold alone to stop immediately, including sideways motion. Hold while steering with the joystick or A/D to drift. Keep accelerating while countersteering through center; release the joystick/accelerator and hold only Power Brake to stop. |
+| Power Brake (right side, both presets) | Hold alone to stop immediately, including sideways motion. Hold Speed up and Power Brake together while steering to drift; release Speed up while keeping Power Brake held to stop. |
 | Steering + pedals (Settings alternative) | Left steering pad, right gas/brake pedals, camera drag on the remaining area |
 | W/↑, S/↓, A/D | Accelerate, brake/reverse, steer |
 | Space / either Shift | Power Brake; combine with steering to drift |
-| Car door tap / F / Enter–Get out button | Open the driver door and enter/get out of a stopped car. Joystick or WASD moves the character outside; walk back to the door to enter. Passenger boarding and refueling finish before driver exit. |
+| Car door tap / F / Enter–Get out button | Open the driver door and enter/get out of a stopped car. Outside, the left control turns the character and right pedals move forward/back; WASD also works. Walk back to the door to enter. Passenger boarding and refueling finish before driver exit. |
 | C | Chase → high chase → handlebar/bonnet |
 | H / R / E | Horn / recover (when available) / accept offer or next ride |
 | Esc / P | Pause (closes dialogs) |
@@ -30,14 +31,18 @@ rear and side impacts follow the direction of the impact.
 
 ## Fuel and passenger stops
 
-Fuel is shown at the bottom left, beside the touch joystick and below speed. A full tank lasts about 6 km on bikes,
-5 km on autos, 4.5 km on cars and 4 km on buses. Fuel does not drain while parked. Each vehicle's
+Fuel is shown at the bottom left, beside the touch joystick and below speed. A full tank lasts about 24 km on bikes,
+20 km on autos, 18 km on cars and 16 km on buses. Capacities are 12/24/80/180 litres respectively.
+Fuel does not drain while parked. Each vehicle's
 tank is saved independently; existing saves start with full tanks.
 
-West Petrol Station and South Petrol Station have orange canopies, pumps, curb refill bays and ⛽
-map markers. Stop in a refill bay below 1 km/h and release the accelerator for one second. A full
-refill takes up to five seconds and costs no money. Leaving the bay interrupts the refill. If the
-tank empties, acceleration stops and the fuel panel offers free emergency fuel (15%) to reach a pump.
+Every street section has an HP petrol pump model with an off-road paved forecourt and green filling
+area. Stop below 1 km/h and release the accelerator; a confirmation offers a free full tank.
+Canceling changes nothing, and money is never required or deducted. Filling is available only at
+pumps. When empty, acceleration stops: tap **Navigate to petrol pump** for the map route and
+road arrows, then optionally **Tow to petrol pump · Free** to reach it without roadside refilling.
+Ride, bus and petrol routes finish at the actual stopping-area center. Turn distances use measured
+route curves, and a petrol detour keeps the selected station as its destination.
 
 During boarding and exit, passengers walk visibly between the curb and the vehicle. The camera
 turns toward the landmark unless the player is actively looking around. Passengers continue walking

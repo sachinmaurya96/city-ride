@@ -5,7 +5,7 @@ import { boot, play, fixture } from './helpers';
 test.use({ hasTouch: true, isMobile: true, viewport: { width: 844, height: 390 } });
 test.setTimeout(180000);
 
-test('NPCs stay out of the garage; mobile sound, two-finger drift, instant stop and door entry work together', async ({ page }) => {
+test('NPCs stay out of the garage; mobile sound, steering/pedals/drift, instant stop and door entry work together', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await boot(page, { clear: true });
@@ -35,6 +35,8 @@ test('NPCs stay out of the garage; mobile sound, two-finger drift, instant stop 
   const center = { x: joy.x + joy.width / 2, y: joy.y + joy.height / 2, id: 1 };
   const brakePoint = { x: brake.x + brake.width / 2, y: brake.y + brake.height / 2, id: 2 };
   expect(brake.x).toBeGreaterThan(844 / 2);
+  const gas = (await page.getByTestId('accelerate').boundingBox())!;
+  const gasPoint = { x: gas.x + gas.width / 2, y: gas.y + gas.height / 2, id: 3 };
   const touch = await page.context().newCDPSession(page);
   await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [center] });
   const steerPoint = { ...center, x: center.x + 24, y: center.y - 24 };
@@ -43,7 +45,7 @@ test('NPCs stay out of the garage; mobile sound, two-finger drift, instant stop 
     const c = window.__cr, p = c.runtime.pose;
     c.runtime.vehicle!.body.setLinvel({ x: p.fx * 12, y: 0, z: p.fz * 12 }, true);
   });
-  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [steerPoint, brakePoint] });
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [steerPoint, brakePoint, gasPoint] });
   await expect.poll(() => page.evaluate(() => window.__cr.runtime.telemetry.drifting)).toBe(true);
   expect(await page.evaluate(() => window.__cr.runtime.telemetry.speedKmh)).toBeGreaterThan(5);
   await page.screenshot({ path: 'test-results/power-brake-drift-mobile.png' });

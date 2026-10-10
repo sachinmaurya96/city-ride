@@ -4,6 +4,44 @@ All browser numbers below come from **headless Chromium with SwiftShader (softwa
 Mac**. They are useful for *relative* comparisons (triangles, draw calls) but are **not** device performance
 evidence. No physical Android/iOS device or GPU-accelerated desktop browser measurement has been performed yet.
 
+## Startup and asset audit — 10 October 2026
+
+The menu now loads before WebGL, physics and world assets. Play fetches the physics/world code and
+optimized city packs concurrently; Garage creates the shared renderer without fetching the city.
+The renderer and physics world remain mounted after the first drive. Menus use demand rendering,
+and prepared NPC geometry is retained across pauses instead of rebuilding on each state change.
+
+`scripts/optimize-assets.mjs` produces runtime copies of all 25 supplied GLBs. It resizes textures to
+a maximum of 1024 pixels and encodes WebP at quality 0.9, retaining transparency. Meshopt compression
+is lossless: no geometry decimation, quantization or skeleton changes. Original files are preserved.
+The real-asset unit test decodes every non-image buffer view and compares bytes with its source.
+
+| Models | Original bytes | Runtime bytes | Reduction |
+| --- | ---: | ---: | ---: |
+| Buildings, trees, roads and petrol station | 61,621,824 | 9,813,500 | 84% |
+| Four characters | 38,050,132 | 9,513,124 | 75% |
+| Vehicles and NPC pack | 85,637,920 | 43,531,512 | 49% |
+| Total | 185,309,876 | 62,858,136 | 66% |
+
+Only explicit optimized model URLs enter the build. The old dynamic vehicle URL expression caused
+Vite to include all source GLBs; it has been replaced with a literal catalog. World preparation no
+longer resizes textures at runtime, and drops parsed source geometry after preparing shared batches.
+Failed GLB download promises are evicted so retry can fetch again. Imported city instances use camera
+frustum and distance culling, reusable scratch objects and bounded 5 Hz updates, with earlier updates
+when the camera moves or turns substantially.
+
+The cold-start browser audit records menu readiness and resource transfers. Before the change it took
+4,862 ms locally; the final optimized run took 61 ms. This is a local relative measurement, not a phone
+or network benchmark. No GLB or physics/world chunk is transferred before the menu appears. First
+Play still has to fetch and prepare the city; the startup change does not eliminate that work.
+
+The current standalone production inventory is approximately 70.4 MB unpacked / 55.2 MB ZIP,
+including all selectable models and recordings. These are package totals, not initial-page transfer.
+`npm run size` correctly reports that the original 5 MB publication budget is exceeded; the gate has
+not been weakened. Dense selectable cars still need physical-device memory and frame-time profiling.
+
+The sections below are dated historical measurements, not measurements of the current imported city.
+
 ## Graphics controls (9 October 2026)
 
 All device categories now default to Medium for new profiles. Saved choices are respected. The earlier

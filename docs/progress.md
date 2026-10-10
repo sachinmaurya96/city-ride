@@ -1,3 +1,29 @@
+## Touch controls, navigation, performance and UI audit — 10 October 2026
+
+- Both touch presets use left/right steering only on the left and independent Speed up / Reverse buttons on the right. Three fingers can steer, accelerate and use Power Brake together. Reverse brakes before backing up; canceled touches and pause clear inputs.
+- Fuel driving range is four times longer (24/20/18/16 km for bike/auto/car/bus), with 12/24/80/180 L tanks and compatible saved percentages. Free pump-only filling is retained.
+- Ride, bus and fuel routes end at the actual stopping area. Turn instruction distances use route curves, recovery can find progress after large jumps, and fuel rerouting preserves the selected pump.
+- Main-menu startup defers WebGL/physics/world until Play or Garage. Play loads world assets and simulation code concurrently; one renderer/physics world persists across menus. NPC preparation is reused and imported city instances are culled by view and distance.
+- All 25 supplied GLBs have reproducible runtime copies: 185.3 MB to 62.9 MB (66% smaller), with reduced WebP textures and lossless Meshopt geometry. Original assets, UVs, rigs, materials and credits are retained. Removed the dynamic URL glob that also bundled source models.
+- UI surfaces use black/navy translucency, white text, neon-blue accents and SVG controls, including menu, HUD, garage and dialogs. Updated mobile utility/pedal positions and short-screen layout.
+- Fixed contact impulses nudging a car while only Power Brake is held: the stop now applies after physics as well, while throttle-driven drifting remains active.
+- Audit details and validation are recorded in [the code audit](code-audit-2026-10-10.md) and [performance report](performance.md). Production build, typecheck, lint and all 203 unit/integration tests pass. Browser checks cover responsive screens, imported cars/characters, free fuel, cabin clearance, controls, GPS and deferred loading. Physical-device speaker/FPS/memory checks remain unmeasured; the original 5 MB release budget is still exceeded.
+
+## McLaren head clearance — 9 October 2026
+
+- Corrected cockpit headroom: the exported rear wing is taller than the actual roof, so whole-model height allowed heads to protrude. Lowered and repositioned the shared driver/passenger seats beneath the curved cockpit.
+- Added a real-geometry regression that checks head/hair clearance for both Rovers, Lynae and Cartethyia in both seats, retaining more than 75% of original character scale.
+- Validation: production build, lint and 196 unit tests pass. A focused browser regression passes for all four drivers and a boarded Cartethyia passenger, measuring head clearance against the original roof mesh. Seated screenshots inspected locally.
+
+## Supplied city, free petrol pumps, new cars and traffic fixes — 9 October 2026
+
+- City buildings, forest trees, palms, banana trees and road/junction modules use the uploaded packs, with shared materials and distance culling. Corrected rotated junction footprints.
+- Added the supplied HP petrol-station model to every street section (40 stations), with paved off-road forecourts, green filling areas and original mesh collisions. Reserved building and street-furniture space around each entrance.
+- Refueling offers a free full tank with confirmation. Canceling changes nothing; wallet values never change, including when cash is zero. Filling cannot open on traffic lanes. Removed roadside emergency refilling; empty tanks offer a map/road-arrow route and optional free towing to a real pump.
+- Added LP670, Black Huracán, McLaren P1 GTR, Mustang RTR and Rolls-Royce Spectre as free garage test drives. Original materials, rotating tires, physics wheel positions and seated character fit pass the real-asset audit. Traffic-pack vehicles and police remain NPC-only.
+- Fixed duplicated movement in NPC physics that added acceleration while drivers tried braking. NPCs now stop behind parked players and red stop lines, reserve junction turns, yield to pedestrians, follow road speed limits and stop chasing the player. Normal lane correction is bounded; turn progress follows actual body position. Crashes still move NPCs in the impact direction, while the player does not recoil backward.
+- Validation: production build, typecheck, lint and 195 unit tests pass. A two-minute traffic simulation records no spontaneous NPC crashes. Seven focused browser flows cover city/pump rendering, free filling and saved fuel, empty-tank routing/towing, all 30 imported vehicle models and the five new previews, desktop drifting and tracks, crash recoil, mobile sound/drift/doors, and zero-cash mobile refueling with the newly added McLaren. Screenshots inspected locally. Physical-device speaker output and hardware performance remain unmeasured.
+
 ## Free driving, smooth drifting and character fit — 9 October 2026
 
 - Removed all player traffic warnings, fines, heat, pursuits and capture. Signals continue organizing NPC traffic; police cars remain ambient NPC assets.

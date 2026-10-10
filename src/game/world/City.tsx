@@ -16,6 +16,7 @@ import { CAMERA_ONLY_GROUPS, GROUND_GROUPS, STATIC_GROUPS } from './collisionGro
 import { quality } from '../render/quality';
 import { ImportedCity } from './ImportedCity';
 import { FuelMarkers } from './FuelMarkers';
+import { worldAssets } from './worldAssets';
 
 const SPHERE_LOW = new THREE.IcosahedronGeometry(1, 0);
 
@@ -241,6 +242,18 @@ function CityColliders({ city }: { city: CityBuild }) {
           .setRestitution(0.1),
         body,
       );
+    }
+    // Use the station's actual walls/posts, leaving its open entrance and filling area driveable.
+    const pump = worldAssets.get('petrol')?.[0];
+    if (pump) for (const placement of city.worldPlacements.filter(p => p.pack === 'petrol')) {
+      const matrix = new THREE.Matrix4().compose(new THREE.Vector3(placement.x, placement.y, placement.z),
+        new THREE.Quaternion().setFromAxisAngle(up, placement.ry), new THREE.Vector3(placement.width, placement.height, placement.depth));
+      for (const part of pump.parts) {
+        const geometry = part.geometry.clone().applyMatrix4(matrix), positions = new Float32Array(geometry.attributes.position.array);
+        const indices = geometry.index ? new Uint32Array(geometry.index.array) : Uint32Array.from({ length: positions.length / 3 }, (_, i) => i);
+        world.createCollider(rapier.ColliderDesc.trimesh(positions, indices).setCollisionGroups(STATIC_GROUPS).setFriction(.4), body);
+        geometry.dispose();
+      }
     }
     for (const c of city.cameraBalls) {
       world.createCollider(rapier.ColliderDesc.ball(c.r).setTranslation(c.x, c.y, c.z).setCollisionGroups(CAMERA_ONLY_GROUPS), body);
