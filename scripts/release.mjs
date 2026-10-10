@@ -1,11 +1,11 @@
 // npm run release — checks, platform build, validation, root + nested smoke tests, size gate,
 // ZIP packaging and build report. It never uploads or publishes anything.
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
-import { extname, join, relative } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import { zipSync } from 'fflate';
 import { sizeReport, walk, BUDGET_BYTES } from './size-report.mjs';
+import { smokeRelease } from './release-smoke.mjs';
 
 const DIST = 'dist';
 const OUT = 'release';
@@ -69,49 +69,13 @@ const allJs = files.filter((f) => f.endsWith('.js') && f !== 'playgama-bridge.js
 if (allJs.includes('__cr') || allJs.includes('zz-autopilot')) fail('test hooks found in release bundle');
 checks.push({ name: 'paths, exclusions, no test hooks', ok: true });
 
-// 3. smoke test at the root and at a nested path (WASM physics, assets, bridge init, main menu)
-const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.css': 'text/css', '.wasm': 'application/wasm', '.png': 'image/png' };
-const server = createServer((req, res) => {
-  let p = decodeURIComponent((req.url ?? '/').split('?')[0]);
-  if (p.startsWith('/nested/games/city-ride/')) p = p.slice('/nested/games/city-ride'.length);
-  if (p.endsWith('/')) p += 'index.html';
-  const f = join(DIST, p);
-  if (!f.startsWith(DIST) || !existsSync(f) || statSync(f).isDirectory()) {
-    res.writeHead(404);
-    res.end();
-    return;
-  }
-  res.writeHead(200, { 'content-type': MIME[extname(f)] ?? 'application/octet-stream' });
-  res.end(readFileSync(f));
-});
-await new Promise((r) => server.listen(4199, r));
-const { chromium } = await import('@playwright/test');
-const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-for (const path of ['/', '/nested/games/city-ride/']) {
-  const page = await browser.newPage({ viewport: { width: 667, height: 375 } });
-  const errors = [];
-  const missing = [];
-  page.on('pageerror', (e) => errors.push(e.message));
-  page.on('response', (r) => {
-    if (r.status() >= 400) missing.push(`${r.status()} ${r.url()}`);
-  });
-  await page.goto(`http://localhost:4199${path}`);
-  try {
-    await page.waitForSelector('[data-testid=play]', { timeout: 120000 });
-    await page.click('[data-testid=play]');
-    await page.waitForTimeout(4000);
-  } catch {
-    errors.push('main menu / gameplay did not become ready');
-  }
-  const bootError = await page.locator('.boot-error').count();
-  await page.close();
-  if (missing.length) fail(`smoke ${path}: failed requests ${missing.join(', ')}`);
-  if (errors.length || bootError) fail(`smoke ${path}: ${errors.join(' | ') || 'boot error shown'}`);
-  console.log(`▶ smoke test ${path} … ok`);
-  checks.push({ name: `smoke test ${path}`, ok: true });
+// 3. Real fresh-player onboarding, world readiness and pause/resume at both hosting paths.
+try {
+  await smokeRelease({ dist: DIST, artifacts: OUT, onPass: path => checks.push({ name: `smoke test ${path}`, ok: true }) });
+} catch (error) {
+  checks.push({ name: 'production smoke tests', ok: false });
+  fail(error.message);
 }
-await browser.close();
-server.close();
 
 // 4. size gate
 report = sizeReport(DIST);

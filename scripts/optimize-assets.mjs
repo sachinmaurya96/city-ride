@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { chromium } from '@playwright/test';
 import { MeshoptEncoder } from 'meshoptimizer';
@@ -9,7 +9,9 @@ const worldFiles = new Set(['city-building-pack', 'night-city-building-pack', 'f
   'banana-tree-pack', 'road-pack', 'hp-petrol-pump']);
 // ONLY=a,b limits the run to those files (new models) instead of re-optimizing everything.
 const only = process.env.ONLY?.split(',');
-const files = (await readdir('assets/glb-files')).filter(file => file.endsWith('.glb')).map(file => file.slice(0, -4)).filter(name => !only || only.includes(name));
+const allFiles = (await readdir('assets/glb-files')).filter(file => file.endsWith('.glb')).map(file => file.slice(0, -4));
+const files = allFiles.filter(name => !only || only.includes(name));
+const kindOf = name => worldFiles.has(name) ? 'world' : /rover|lynae|cartethyia/.test(name) ? 'characters' : 'vehicles';
 await MeshoptEncoder.ready;
 const output = resolve('assets/optimized');
 await mkdir(output, { recursive: true });
@@ -18,28 +20,38 @@ const page = await browser.newPage();
 const report = [];
 try {
   for (const name of files) {
-    const kind = worldFiles.has(name) ? 'world' : /rover|lynae|cartethyia/.test(name) ? 'characters' : 'vehicles';
+    const kind = kindOf(name);
     const folder = join(output, kind); await mkdir(folder, { recursive: true });
     const source = await readFile(`assets/glb-files/${name}.glb`);
     const jsonLength = source.readUInt32LE(12);
     const json = JSON.parse(source.subarray(20, 20 + jsonLength).toString());
     const binary = source.subarray(28 + jsonLength);
     const resized = new Map();
-    for (const image of json.images ?? []) {
+    // Facade/window atlases need their original 2K detail at street distance.
+    // Keep only building color/emissive maps larger; utility maps remain 1K.
+    const facadeImages = new Set();
+    if (name === 'city-building-pack' || name === 'night-city-building-pack') {
+      for (const material of json.materials ?? []) {
+        for (const texture of [material.pbrMetallicRoughness?.baseColorTexture, material.emissiveTexture]) {
+          if (texture) facadeImages.add(json.textures[texture.index].source);
+        }
+      }
+    }
+    for (const [imageIndex, image] of (json.images ?? []).entries()) {
       if (image.bufferView === undefined) continue;
       const view = json.bufferViews[image.bufferView];
       const bytes = binary.subarray(view.byteOffset ?? 0, (view.byteOffset ?? 0) + view.byteLength);
-      const encoded = await page.evaluate(async ({ data, mime }) => {
+      const encoded = await page.evaluate(async ({ data, mime, maximum }) => {
         const blob = await fetch(`data:${mime};base64,${data}`).then(r => r.blob());
         const image = await createImageBitmap(blob);
-        const factor = Math.min(1, 1024 / Math.max(image.width, image.height));
+        const factor = Math.min(1, maximum / Math.max(image.width, image.height));
         const canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(image.width * factor));
         canvas.height = Math.max(1, Math.round(image.height * factor));
         canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
         image.close();
         return canvas.toDataURL('image/webp', .9).split(',')[1];
-      }, { data: bytes.toString('base64'), mime: image.mimeType });
+      }, { data: bytes.toString('base64'), mime: image.mimeType, maximum: facadeImages.has(imageIndex) ? 2048 : 1024 });
       resized.set(image.bufferView, Buffer.from(encoded, 'base64'));
       image.mimeType = 'image/webp';
     }
@@ -93,6 +105,21 @@ try {
     await writeFile(join(folder, `${name}.glb`), result);
     report.push({ name, kind, originalBytes: source.length, runtimeBytes: result.length, compressedViews });
   }
-  await writeFile(join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n');
+  // Reconstruct all existing entries even if an earlier partial run replaced the
+  // report. Unselected models are read for metadata, never re-encoded.
+  const inventory = [...report];
+  if (only) {
+    for (const name of allFiles.filter(name => !files.includes(name))) {
+      const kind = kindOf(name);
+      try {
+        const [original, runtime] = await Promise.all([stat(`assets/glb-files/${name}.glb`), readFile(join(output, kind, `${name}.glb`))]);
+        const json = JSON.parse(runtime.subarray(20, 20 + runtime.readUInt32LE(12)).toString());
+        inventory.push({ name, kind, originalBytes: original.size, runtimeBytes: runtime.length,
+          compressedViews: json.bufferViews.filter(view => view.extensions?.EXT_meshopt_compression).length });
+      } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
+  }
+  inventory.sort((a, b) => a.name.localeCompare(b.name));
+  await writeFile(join(output, 'report.json'), JSON.stringify(inventory, null, 2) + '\n');
   console.log(JSON.stringify(report, null, 2));
 } finally { await browser.close(); }

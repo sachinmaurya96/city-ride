@@ -1,3 +1,34 @@
+## Playgama release budget correction — 10 October 2026
+
+- With the owner's authorization, replaced the original 5 MB project gate with Playgama's documented 300,000,000-byte (300 MB) limit for both unpacked runtime files and the release ZIP. Updated the README, plan and performance notes to distinguish the current budget from historical 5 MB results.
+- Validation: `npm run release` passes typecheck, lint, unit tests, Playgama build, output validation and both production smoke tests. The build is 85,886,977 bytes unpacked and 68,042,885 bytes zipped, within the new budget.
+- Generated `release/city-ride-playgama.zip`, `release/build-report.json` and `release/RELEASE_SUMMARY.md`. No upload or publishing was performed.
+
+## Larger touch joystick and top camera button — 10 October 2026
+
+- Enlarged the touch joystick from 72–96 pixels to 112–160 pixels, scaling with viewport height. Its thumb knob now has at least a 44-pixel diameter, and the live steering circle uses the same dimensions.
+- Reserved HUD space above the larger joystick so ride prompts and empty-fuel controls do not overlap it. Speed/fuel instruments still sit beside the joystick.
+- Moved Camera to the top beside Pause and the minimap, retaining tap controls and the desktop C shortcut. Corrected the desktop shortcut styling so it preserves the button's absolute position.
+- Expanded the existing responsive browser checks to verify joystick/knob size, camera placement, safe-area bounds, overlap and camera tap behavior.
+- Validation: production build/typecheck and lint pass. Three browser checks pass across short phones, tablets, desktop layouts, both touch presets, enlarged EN/RU text, safe-area insets, camera switching, and three-finger drifting/stop/reset behavior. Phone and tablet screenshots inspected.
+
+## Production release smoke fix — 10 October 2026
+
+- Reproduced the failure: the fresh-player welcome modal intercepted the release script's Play click. Gameplay itself had not failed to initialize.
+- Extracted the real production smoke flow into `scripts/release-smoke.mjs`. It claims the welcome bonus, waits for the loaded city and canvas, dismisses the controls tutorial, and verifies pause/resume using visible UI at root and nested hosting paths. No test hooks or forced clicks are used.
+- Replaced the fixed four-second sleep and generic failure message with readiness checks, named startup stages, failed request/browser error details, and failure screenshots/JSON. Browser and temporary HTTP server are closed on both success and failure; the server uses an available local port.
+- Validation: `npm run release` passes typecheck, lint, unit tests, Playgama build, output validation and both production smoke tests. Packaging remains blocked by the unchanged 5,000,000-byte gate: 85,886,483 bytes unpacked and 68,042,771 bytes zipped. The run records these results in `release/build-report.json`; no release archive or upload was produced.
+
+## Building texture and tablet control corrections — 10 October 2026
+
+- Preserved 2048-pixel building color/emissive atlases so facade and window detail survives optimization. Other texture maps retain the existing smaller runtime size. Source GLBs are unchanged.
+- Rendered the solid `BACKGROUND_BUILDING_2` facades in the opaque depth pass, avoiding transparent batch ordering and missing wall sections.
+- Joystick gesture ownership and its visible knob now clear whenever central input resets. Releases/cancellations outside the gesture layer and last-touch cancellation also clear held controls. Existing parking creep and separate speed/reverse pedals remain available.
+- Removed the obsolete Power Brake shortcut wrapping rule. Its touch layout now reserves space for the icon and wrapping label, including enlarged text on tablets; keyboard shortcut badges retain their desktop styling.
+- Partial asset optimization rebuilds the complete existing inventory report instead of discarding models that were not re-encoded.
+- Added browser regressions for building atlas decode/detail, knob recentering during a held gesture, off-layer release, and actual Power Brake child bounds on responsive screens.
+- Validation: production build, typecheck, lint and 240 unit/integration tests pass. Browser checks pass for building textures, phone/tablet multi-touch drifting and recentering, both responsive presets, enlarged text in both languages, menus/dialogs and desktop controls/shortcuts.
+
 ## Touch controls, navigation, performance and UI audit — 10 October 2026
 
 - Both touch presets use left/right steering only on the left and independent Speed up / Reverse buttons on the right. Three fingers can steer, accelerate and use Power Brake together. Reverse brakes before backing up; canceled touches and pause clear inputs.

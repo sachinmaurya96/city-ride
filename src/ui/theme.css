@@ -125,8 +125,8 @@
 .desktop-mode .key-hint { display: block; position: absolute; top: 3px; right: 3px; min-width: 15px; padding: 1px 4px;
   font: 700 9px/1.25 ui-monospace, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: .02em; text-align: center; text-transform: uppercase;
   color: #cfefff; background: #03070dcc; border: 1px solid #36ceff59; box-shadow: 0 1px 0 #36ceff33; pointer-events: none; }
-/* Only in-flow buttons need a positioning context; .power-brake and .pause-btn are already absolutely placed. */
-.desktop-mode :is(.util:not(.recover), .pedal, .offer-actions .btn, .fuel-gauge button, .test-drive-banner .btn) { position: relative; }
+/* Only in-flow buttons need a positioning context; the camera, brake and pause are absolutely placed. */
+.desktop-mode :is(.util:not(.recover, .camera-control), .pedal, .offer-actions .btn, .fuel-gauge button, .test-drive-banner .btn) { position: relative; }
 .desktop-mode :is(.offer-actions .btn, .fuel-gauge button, .test-drive-banner .btn) { padding-right: 24px; }
 .desktop-mode :is(.util, .pause-btn) .key-hint { top: 2px; right: 2px; min-width: 13px; padding: 0 3px; font-size: 8px; }
 .desktop-mode .offer-actions .btn .key-hint, .desktop-mode .btn.primary .key-hint { color: #03121c; background: #ffffffd9; border-color: #ffffff; }

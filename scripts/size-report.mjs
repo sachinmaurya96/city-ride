@@ -4,7 +4,9 @@ import { join, relative, extname } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { zipSync } from 'fflate';
 
-export const BUDGET_BYTES = 5_000_000;
+// Playgama allows up to 300 MB of game files uploaded as an archive.
+// https://wiki.playgama.com/playgama/game-requirements/technical-requirements
+export const BUDGET_BYTES = 300_000_000;
 
 export function walk(dir) {
   const out = [];

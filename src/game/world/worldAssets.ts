@@ -39,6 +39,16 @@ export function prepareWorldPack(scene: THREE.Group, pack: WorldPack): WorldMode
       const groups = Array.isArray(object.material) ? source.groups : [{ start: 0, count: source.index?.count ?? source.attributes.position.count, materialIndex: 0 }];
       for (const group of groups) {
         const material = Array.isArray(object.material) ? object.material[group.materialIndex ?? 0] : object.material;
+        // The background atlas contains transparent patches, but these city
+        // meshes are solid building walls (their collision boxes are solid too).
+        // Keep them in the opaque depth pass instead of blending whole batches.
+        if (pack === 'buildings' && material.name === 'BACKGROUND_BUILDING_2'
+          && material instanceof THREE.MeshStandardMaterial) {
+          material.transparent = false;
+          material.alphaTest = 0;
+          material.depthWrite = true;
+          material.needsUpdate = true;
+        }
         let geometry: THREE.BufferGeometry;
         if (groups.length === 1) geometry = source.clone();
         else {
