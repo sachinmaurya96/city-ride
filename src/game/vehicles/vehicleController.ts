@@ -16,6 +16,8 @@ export interface DriveInput {
   handbrake: boolean;
   /** Power Brake with acceleration maintains a drift; held alone stops in one fixed step. */
   powerBrake?: boolean;
+  /** Optional cap (m/s) on engine drive in either direction; the joystick creep uses it for parking. */
+  speedLimit?: number;
 }
 
 export const NEUTRAL_INPUT: DriveInput = { steer: 0, throttle: 0, brake: 0, handbrake: false, powerBrake: false };
@@ -118,6 +120,7 @@ export class RaycastVehicle {
     this.input.brake = Math.max(0, Math.min(1, input.brake || 0));
     this.input.handbrake = !!input.handbrake;
     this.input.powerBrake = !!input.powerBrake;
+    this.input.speedLimit = input.speedLimit;
   }
 
   beforePhysicsStep(dt: number) {
@@ -168,8 +171,10 @@ export class RaycastVehicle {
         brakeDecel = h.brakeDecel * inp.throttle;
       } else {
         this.reverseMode = false;
-        const fade = Math.max(0, 1 - Math.max(0, v) / h.topSpeed);
+        const fade = Math.max(0, 1 - Math.max(0, v) / Math.min(h.topSpeed, inp.speedLimit ?? Infinity));
         engine = h.mass * h.accel0 * fade * inp.throttle;
+        // Above the creep cap, settle back down to it instead of coasting.
+        if (inp.speedLimit !== undefined && v > inp.speedLimit + .5) brakeDecel = h.brakeDecel * .5;
       }
     } else if (inp.brake > 0.02) {
       if (!this.reverseMode && v > 0.6) {
@@ -181,7 +186,7 @@ export class RaycastVehicle {
         if (this.reverseTimer >= REVERSE_HOLD_TIME && absV < 0.6) this.reverseMode = true;
       }
       if (this.reverseMode) {
-        const fade = Math.max(0, 1 - Math.max(0, -v) / REVERSE_MAX);
+        const fade = Math.max(0, 1 - Math.max(0, -v) / Math.min(REVERSE_MAX, inp.speedLimit ?? Infinity));
         engine = -h.mass * Math.min(2.5, h.accel0) * fade * inp.brake;
       }
     } else {

@@ -14,6 +14,9 @@ const KEY_ACTIONS: Record<string, InputAction> = {
   KeyF: 'door',
 };
 
+/** Joystick creep top speed: 8 km/h. */
+export const JOYSTICK_CREEP = 8 / 3.6;
+
 const DRIVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight']);
 
 function isEditable(target: EventTarget | null) {
@@ -28,8 +31,8 @@ function isEditable(target: EventTarget | null) {
  */
 class InputManager {
   private keys = new Set<string>();
-  /** Steering only. Acceleration and reverse always use independent pedals. */
-  joystick = { x: 0, active: false };
+  /** Steering, plus a vertical slow-speed creep (forward/reverse) for parking and getting unstuck. */
+  joystick = { x: 0, y: 0, active: false };
   /** Alternative preset: separate steering slider and pedals. */
   pedals = { steer: 0, gas: 0, brake: 0 };
   brakeButton = false;
@@ -89,6 +92,7 @@ class InputManager {
   reset() {
     this.keys.clear();
     this.joystick.x = 0;
+    this.joystick.y = 0;
     this.joystick.active = false;
     this.pedals.steer = 0;
     this.pedals.gas = 0;
@@ -97,10 +101,11 @@ class InputManager {
     this.camera.dragging = false;
   }
 
-  /** Horizontal thumb offset with a dead zone; vertical movement is ignored by the UI. */
-  setSteering(rawX: number) {
-    const value = Math.max(-1, Math.min(1, rawX)), dead = .12;
-    this.joystick.x = Math.abs(value) < dead ? 0 : Math.sign(value) * (Math.abs(value) - dead) / (1 - dead);
+  /** Thumb offset with dead zones. Up (+y) creeps forward, down creeps in reverse; the wider vertical dead zone keeps pure steering from creeping. */
+  setSteering(rawX: number, rawY = 0) {
+    const zone = (raw: number, dead: number) => { const v = Math.max(-1, Math.min(1, raw)); return Math.abs(v) < dead ? 0 : Math.sign(v) * (Math.abs(v) - dead) / (1 - dead); };
+    this.joystick.x = zone(rawX, .12);
+    this.joystick.y = zone(rawY, .3);
   }
 
   addCameraDrag(dx: number, dy: number, now: number) {
@@ -134,6 +139,12 @@ class InputManager {
     out.steer = Math.max(-1, Math.min(1, steer));
     out.throttle = Math.max(kbThrottle, this.pedals.gas);
     out.brake = Math.max(kbBrake, this.pedals.brake);
+    out.speedLimit = undefined;
+    // Joystick creep only applies while the full-speed pedals/keys are idle.
+    if (out.throttle === 0 && out.brake === 0 && this.joystick.y !== 0) {
+      if (this.joystick.y > 0) out.throttle = .35 + .4 * this.joystick.y; else out.brake = .35 - .4 * this.joystick.y;
+      out.speedLimit = JOYSTICK_CREEP;
+    }
     out.handbrake = false;
     out.powerBrake = this.brakeButton || k.has('Space') || k.has('ShiftLeft') || k.has('ShiftRight');
     return out;

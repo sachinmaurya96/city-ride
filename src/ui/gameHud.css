@@ -90,6 +90,8 @@
 .joy-label { position: absolute; left: 50%; transform: translateX(-50%); font-size: calc(8px * var(--ui-scale)); color: #ffffffe6; }
 .joy-label.left { left: 8px; top: 50%; transform: translateY(-50%); }
 .joy-label.right { left: auto; right: 8px; top: 50%; transform: translateY(-50%); }
+.joy-label.up { top: 5px; }
+.joy-label.down { bottom: 5px; }
 .util-buttons, .util-buttons.desktop { position: absolute; left: auto; right: var(--hud-right); bottom: calc(var(--hud-bottom) + 72px); display: grid; grid-template-columns: repeat(2, var(--control-size)); gap: var(--hud-gap); }
 .util { width: var(--control-size); height: var(--control-size); min-height: var(--control-size); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--navy); touch-action: none; }
 .util svg { width: 18px; height: 18px; flex: none; }

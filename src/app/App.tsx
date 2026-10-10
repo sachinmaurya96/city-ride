@@ -33,6 +33,7 @@ const SettingsOverlay = lazyOverlay(() => import('../ui/Settings').then((m) => m
 const BusDispatch = lazyOverlay(() => import('../ui/Garage').then((m) => m.BusDispatch));
 const NoticeCard = lazyOverlay(() => import('../ui/Notice').then((m) => m.NoticeCard));
 const GameCanvas = lazyOverlay(() => import('./GameCanvas').then(m => m.GameCanvas));
+const preloadGame = () => { void import('./preloadWorld').then(m => m.preloadWorld()).catch(() => {}); void import('./GameCanvas'); };
 const FuelStation = lazyOverlay(() => import('../ui/FuelStation').then(m => m.FuelStation));
 
 class ErrorBoundary extends Component<{ children: ReactNode; onError: (e: Error) => void }, { failed: boolean }> {
@@ -150,6 +151,12 @@ export function App() {
       st.setBoot(4);
       useGame.getState().setApp('MAIN_MENU');
       platform().gameReady();
+      // Most players tap Play within seconds: fetch the world while the menu is idle (skipped on Data Saver).
+      const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
+      if (!saveData) {
+        const idle = (window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+        if (idle) idle(preloadGame, { timeout: 1500 }); else setTimeout(preloadGame, 500);
+      }
     } catch (e) {
       st.setBoot(0, e instanceof Error ? e.message : String(e));
       st.setApp('RECOVERABLE_ERROR');
@@ -308,6 +315,8 @@ export function App() {
       spawnRef.current = runtime.lastSafePose ?? garageSpawn();
     }
     st.respawn();
+    // Start downloads now rather than after the renderer has finished initialising.
+    preloadGame();
     setCanvasRequested(true);
     setWorldRequested(true);
     if (sceneReadyRef.current) { st.setApp('PLAYING'); platform().gameplayStart(); }

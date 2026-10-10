@@ -129,6 +129,21 @@ describe('raycast vehicle feasibility', () => {
     expect(Math.abs(t.speed())).toBeLessThan(0.2);
   });
 
+  for (const id of ['bike_basic', 'car_compact'] as VehicleId[]) {
+    it(`${id}: joystick creep holds parking speed forward and in reverse, and slows a fast vehicle to it`, () => {
+      const t = setup(id), limit = 8 / 3.6;
+      t.step(idle, 1);
+      t.step({ ...idle, throttle: .75, speedLimit: limit }, 6);
+      expect(t.speed()).toBeGreaterThan(limit * .7); expect(t.speed()).toBeLessThan(limit + .3);
+      t.step({ ...idle, brake: .75, speedLimit: limit }, 8);
+      expect(t.speed()).toBeLessThan(-.5); expect(t.speed()).toBeGreaterThan(-limit - .3);
+      t.step(idle, 3);
+      t.step(gas, 15, () => t.speed() >= 40 / 3.6);
+      t.step({ ...idle, throttle: .75, speedLimit: limit }, 10);
+      expect(t.speed()).toBeLessThan(limit + .8);
+      t.world.free();
+    });
+  }
   for (const id of VEHICLE_ORDER) {
     it(`${id}: 0–40 km/h near target and plausible top speed`, () => {
       const t = setup(id);

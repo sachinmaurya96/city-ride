@@ -1,9 +1,9 @@
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GRID, INTERSECTIONS, MAP_HALF, ROAD_SPEC, SEGMENTS, STOP_LINE_GAP, roadHalfWidth } from '../data/cityMap';
 import { quality } from '../render/quality';
-import { worldAssets, type WorldPack } from './worldAssets';
+import { onWorldAssetsChanged, worldAssets, type WorldPack } from './worldAssets';
 import type { CityBuild } from './cityBuilder';
 
 export interface WorldPlacement {
@@ -38,6 +38,8 @@ export function roadPlacements(): WorldPlacement[] {
 /** Original pack geometry/materials are shared by instances, with nearby trees and distant buildings culled. */
 export function ImportedCity({ city }: { city: CityBuild }) {
   const { camera } = useThree();
+  const [assetsVersion, setAssetsVersion] = useState(0);
+  useEffect(() => onWorldAssetsChanged(() => setAssetsVersion(v => v + 1)), []);
   const batches = useMemo(() => {
     const placements = [...city.worldPlacements, ...roadPlacements()];
     for (const side of [-1, 1]) for (const axis of ['x', 'z']) placements.push({ pack: 'skyline', variant: 0,
@@ -57,9 +59,13 @@ export function ImportedCity({ city }: { city: CityBuild }) {
         return { mesh, list, pack };
       });
     });
-  }, [city]);
+    // assetsVersion: worldAssets is a mutable map, so rebuild when a streamed pack lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, assetsVersion]);
   const acc = useRef(1);
   const previousView = useRef({ x: Infinity, z: Infinity, yaw: Infinity, preset: quality.current });
+  // New batches start empty; force a culling pass on the next frame.
+  useEffect(() => { acc.current = 1; previousView.current.x = Infinity; }, [batches]);
   const scratch = useMemo(() => ({ matrix: new THREE.Matrix4(), view: new THREE.Matrix4(), frustum: new THREE.Frustum(),
     sphere: new THREE.Sphere(), direction: new THREE.Vector3(), position: new THREE.Vector3(), scale: new THREE.Vector3(), rotation: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0) }), []);
   useFrame((_, dt) => {
