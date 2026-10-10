@@ -11,6 +11,7 @@ import { lightFor } from '../src/game/traffic/signals';
 import { checkStop } from '../src/game/missions/rides';
 import { useGame } from '../src/app/store';
 import { applyFine } from '../src/game/progression/progression';
+import { police } from '../src/game/rules/police';
 
 const DT = 1 / 60;
 const recorded: GameEvent[] = [];
@@ -76,7 +77,7 @@ describe('red light', () => {
     expect(recorded.filter((e) => e.type === 'VIOLATION_RECORDED' && e.offense === 'redLight')).toHaveLength(0);
   });
 
-  it('crossing the stop line on red is recorded exactly once per approach crossing', () => {
+  it('crossing the stop line on red has no offense, fine or heat', () => {
     runtime.simTime = findTime((t) => lightFor(j, seg.dir, t) === 'R' && lightFor(j, seg.dir, t + 3) === 'R');
     let s = seg.length - half - 3;
     place(seg, s, 6);
@@ -85,13 +86,15 @@ describe('red light', () => {
       place(seg, s, 6);
     });
     const reds = recorded.filter((e) => e.type === 'VIOLATION_RECORDED' && e.offense === 'redLight');
-    expect(reds).toHaveLength(1);
+    expect(reds).toHaveLength(0);
+    expect(enforcement.heat).toBe(0);
+    expect(useGame.getState().save.wallet).toBe(1000);
   });
 });
 
 describe('episodes and debounce', () => {
   const seg = SEGMENTS.find((s) => s.cls === 'local')!;
-  it('continuous speeding is one episode; a new fine needs compliance + 15 s', () => {
+  it('driving above the posted limit never records speeding or charges a fine', () => {
     runtime.simTime = 1000;
     let s = 20;
     const fast = 70 / 3.6; // limit 40 → 70 km/h is > limit + 8
@@ -100,18 +103,15 @@ describe('episodes and debounce', () => {
         s = (s + v * DT) % (seg.length - 30);
         place(seg, s + 10, v);
       });
-    drive(fast, 4); // episode starts after 3 s → one record
-    expect(recorded.filter((e) => e.type === 'VIOLATION_RECORDED' && e.offense === 'speeding')).toHaveLength(1);
+    drive(fast, 4);
+    expect(recorded.filter((e) => e.type === 'VIOLATION_RECORDED' && e.offense === 'speeding')).toHaveLength(0);
     drive(8, 6); // compliant ≥5 s ends the episode
     drive(fast, 4); // new episode, but < 15 s since the previous fine
-    expect(recorded.filter((e) => e.type === 'VIOLATION_RECORDED' && e.offense === 'speeding')).toHaveLength(1);
+    expect(recorded.filter((e) => e.type === 'VIOLATION_RECORDED' && e.offense === 'speeding')).toHaveLength(0);
     drive(8, 6);
     drive(fast, 4); // ≥15 s since the previous fine and a fresh episode
     const sp = recorded.filter((e) => e.type === 'VIOLATION_RECORDED' && e.offense === 'speeding');
-    expect(sp).toHaveLength(2);
-    // first episode is a warning, the second actually fines
-    expect(sp[0].type === 'VIOLATION_RECORDED' && sp[0].warning).toBe(true);
-    expect(sp[1].type === 'VIOLATION_RECORDED' && sp[1].fine).toBe(40);
+    expect(sp).toHaveLength(0);
   });
 
   it('a stationary player hit by traffic is not fined; repeated contact frames count once', () => {
@@ -125,7 +125,7 @@ describe('episodes and debounce', () => {
     expect(recorded).toHaveLength(0);
   });
 
-  it('a player-caused crash with traffic is one incident despite many contact frames', () => {
+  it('a player-caused crash has no traffic-rule penalty despite repeated contact frames', () => {
     runtime.simTime = 3000;
     let v = 10;
     place(seg, 40, v);
@@ -135,7 +135,15 @@ describe('episodes and debounce', () => {
       violations.pendingContact = { traffic: true };
       step(DT, () => place(seg, 45, v));
     }
-    expect(recorded.filter((e) => e.type === 'VIOLATION_RECORDED' && e.offense === 'crash')).toHaveLength(1);
+    expect(recorded.filter((e) => e.type === 'VIOLATION_RECORDED')).toHaveLength(0);
+    expect(useGame.getState().save.wallet).toBe(1000);
+    expect(enforcement.jobIncidents).toBe(0);
+  });
+  it('every former offense is disabled, including forced fines and police capture', () => {
+    for (const offense of ['speeding', 'redLight', 'wrongWay', 'blockingCrossing', 'crash', 'pedestrian'] as const) violations.record(offense, { heat: 100, fine: 500, satisfaction: -30, forceFine: true });
+    enforcement.heat = 100; enforcement.pursuit = true; police.step(DT);
+    expect(recorded).toHaveLength(0); expect(enforcement.heat).toBe(0); expect(enforcement.pursuit).toBe(false);
+    expect(useGame.getState().save.wallet).toBe(1000); expect(useGame.getState().notice).toBeNull();
   });
 });
 

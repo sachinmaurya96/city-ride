@@ -37,6 +37,7 @@ function setup(id: VehicleId) {
     for (let i = 0; i < steps; i++) {
       vehicle.beforePhysicsStep(DT);
       world.step();
+      vehicle.afterPhysicsStep();
       if (until?.()) return (i + 1) * DT;
     }
     return seconds;
@@ -49,6 +50,42 @@ const idle: DriveInput = { steer: 0, throttle: 0, brake: 0, handbrake: false };
 const gas: DriveInput = { steer: 0, throttle: 1, brake: 0, handbrake: false };
 
 describe('raycast vehicle feasibility', () => {
+  for (const id of VEHICLE_ORDER.filter(id => VEHICLES[id].kind === 'car')) {
+    it(`${id}: Power Brake without acceleration immediately stops sideways/forward motion even when steering`, () => {
+      const t = setup(id);
+      t.step(idle, 1);
+      t.body.setLinvel({ x: 8, y: 0, z: 25 }, true);
+      t.body.setAngvel({ x: 0, y: 1, z: 0 }, true);
+      t.step({ ...idle, steer: .8, powerBrake: true }, DT);
+      expect(t.vehicle.horizontalSpeed()).toBeLessThan(.03);
+      expect(Math.abs(t.body.angvel().y)).toBeLessThan(.01);
+      expect(t.speed()).toBeGreaterThan(-.03);
+      // Contact resolution may nudge the chassis after its pre-step brake.
+      t.body.setLinvel({ x: .2, y: -.1, z: .15 }, true);
+      t.vehicle.afterPhysicsStep();
+      expect(t.vehicle.horizontalSpeed()).toBe(0);
+      expect(t.body.linvel().y).toBeCloseTo(-.1);
+      t.world.free();
+    });
+  }
+  it('Power Brake with steering preserves momentum, slides, then restores normal grip', () => {
+    const t = setup('bmw_i8');
+    t.step(idle, 1);
+    t.step(gas, 5);
+    t.step({ ...gas, steer: 1, powerBrake: true }, .7);
+    const drift = t.vehicle.getTelemetry({ speed: 0, speedKmh: 0, reversing: false, steerAngle: 0, grounded: false, holding: false, longAccel: 0, lateralAccel: 0 });
+    expect(drift.drifting).toBe(true);
+    expect(t.vehicle.horizontalSpeed()).toBeGreaterThan(5);
+    const q = t.body.rotation(), l = t.body.linvel();
+    const lateral = Math.abs(l.x * (1 - 2 * q.y * q.y) - l.z * 2 * q.y * q.w);
+    expect(lateral).toBeGreaterThan(1);
+    t.step({ ...idle, powerBrake: true }, DT);
+    expect(t.vehicle.horizontalSpeed()).toBeLessThan(.03);
+    expect(t.vehicle.getTelemetry(drift).drifting).toBe(false);
+    t.step(gas, 2);
+    expect(t.speed()).toBeGreaterThan(1);
+    t.world.free();
+  });
   it('bike settles on the ground', () => {
     const t = setup('bike_basic');
     t.step(idle, 4);
@@ -106,4 +143,45 @@ describe('raycast vehicle feasibility', () => {
       console.log(`${id}: 0-40 ${time.toFixed(2)}s (target ${t.spec.accel0to40}), top ${top.toFixed(1)} km/h`);
     });
   }
+  for (const id of VEHICLE_ORDER.filter(id => VEHICLES[id].kind === 'car')) {
+    it(`${id}: reaches 100 km/h in about 2–3 seconds`, () => {
+      const t = setup(id); t.step(idle, 1);
+      const seconds = t.step(gas, 4, () => t.speed() >= 100 / 3.6);
+      expect(t.speed() * 3.6).toBeGreaterThanOrEqual(100);
+      expect(seconds).toBeGreaterThan(1.7); expect(seconds).toBeLessThan(3.3);
+      t.world.free();
+    });
+  }
+  it('drift countersteering crosses center without an instant stop, and grip returns gradually', () => {
+    const t = setup('bmw_i8'); t.step(idle, 1); t.step(gas, 2);
+    t.step({ ...gas, steer: .6, powerBrake: true }, .6);
+    const speed = t.vehicle.horizontalSpeed();
+    t.step({ ...gas, steer: 0, powerBrake: true }, .12);
+    expect(t.vehicle.horizontalSpeed()).toBeGreaterThan(speed * .65);
+    const telemetry = t.vehicle.getTelemetry({ speed: 0, speedKmh: 0, reversing: false, steerAngle: 0, grounded: false, holding: false, longAccel: 0, lateralAccel: 0 });
+    expect(telemetry.drifting).toBe(true); expect(Math.abs(telemetry.slipAngle!)).toBeLessThan(.9);
+    t.step({ ...gas, steer: -.6, powerBrake: true }, .4);
+    expect(Math.abs(t.body.angvel().y)).toBeLessThan(1.7);
+    t.step(gas, DT); t.vehicle.getTelemetry(telemetry); expect(telemetry.driftAmount).toBeGreaterThan(.7);
+    t.step(gas, 1.5); t.vehicle.getTelemetry(telemetry); expect(telemetry.driftAmount).toBeLessThan(.05);
+    t.world.free();
+  });
+  it('holding acceleration and Power Brake starts from rest and never selects an emergency stop at low speed', () => {
+    const t = setup('bmw_i8'); t.step(idle, 1);
+    t.step({ ...gas, powerBrake: true }, .6);
+    expect(t.vehicle.horizontalSpeed()).toBeGreaterThan(2);
+    const telemetry = t.vehicle.getTelemetry({ speed: 0, speedKmh: 0, reversing: false, steerAngle: 0, grounded: false, holding: false, longAccel: 0, lateralAccel: 0 });
+    expect(telemetry.drifting).toBe(true); expect(telemetry.holding).toBe(false);
+    t.body.setLinvel({ x: 0, y: 0, z: .1 }, true);
+    t.step({ ...gas, steer: .6, powerBrake: true }, .8);
+    expect(t.vehicle.horizontalSpeed()).toBeGreaterThan(2);
+    t.step({ ...idle, steer: .6, powerBrake: true }, DT);
+    expect(t.vehicle.horizontalSpeed()).toBeLessThan(.03); t.world.free();
+  });
+  it('NPC impact recoil cannot send the player backward along their approach', () => {
+    const t = setup('bmw_i8'); t.step(idle, 1); t.step(gas, .5);
+    t.body.setLinvel({ x: 2, y: 0, z: -8 }, true); t.vehicle.onNpcImpact(); t.vehicle.afterPhysicsStep();
+    expect(t.speed()).toBeGreaterThanOrEqual(0); expect(t.body.linvel().x).toBeCloseTo(2);
+    t.world.free();
+  });
 });

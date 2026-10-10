@@ -3,6 +3,7 @@ import { runtime } from '../core/runtime';
 import { input } from '../input/input';
 import { lanePoint, projectToRoad, type RoadProjection } from '../navigation/roadGraph';
 import type { SafeRoadPose } from '../vehicles/vehicleController';
+import { vehicleEntry } from '../vehicles/entry';
 
 /** Most recent projection of the player onto the road network (refreshed at ~8 Hz). */
 export const playerRoad: { proj: RoadProjection; offRoadTime: number } = {
@@ -16,6 +17,7 @@ let notGrounded = 0;
 export const recoveryOccupancy: { test: ((x: number, z: number) => boolean) | null } = { test: null };
 
 export function recoverySystem(dt: number) {
+  if (vehicleEntry.mode === 'outside' || vehicleEntry.active) { runtime.stuckTime = 0; runtime.canRecover = false; return; }
   const t = runtime.telemetry;
   const held = input.hasDriveInput;
   if (held && Math.abs(t.speed) < 0.6) runtime.stuckTime += dt;

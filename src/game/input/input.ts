@@ -1,6 +1,6 @@
 import type { DriveInput } from '../vehicles/vehicleController';
 
-export type InputAction = 'camera' | 'horn' | 'recover' | 'context' | 'pause' | 'map';
+export type InputAction = 'camera' | 'horn' | 'recover' | 'context' | 'pause' | 'map' | 'door';
 
 const KEY_ACTIONS: Record<string, InputAction> = {
   KeyC: 'camera',
@@ -11,9 +11,10 @@ const KEY_ACTIONS: Record<string, InputAction> = {
   Escape: 'pause',
   KeyP: 'pause',
   KeyM: 'map',
+  KeyF: 'door',
 };
 
-const DRIVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space']);
+const DRIVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight']);
 
 function isEditable(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -27,8 +28,8 @@ function isEditable(target: EventTarget | null) {
  */
 class InputManager {
   private keys = new Set<string>();
-  /** Joystick vector after dead zone and circle-to-square mapping; y>0 = up. */
-  joystick = { x: 0, y: 0, active: false };
+  /** Steering only. Acceleration and reverse always use independent pedals. */
+  joystick = { x: 0, active: false };
   /** Alternative preset: separate steering slider and pedals. */
   pedals = { steer: 0, gas: 0, brake: 0 };
   brakeButton = false;
@@ -38,6 +39,8 @@ class InputManager {
   camera = { dx: 0, dy: 0, lastInteraction: -Infinity, dragging: false };
   private listeners = new Set<(a: InputAction) => void>();
   private attached = false;
+  /** The scene owns door hit testing; the gesture layer forwards taps through its overlay. */
+  sceneTap: ((x: number, y: number, commit: boolean) => boolean) | null = null;
 
   attach() {
     if (this.attached) return () => {};
@@ -86,7 +89,6 @@ class InputManager {
   reset() {
     this.keys.clear();
     this.joystick.x = 0;
-    this.joystick.y = 0;
     this.joystick.active = false;
     this.pedals.steer = 0;
     this.pedals.gas = 0;
@@ -95,22 +97,10 @@ class InputManager {
     this.camera.dragging = false;
   }
 
-  /** Raw joystick offset (-1..1 each, y up) → dead zone + circle-to-square mapping. */
-  setJoystick(rawX: number, rawY: number) {
-    const mag = Math.min(1, Math.hypot(rawX, rawY));
-    const DEAD = 0.12;
-    if (mag < DEAD) {
-      this.joystick.x = 0;
-      this.joystick.y = 0;
-      return;
-    }
-    const scaled = (mag - DEAD) / (1 - DEAD);
-    const nx = rawX / mag;
-    const ny = rawY / mag;
-    // Circle → square so a diagonal push still gives full throttle and full steer.
-    const m = Math.max(Math.abs(nx), Math.abs(ny));
-    this.joystick.x = Math.max(-1, Math.min(1, (nx / m) * scaled));
-    this.joystick.y = Math.max(-1, Math.min(1, (ny / m) * scaled));
+  /** Horizontal thumb offset with a dead zone; vertical movement is ignored by the UI. */
+  setSteering(rawX: number) {
+    const value = Math.max(-1, Math.min(1, rawX)), dead = .12;
+    this.joystick.x = Math.abs(value) < dead ? 0 : Math.sign(value) * (Math.abs(value) - dead) / (1 - dead);
   }
 
   addCameraDrag(dx: number, dy: number, now: number) {
@@ -132,6 +122,7 @@ class InputManager {
       out.throttle = 0;
       out.brake = 0;
       out.handbrake = false;
+      out.powerBrake = false;
       return out;
     }
     const k = this.keys;
@@ -141,10 +132,10 @@ class InputManager {
     const touchSteer = this.joystick.x + this.pedals.steer;
     const steer = kbSteer + touchSteer * this.steerSensitivity;
     out.steer = Math.max(-1, Math.min(1, steer));
-    out.throttle = Math.max(kbThrottle, Math.max(0, this.joystick.y), this.pedals.gas);
-    out.brake = Math.max(kbBrake, Math.max(0, -this.joystick.y), this.pedals.brake);
-    out.handbrake = this.brakeButton || k.has('Space');
-    if (out.handbrake) out.throttle = 0;
+    out.throttle = Math.max(kbThrottle, this.pedals.gas);
+    out.brake = Math.max(kbBrake, this.pedals.brake);
+    out.handbrake = false;
+    out.powerBrake = this.brakeButton || k.has('Space') || k.has('ShiftLeft') || k.has('ShiftRight');
     return out;
   }
 

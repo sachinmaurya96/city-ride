@@ -2,10 +2,6 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useGame } from '../app/store';
 import { runtime } from '../game/core/runtime';
 import { nav, rides, AVATARS } from '../game/missions/rides';
-import { playerRoad } from '../game/rules/recovery';
-import { enforcement } from '../game/rules/enforcementState';
-import { lightFor } from '../game/traffic/signals';
-import { INTERSECTION_BY_ID } from '../game/navigation/roadGraph';
 import { levelProgress } from '../game/progression/progression';
 import { fmt, meters, money } from '../i18n/strings';
 import { drawMap } from './mapDraw';
@@ -42,7 +38,7 @@ export function CashLevel() {
   return (
     <div className="cash-level" data-testid="cash">
       <div className="cash">
-        <span className="wallet-ico">👛</span>
+        <span className="wallet-ico"><ControlIcon name="wallet" /></span>
         <b data-testid="wallet" title={money(wallet)}>{money(wallet)}</b>
       </div>
       <div className="lvl">
@@ -60,7 +56,7 @@ export function CashLevel() {
 function Instruction() {
   const t = useGame((s) => s.t);
   const ride = useGame((s) => s.ride);
-  const n = usePoll(() => ({ active: nav.active, ins: nav.instruction, d: Math.round(nav.instructionDist / 10) * 10, rem: Math.round(nav.remaining / 10) * 10, target: nav.target }), 200, shallow);
+  const n = usePoll(() => { const route = fuel.navigation ?? nav; return { active: route.active, ins: route.instruction, d: Math.round(route.instructionDist / 10) * 10, rem: Math.round(route.remaining / 10) * 10, target: route.target, station: fuel.navigation?.targetBay.name }; }, 200, shallow);
   if (!n.active) return null;
   const head =
     n.ins === 'left'
@@ -76,21 +72,23 @@ function Instruction() {
   const hasDistance = n.ins !== 'stop' && n.ins !== 'arriving';
   const action = hasDistance ? head.replace(meters(n.d), '').trim() : head;
   const sub =
-    n.target === 'pickup'
+    n.target === 'fuel'
+      ? n.station ?? ''
+      : n.target === 'pickup'
       ? fmt(t.pickUpName, { name: ride.passengerName })
       : n.target === 'dropoff'
         ? fmt(t.dropOffAt, { place: ride.dropName })
         : ride.bus
           ? fmt(t.stopOf, { n: ride.bus.nextStop + 1, total: ride.bus.stopNames.length, name: ride.bus.stopNames[ride.bus.nextStop] })
           : '';
-  const destination = n.target === 'pickup' ? ride.passengerName : n.target === 'dropoff' ? ride.dropName : ride.bus?.stopNames[ride.bus.nextStop] ?? '';
+  const destination = n.target === 'fuel' ? n.station ?? '' : n.target === 'pickup' ? ride.passengerName : n.target === 'dropoff' ? ride.dropName : ride.bus?.stopNames[ride.bus.nextStop] ?? '';
   return (
     <div className={`instruction ${n.target}`} data-testid="instruction">
       <div className="ins-arrow">{arrow}</div>
       <div className="ins-copy">
         <div className="ins-main" title={head}><span>{action}</span>{hasDistance && <b>{meters(n.d)}</b>}</div>
         <div className="ins-sub">
-          <span className="ins-target" title={sub}>{n.target === 'pickup' ? '📍' : n.target === 'bus' ? '🚏' : '🏁'} {destination}</span>
+          <span className="ins-target" title={sub}>{n.target === 'fuel' ? '⛽' : n.target === 'pickup' ? '📍' : n.target === 'bus' ? '🚏' : '🏁'} {destination}</span>
           <b>{meters(n.rem)}</b>
         </div>
       </div>
@@ -111,16 +109,16 @@ export function Minimap() {
     c.height = size * dpr;
     const ctx = c.getContext('2d')!;
     const id = setInterval(() => {
-      const p = runtime.pose;
+      const p = runtime.pose, route = fuel.navigation ?? nav;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       drawMap(
         ctx,
         { cx: p.x, cz: p.z, scale: 0.55, rotation: p.heading + Math.PI, width: size, height: size },
         {
-          route: nav.active ? nav.route : null,
-          routeFrom: nav.along,
-          routeColor: nav.target === 'pickup' ? '#f4b544' : nav.target === 'bus' ? '#2b8fd6' : '#13c4b4',
-          target: nav.active && nav.targetBay ? { x: nav.targetBay.x, z: nav.targetBay.z, color: nav.target === 'pickup' ? '#f4b544' : nav.target === 'bus' ? '#2b8fd6' : '#13a89e', icon: nav.target === 'pickup' ? '👤' : nav.target === 'bus' ? '🚏' : '⚑' } : null,
+          route: route.active ? route.route : null,
+          routeFrom: route.along,
+          routeColor: route.target === 'pickup' ? '#d5eaff' : route.target === 'bus' ? '#2b8fd6' : '#36ceff',
+          target: route.active && route.targetBay ? { x: route.targetBay.x, z: route.targetBay.z, color: route.target === 'pickup' ? '#d5eaff' : route.target === 'bus' ? '#2b8fd6' : '#36ceff', icon: route.target === 'fuel' ? '⛽' : route.target === 'pickup' ? '👤' : route.target === 'bus' ? '🚏' : '⚑' } : null,
           player: p,
           labels: false,
         },
@@ -138,30 +136,27 @@ export function Minimap() {
 
 export function SpeedPill() {
   const t = useGame((s) => s.t);
-  const v = usePoll(() => {
-    const seg = playerRoad.proj.segment;
-    return { kmh: Math.round(runtime.telemetry.speedKmh), limit: seg ? seg.limitKmh : 0 };
-  }, 100, shallow);
-  const over = v.limit > 0 && v.kmh > v.limit + 3;
+  const kmh = usePoll(() => Math.round(runtime.telemetry.speedKmh), 100);
   return (
-    <div className={`speed-pill ${over ? 'over' : ''}`} data-testid="speed">
-      <span className="num">{v.kmh}</span>
+    <div className="speed-pill" data-testid="speed">
+      <span className="num">{kmh}</span>
       <span className="unit">{t.speedUnit}</span>
-      {v.limit > 0 && <span className="limit-sign">{v.limit}</span>}
     </div>
   );
 }
 
 function FuelGauge() {
   const t = useGame((s) => s.t);
-  const f = usePoll(() => ({ percent: Math.ceil(fuel.percent), refilling: fuel.refilling, distance: Math.round(fuel.stationDistance), name: fuel.stationName() }), 150, shallow);
+  const f = usePoll(() => ({ percent: Math.ceil(fuel.percent), refilling: fuel.refilling, distance: Math.round(fuel.stationDistance), name: fuel.stationName(), navigating: !!fuel.navigation, inBay: fuel.inBay }), 150, shallow);
   const low = f.percent <= FUEL.lowPercent;
   return (
     <div className={`fuel-gauge ${low ? 'low' : ''} ${f.percent === 0 ? 'empty' : ''} ${f.refilling ? 'refilling' : ''}`} data-testid="fuel-gauge">
       <div className="fuel-label"><span>⛽ {f.percent === 0 ? t.fuelEmpty : low ? t.fuelLow : t.fuel}</span><b>{f.percent}%</b></div>
       <div className="fuel-track" role="progressbar" aria-label={t.fuel} aria-valuemin={0} aria-valuemax={100} aria-valuenow={f.percent}><i style={{ width: `${f.percent}%` }} /></div>
-      {f.refilling ? <small>{t.refueling}</small> : f.distance < 24 ? <small>{t.stopToRefuel}</small> : low && f.name ? <small>{f.name} · {meters(f.distance)}</small> : null}
-      {f.percent === 0 && <button onClick={() => fuel.emergencyRefill()} data-testid="emergency-fuel">{t.emergencyFuel}</button>}
+      {f.refilling ? <small>{t.refueling}</small> : f.inBay ? <small>{t.stopToRefuel}</small> : low && f.name ? <small>{f.name} · {meters(f.distance)}</small> : null}
+      {f.percent === 0 && !f.inBay && <button onClick={() => fuel.navigateToPump()} data-testid="navigate-fuel">{t.navigateToFuel}</button>}
+      {f.percent === 0 && !f.inBay && f.navigating && <button onClick={() => fuel.towToPump()} data-testid="tow-fuel">{t.towToFuel}</button>}
+      {f.percent < 100 && f.inBay && <button onClick={() => fuel.openPump()} data-testid="open-fuel">{t.refuel}</button>}
     </div>
   );
 }
@@ -177,8 +172,8 @@ function StopProgress() {
   return (
     <div className="stop-card" data-testid="stop-card">
       <svg width="46" height="46" viewBox="0 0 46 46" aria-hidden>
-        <circle cx="23" cy="23" r="19" stroke="#e9e2d2" strokeWidth="5" fill="none" />
-        <circle cx="23" cy="23" r="19" stroke="#f4b544" strokeWidth="5" fill="none" strokeDasharray={`${pct * 119.4} 119.4`} transform="rotate(-90 23 23)" strokeLinecap="round" />
+        <circle cx="23" cy="23" r="19" stroke="#1b2b3e" strokeWidth="5" fill="none" />
+        <circle cx="23" cy="23" r="19" stroke="#d5eaff" strokeWidth="5" fill="none" strokeDasharray={`${pct * 119.4} 119.4`} transform="rotate(-90 23 23)" strokeLinecap="round" />
         <text x="23" y="28" textAnchor="middle" fontSize="16">
           👤
         </text>
@@ -343,55 +338,6 @@ function Toasts() {
   );
 }
 
-function HeatMeter() {
-  const t = useGame((s) => s.t);
-  const h = usePoll(() => ({ heat: Math.round(enforcement.heat), pursuit: enforcement.pursuit }), 250, shallow);
-  if (h.heat < 3 && !h.pursuit) return null;
-  const label = h.pursuit ? t.heatPursuit : h.heat >= 30 ? t.heatCaution : t.heatLow;
-  return (
-    <div className={`heat ${h.pursuit ? 'pursuit' : ''}`} data-testid="heat">
-      <span>🚓 {label}</span>
-      <div className="bar">
-        <i style={{ width: `${h.heat}%` }} />
-      </div>
-      {h.pursuit && <small>{t.pursuitHint}</small>}
-    </div>
-  );
-}
-
-/** Contextual signal hint ("Red light — stop here") and a calm "Safe driving" chip. */
-function RoadHint() {
-  const t = useGame((s) => s.t);
-  const stage = useGame((s) => s.ride.stage);
-  const h = usePoll(() => {
-    const pr = playerRoad.proj;
-    let red = false;
-    if (pr.kind === 'segment' && pr.segment && pr.correctSide) {
-      const dist = pr.segment.length - pr.s;
-      const j = INTERSECTION_BY_ID.get(pr.segment.to)!;
-      red = dist < 45 && dist > -1 && j.signal && lightFor(j, pr.segment.dir, runtime.simTime) !== 'G';
-    }
-    return { red, calm: enforcement.heat < 1 && enforcement.jobIncidents === 0 };
-  }, 250, shallow);
-  if (h.red) {
-    return (
-      <div className="road-hint" data-testid="red-hint">
-        <span className="signal-ico">
-          <i className="r" />
-          <i />
-          <i />
-        </span>
-        <div>
-          <b>{t.redLightStop}</b>
-          <small>{t.letPedestrians}</small>
-        </div>
-      </div>
-    );
-  }
-  if (h.calm && (stage === 'TO_DROPOFF' || stage === 'BUS')) return <div className="safe-chip">🛡️ {t.safeDriving}</div>;
-  return null;
-}
-
 export function Hud({ onPause, tutorial }: { onPause: () => void; tutorial?: ReactNode }) {
   const t = useGame((s) => s.t);
   return (
@@ -404,7 +350,6 @@ export function Hud({ onPause, tutorial }: { onPause: () => void; tutorial?: Rea
         <DispatchButton />
         <OfferCard />
         <StopProgress />
-        <RoadHint />
         {tutorial}
         <Toasts />
       </div>
@@ -413,7 +358,6 @@ export function Hud({ onPause, tutorial }: { onPause: () => void; tutorial?: Rea
         <button className="pause-btn" aria-label={t.paused} onClick={onPause} data-testid="pause">
           <ControlIcon name="pause" />
         </button>
-        <HeatMeter />
       </div>
       <div className="hud-instruments">
         <SpeedPill />

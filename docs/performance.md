@@ -4,6 +4,44 @@ All browser numbers below come from **headless Chromium with SwiftShader (softwa
 Mac**. They are useful for *relative* comparisons (triangles, draw calls) but are **not** device performance
 evidence. No physical Android/iOS device or GPU-accelerated desktop browser measurement has been performed yet.
 
+## Startup and asset audit — 10 October 2026
+
+The menu now loads before WebGL, physics and world assets. Play fetches the physics/world code and
+optimized city packs concurrently; Garage creates the shared renderer without fetching the city.
+The renderer and physics world remain mounted after the first drive. Menus use demand rendering,
+and prepared NPC geometry is retained across pauses instead of rebuilding on each state change.
+
+`scripts/optimize-assets.mjs` produces runtime copies of all 25 supplied GLBs. It resizes textures to
+a maximum of 1024 pixels and encodes WebP at quality 0.9, retaining transparency. Meshopt compression
+is lossless: no geometry decimation, quantization or skeleton changes. Original files are preserved.
+The real-asset unit test decodes every non-image buffer view and compares bytes with its source.
+
+| Models | Original bytes | Runtime bytes | Reduction |
+| --- | ---: | ---: | ---: |
+| Buildings, trees, roads and petrol station | 61,621,824 | 9,813,500 | 84% |
+| Four characters | 38,050,132 | 9,513,124 | 75% |
+| Vehicles and NPC pack | 85,637,920 | 43,531,512 | 49% |
+| Total | 185,309,876 | 62,858,136 | 66% |
+
+Only explicit optimized model URLs enter the build. The old dynamic vehicle URL expression caused
+Vite to include all source GLBs; it has been replaced with a literal catalog. World preparation no
+longer resizes textures at runtime, and drops parsed source geometry after preparing shared batches.
+Failed GLB download promises are evicted so retry can fetch again. Imported city instances use camera
+frustum and distance culling, reusable scratch objects and bounded 5 Hz updates, with earlier updates
+when the camera moves or turns substantially.
+
+The cold-start browser audit records menu readiness and resource transfers. Before the change it took
+4,862 ms locally; the final optimized run took 61 ms. This is a local relative measurement, not a phone
+or network benchmark. No GLB or physics/world chunk is transferred before the menu appears. First
+Play still has to fetch and prepare the city; the startup change does not eliminate that work.
+
+The current standalone production inventory is approximately 70.4 MB unpacked / 55.2 MB ZIP,
+including all selectable models and recordings. These are package totals, not initial-page transfer.
+`npm run size` correctly reports that the original 5 MB publication budget is exceeded; the gate has
+not been weakened. Dense selectable cars still need physical-device memory and frame-time profiling.
+
+The sections below are dated historical measurements, not measurements of the current imported city.
+
 ## Graphics controls (9 October 2026)
 
 All device categories now default to Medium for new profiles. Saved choices are respected. The earlier
@@ -31,6 +69,11 @@ The measurements below are historical; High/Ultra detail ranges and density caps
 Browser checks verify application of settings, not frame rates on physical phones or tablets.
 
 ## Size (production `--mode playgama` build)
+
+The table below predates the two supplied BMW models. Their GLBs add 10,209,640 unpacked bytes,
+plus a lazy GLTFLoader chunk. They are fetched only when selected, and are used for the player's car and
+garage preview. Traffic at that checkpoint used procedural LODs; the additional pack integration is described below. The requested asset integration
+exceeds the original 5 MB release-size target. The existing release size gate remains in place.
 
 | Item | Bytes |
 | --- | --- |
@@ -86,3 +129,18 @@ over a 20-minute session and loading transfer must be recorded on actual devices
 
 Fixed 1/60 s Rapier step; traffic decisions every step for ≤22 pooled cars (O(n²) gap checks, n ≤ 26), pedestrians
 ≤20, HUD polled at 5–10 Hz (no per-frame React updates). City generation ≈80 ms on the dev machine (Node).
+
+Traffic now uses pooled dynamic bodies with constrained vertical motion and roll/pitch. Lane AI sets bounded
+velocity targets; impact pauses those targets while Rapier resolves collision momentum and braking. This replaces
+kinematic path teleports. Tire marks use one dynamic geometry and a 2,048-segment ring buffer, with shader-driven
+ten-second expiry; no per-mark React objects or unbounded allocation are created.
+
+## Additional models and recorded audio (9 October 2026)
+
+The final build includes all 11 supplied GLBs (71.16 MB unpacked) and approximately 2.1 MB of selected engine/door recordings. Files are lazy-loaded, not transferred together on startup. Only the selected garage/player model and character instances load; the 2.1 MB low-poly traffic pack loads when driving begins. No large standalone car is instantiated throughout traffic.
+
+Imported car geometry is grouped by material **and attribute layout**; that distinction also applies to NPC batches. Prepared model instances share geometry/textures, native character instances have independent skeletons, and parsed car source geometry is released once prepared. Garage previews reuse the game's single renderer at 12.5 frames/sec. Selected high-poly characters and cars still add substantial geometry/texture cost; the earlier procedural-only FPS tables are not measurements of this build. Real phone/tablet FPS and memory need device measurement. Graphics controls remain available on all device types.
+
+The world renders on demand in the main menu and while paused, including character/graphics settings and garage browsing. Continuous rendering resumes when driving; boot also renders continuously. This avoids competing with the animated garage preview while menus are open.
+
+The existing 5 MB publication gate remains unchanged and is exceeded by these supplied preview assets; no release/upload was performed.

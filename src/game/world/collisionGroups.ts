@@ -11,7 +11,7 @@ export const groups = (membership: number, filter: number) => ((membership & 0xf
 export const GROUND_GROUPS = groups(G_GROUND, 0xffff);
 export const STATIC_GROUPS = groups(G_STATIC, 0xffff);
 export const PLAYER_GROUPS = groups(G_PLAYER, G_GROUND | G_STATIC | G_TRAFFIC);
-export const TRAFFIC_GROUPS = groups(G_TRAFFIC, G_PLAYER);
+export const TRAFFIC_GROUPS = groups(G_TRAFFIC, G_PLAYER | G_TRAFFIC | G_STATIC);
 /** Wheel raycasts only hit the drivable ground. */
 export const GROUND_QUERY_GROUPS = groups(0xffff, G_GROUND);
 /** Camera obstruction rays hit buildings only. */

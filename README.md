@@ -1,11 +1,18 @@
 # City Ride
 
-A cozy, single-player 3D ride-driving and vehicle-progression game for the browser. Drive a free bike,
-pick up passengers, follow the GPS through a toy-town city with left-hand traffic, earn ₹, and buy
+A single-player 3D driving and vehicle-progression game for the browser with a dark, translucent
+interface and neon-blue accents. Drive a free bike, pick up passengers, follow the GPS through a city with left-hand traffic, earn ₹, and buy
 autos, cars, an MPV, three buses and a supercar.
 
 Built with Vite, React 19, TypeScript, Three.js, React Three Fiber 9, Rapier (via @react-three/rapier 2),
-Zustand and Zod. All 3D models, signs and sounds are generated procedurally in code.
+Zustand and Zod. The city, original vehicles, signs and sounds are generated procedurally in code.
+Supplied city, car and character GLBs use smaller runtime copies; the originals remain in `assets/glb-files`.
+
+Open **Garage → BMW i8 / BMW M4 GT3 EVO** to rotate a preview. **Try car · free** equips the car
+without spending cash; then press Play from the main menu to drive. Finish or cancel an active job before
+switching vehicles. Both cars retain their original finish, with animated steering, wheels and suspension.
+Models load only when selected (or when restoring a save that has one equipped).
+See [model credits](docs/asset-audit.md#supplied-bmw-models-9-october-2026) for authors and embedded licenses.
 
 ## Requirements
 
@@ -32,6 +39,7 @@ npx playwright install chromium   # only for e2e tests and the release smoke tes
 | `npm run build` | Standalone production build in `dist/` (offline mock platform) |
 | `npm run preview` | Serve `dist/` |
 | `npm run size` | Unpacked / gzip / ZIP sizes and asset inventory of `dist/` |
+| `npm run optimize:assets` | Rebuild optimized GLBs from the originals (Chromium texture encoding + lossless geometry compression) |
 | `npm run release` | Checks → Playgama build → validation → root + nested-path smoke tests → size gate → `release/city-ride-playgama.zip`, `release/build-report.json`, `release/RELEASE_SUMMARY.md` |
 
 `npm run release` never uploads or publishes. Before submitting, replace `public/playgama-bridge-config.json`
@@ -39,17 +47,26 @@ npx playwright install chromium   # only for e2e tests and the release smoke tes
 
 ## Controls
 
-- **Touch (default):** left joystick drives (up = accelerate, down = brake, hold down when stopped = reverse);
-  drag anywhere on the right to look around. Compact horn, brake, camera and recover buttons sit on the right.
+- **Touch (both presets):** steer left/right with the left joystick or slider. Hold **Speed up** or
+  **Reverse** on the right; Reverse brakes before backing up. Drag the free right area to look around.
+  Hold Speed up + Power Brake while steering to drift; hold only Power Brake to stop instantly.
+  Horn, sound, camera, door and recover controls also sit on the right.
   An alternative *Steering + pedals* layout is in Settings.
 - **Map:** tap the minimap in the top-right corner to open the city map. Pause sits beside it.
-- Settings → *Your driver* switches the player character between the male and female driver.
-- **Keyboard:** W/↑ accelerate · S/↓ brake/reverse · A/D steer · Space brake · C camera · H horn · R recover ·
+- Settings → *Your driver* switches between **Male Rover** (the default), **Female Rover**, **Lynae** and **Cartethyia**. Existing Male/Female selections automatically use the Rover GLBs. The passenger character selector chooses Lynae, Cartethyia, a mixture, or the original passengers.
+- **Keyboard:** W/↑ accelerate · S/↓ brake/reverse · A/D steer · Space/Shift Power Brake (steer to drift) · F enter/get out · C camera · H horn · R recover ·
   E/Enter accept · Esc/P pause · M map. Mouse drag orbits the camera.
+- Tap a stopped car's door to get out or enter. Outside, use left/right steering with the forward/reverse buttons, or WASD, to walk back to the door.
+- Traffic Racer pack vehicles and the Police Cruiser are NPC assets only; the garage lists player vehicles.
+- Player cars reach 100 km/h in roughly 2–3 seconds, with higher top speeds and louder engines. All player traffic warnings, fines and police pursuits are removed.
+- Power Brake smoothly reduces rear grip for drifting. Keep throttle on while countersteering through center; hold only Power Brake to stop instantly. Tire tracks fade after ten seconds. NPC collisions transfer momentum and temporarily stop their lane AI.
 
-The bottom-left fuel bar decreases as you drive and is saved for each vehicle. Stop in a marked curb
-bay at either petrol station, release the accelerator, and wait for a free refill. Petrol stations
-are marked ⛽ on the map. If the tank runs empty, the fuel panel offers free emergency fuel.
+Fuel range is four times longer (18 km for cars); it decreases only while moving and is saved for each vehicle. Every street section has a
+supplied HP petrol station with a green filling area off the road. Stop there and confirm a free
+full tank; cash never changes. Empty tanks show navigation to a pump and an optional free tow.
+NPCs follow speed limits, lanes, signals and pedestrian crossings; the player has no traffic fines.
+The new Lamborghini LP670, Black Huracán, McLaren P1 GTR, Mustang RTR and Rolls-Royce Spectre
+are available for free garage test drives, with original materials and calibrated animated wheels.
 
 Navigation and ride offers stay in a compact left stack; speed and fuel sit beside the touch joystick.
 Tap the ride type to expand offer details or “Driving tip” for tutorial help. The HUD adapts to short
@@ -65,6 +82,16 @@ along the destination sidewalk. The camera shows the curb during boarding, exit 
 
 ## Project layout
 
-See `docs/progress.md` for the phase log, verification results and measurements, `docs/asset-audit.md` for the
-reference images (not shipped), and `docs/controls.md` / `docs/performance.md`.
-# city-ride
+See the [10 October code audit](docs/code-audit-2026-10-10.md) for implementation changes and verification,
+`docs/progress.md` for the phase log, `docs/asset-audit.md` for assets and attribution, and
+`docs/controls.md` / `docs/performance.md` for controls and measurements.
+
+## Supplied models and entry animations
+
+Open **Garage** to preview and try the supplied player vehicles free, including the BMWs, Porsche 718,
+Supra A80, Western Star, Fast 72, Classic Sport and five newer cars. Police and Traffic Racer pack cars
+are used only by NPCs. Assets load on demand, with original finishes and smaller texture copies.
+
+When starting a car, the driver walks up, reaches for the door, opens it, enters and sits, then closes it. Movement remains braked during this sequence. Passengers follow the same door sequence and visibly leave at the destination. Open doors have physical collision shapes. Bikes retain their mounting behavior.
+
+Car engines use your **supercarsound.mp3**, cut into start, idle, pickup, acceleration and peak-speed sections with smooth blends that follow throttle, speed and braking. Bikes and heavy diesel vehicles retain their separate recordings. Model/audio sources are in **Credits** and `docs/asset-audit.md`.

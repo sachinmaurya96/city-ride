@@ -14,6 +14,9 @@ import { newAnimState, poseSeated } from '../render/charAnim';
 import { mulberry32 } from '../core/rng';
 import { CAMERA_ONLY_GROUPS, GROUND_GROUPS, STATIC_GROUPS } from './collisionGroups';
 import { quality } from '../render/quality';
+import { ImportedCity } from './ImportedCity';
+import { FuelMarkers } from './FuelMarkers';
+import { worldAssets } from './worldAssets';
 
 const SPHERE_LOW = new THREE.IcosahedronGeometry(1, 0);
 
@@ -240,8 +243,31 @@ function CityColliders({ city }: { city: CityBuild }) {
         body,
       );
     }
+    // Use the station's actual walls/posts, leaving its open entrance and filling area driveable.
+    const pump = worldAssets.get('petrol')?.[0];
+    if (pump) for (const placement of city.worldPlacements.filter(p => p.pack === 'petrol')) {
+      const matrix = new THREE.Matrix4().compose(new THREE.Vector3(placement.x, placement.y, placement.z),
+        new THREE.Quaternion().setFromAxisAngle(up, placement.ry), new THREE.Vector3(placement.width, placement.height, placement.depth));
+      for (const part of pump.parts) {
+        const geometry = part.geometry.clone().applyMatrix4(matrix), positions = new Float32Array(geometry.attributes.position.array);
+        const indices = geometry.index ? new Uint32Array(geometry.index.array) : Uint32Array.from({ length: positions.length / 3 }, (_, i) => i);
+        world.createCollider(rapier.ColliderDesc.trimesh(positions, indices).setCollisionGroups(STATIC_GROUPS).setFriction(.4), body);
+        geometry.dispose();
+      }
+    }
     for (const c of city.cameraBalls) {
       world.createCollider(rapier.ColliderDesc.ball(c.r).setTranslation(c.x, c.y, c.z).setCollisionGroups(CAMERA_ONLY_GROUPS), body);
+    }
+    // Sign backings can cover curbside entry views even when the building behind them is clear.
+    for (const sign of [...city.signs, ...city.boards]) {
+      q.setFromAxisAngle(up, sign.ry ?? 0);
+      world.createCollider(
+        rapier.ColliderDesc.cuboid(sign.w / 2 + .15, sign.h / 2 + .15, .15)
+          .setTranslation(sign.x, sign.y, sign.z)
+          .setRotation({ x: q.x, y: q.y, z: q.z, w: q.w })
+          .setCollisionGroups(CAMERA_ONLY_GROUPS),
+        body,
+      );
     }
     return () => {
       if (world.bodies === ownerBodies && world.getRigidBody(body.handle)) world.removeRigidBody(body);
@@ -316,15 +342,17 @@ export function City() {
 
   return (
     <group>
-      <mesh rotation-x={-Math.PI / 2} receiveShadow position-y={0}>
+      <mesh rotation-x={-Math.PI / 2} receiveShadow position-y={-.02}>
         <planeGeometry args={[(MAP_HALF + 40) * 2, (MAP_HALF + 40) * 2]} />
-        <meshStandardMaterial color="#7a8798" roughness={0.95} />
+        <meshStandardMaterial color="#739669" roughness={0.95} />
       </mesh>
       <mesh rotation-x={-Math.PI / 2} position-y={-0.3}>
         <planeGeometry args={[4000, 4000]} />
         <meshStandardMaterial color="#9fd07f" roughness={1} />
       </mesh>
       <primitive object={markings} />
+      <ImportedCity city={city} />
+      <FuelMarkers />
       {chunkObjects.map((objs, i) => (
         <group key={city.chunks[i].id} ref={(g) => void (groups.current[i] = g)}>
           {objs.map((o, j) => (

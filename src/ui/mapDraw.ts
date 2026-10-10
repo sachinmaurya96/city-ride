@@ -1,4 +1,4 @@
-import { BLOCKS, CORNER_RADIUS, FUEL_STATIONS, LANDMARKS, ROAD_LINES, roadHalfWidth } from '../game/data/cityMap';
+import { BLOCKS, CORNER_RADIUS, FUEL_STATIONS, LANDMARKS, ROAD_LINES } from '../game/data/cityMap';
 import type { Route } from '../game/navigation/roadGraph';
 
 export interface MapView {
@@ -28,7 +28,7 @@ export function drawMap(ctx: CanvasRenderingContext2D, v: MapView, o: MapDrawOpt
   const { width: w, height: h } = v;
   ctx.save();
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#cfe9c0';
+  ctx.fillStyle = '#08121e';
   ctx.fillRect(0, 0, w, h);
   ctx.translate(w / 2, h / 2);
   // heading-up: rotate so the player's forward points up (-y canvas)
@@ -36,14 +36,14 @@ export function drawMap(ctx: CanvasRenderingContext2D, v: MapView, o: MapDrawOpt
   ctx.scale(v.scale, v.scale);
   ctx.translate(-v.cx, -v.cz);
   // road surface
-  ctx.fillStyle = '#7f8b9b';
+  ctx.fillStyle = '#31475b';
   ctx.fillRect(-520, -520, 1040, 1040);
   // blocks
   for (const b of BLOCKS) {
-    ctx.fillStyle = '#f3ead8';
+    ctx.fillStyle = '#162434';
     roundRect(ctx, b.minX, b.minZ, b.maxX - b.minX, b.maxZ - b.minZ, CORNER_RADIUS);
     ctx.fill();
-    ctx.fillStyle = '#d8ecc4';
+    ctx.fillStyle = '#0c1725';
     roundRect(ctx, b.minX + 5, b.minZ + 5, b.maxX - b.minX - 10, b.maxZ - b.minZ - 10, CORNER_RADIUS - 4);
     ctx.fill();
   }
@@ -63,10 +63,9 @@ export function drawMap(ctx: CanvasRenderingContext2D, v: MapView, o: MapDrawOpt
     ctx.stroke();
   }
   ctx.setLineDash([]);
-  void roadHalfWidth;
   // landmarks
   for (const l of LANDMARKS) {
-    ctx.fillStyle = l.color;
+    ctx.fillStyle = '#7894aa';
     ctx.beginPath();
     ctx.arc(l.x, l.z, 9 / Math.max(0.35, v.scale) * 0.6, 0, Math.PI * 2);
     ctx.fill();
@@ -100,24 +99,35 @@ export function drawMap(ctx: CanvasRenderingContext2D, v: MapView, o: MapDrawOpt
     const s = Math.sin(v.rotation);
     return [w / 2 + dx * c - dz * s, h / 2 + dx * s + dz * c] as const;
   };
+  // Labels are laid out first so pump icons and other labels never draw over their text.
+  const placed: { x: number; y: number; w: number; h: number }[] = [];
+  const hits = (r: { x: number; y: number; w: number; h: number }) => placed.some(p => r.x < p.x + p.w && p.x < r.x + r.w && r.y < p.y + p.h && p.y < r.y + r.h);
+  const labels: { text: string; x: number; y: number; w: number }[] = [];
   if (o.labels) {
     ctx.font = '700 11px system-ui, sans-serif';
-    ctx.textAlign = 'center';
     for (const l of LANDMARKS) {
-      const [sx, sy] = toScreen(l.x, l.z);
-      ctx.fillStyle = 'rgba(255,255,255,0.88)';
-      const tw = ctx.measureText(l.name).width + 22;
-      roundRect(ctx, sx - tw / 2, sy - 22, tw, 18, 9);
-      ctx.fill();
-      ctx.fillStyle = '#14212b';
-      ctx.fillText(`${l.icon} ${l.name}`, sx, sy - 9);
+      const [px, sy] = toScreen(l.x, l.z);
+      const text = `${l.icon} ${l.name}`, tw = ctx.measureText(text).width + 14;
+      const sx = Math.min(w - tw / 2 - 2, Math.max(tw / 2 + 2, px));
+      const spot = [sy - 22, sy + 6].map(y => ({ x: sx - tw / 2, y, w: tw, h: 18 })).find(r => !hits(r));
+      if (!spot) continue;
+      placed.push(spot); labels.push({ text, x: sx, y: spot.y, w: tw });
     }
   }
-  ctx.font = '13px system-ui';
+  ctx.font = '11px system-ui';
   ctx.textAlign = 'center';
   for (const station of FUEL_STATIONS) {
     const [sx, sy] = toScreen(station.x, station.z);
+    if (o.labels && hits({ x: sx - 6, y: sy - 6, w: 12, h: 12 })) continue;
     ctx.fillText('⛽', sx, sy + 4);
+  }
+  ctx.font = '700 11px system-ui, sans-serif';
+  for (const l of labels) {
+    ctx.fillStyle = 'rgba(8,18,30,0.94)';
+    roundRect(ctx, l.x - l.w / 2, l.y, l.w, 18, 9);
+    ctx.fill();
+    ctx.fillStyle = '#f3f8ff';
+    ctx.fillText(l.text, l.x, l.y + 13);
   }
   for (const m of o.extraMarkers ?? []) {
     const [sx, sy] = toScreen(m.x, m.z);
@@ -155,7 +165,7 @@ export function drawMap(ctx: CanvasRenderingContext2D, v: MapView, o: MapDrawOpt
   ctx.translate(px, py);
   // world heading 0 = +Z (south = down on a north-up map)
   ctx.rotate(v.rotation - o.player.heading + Math.PI);
-  ctx.fillStyle = '#13a89e';
+  ctx.fillStyle = '#36ceff';
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 2;
   ctx.beginPath();

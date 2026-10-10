@@ -2,7 +2,7 @@
 // (never mutates its input), so a whole reward commits atomically and replays are idempotent.
 
 import { ECONOMY, OFFICE_DEADLINE, RATING_BANDS, XP } from '../data/economy';
-import { VEHICLES, type VehicleId } from '../data/vehicles';
+import { VEHICLES, isPlayableVehicleId, type VehicleId } from '../data/vehicles';
 import type { DailyBoard, DailyTask, Quote, RewardReceipt, SaveData } from '../../storage/schema';
 import { emptyDaily } from '../../storage/schema';
 import { hashString, mulberry32 } from '../core/rng';
@@ -292,7 +292,7 @@ export function vehicleState(save: SaveData, id: VehicleId): 'equipped' | 'owned
 
 export function purchaseVehicle(save: SaveData, id: VehicleId, now: number): { save: SaveData; error?: PurchaseError } {
   const spec = VEHICLES[id];
-  if (!spec) return { save, error: 'unknown' };
+  if (!spec || !isPlayableVehicleId(id)) return { save, error: 'unknown' };
   if (save.ownedVehicleIds.includes(id)) return { save, error: 'owned' };
   if (levelForXP(save.totalXP) < spec.unlockLevel) return { save, error: 'level' };
   if (save.wallet < spec.price) return { save, error: 'funds' };
@@ -305,6 +305,7 @@ export function purchaseVehicle(save: SaveData, id: VehicleId, now: number): { s
 }
 
 export function equipVehicle(save: SaveData, id: VehicleId, now: number): { save: SaveData; error?: PurchaseError } {
+  if (!isPlayableVehicleId(id)) return { save, error: 'unknown' };
   if (!save.ownedVehicleIds.includes(id)) return { save, error: 'not_owned' };
   if (save.mission) return { save, error: 'busy' };
   if (save.equippedVehicleId === id) return { save };

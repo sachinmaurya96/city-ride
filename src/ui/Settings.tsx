@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useGame } from '../app/store';
+import { CHARACTER_NAMES, loadCharacter, useCharacter } from '../game/render/importedCharacters';
 import { persistence } from '../storage/persistence';
 import { Modal } from './Screens';
 import { defaultQuality, type RenderResolution, type ShadowMode, type ViewDistance } from '../game/render/quality';
@@ -60,6 +61,8 @@ function GraphicsSettings() {
 export function SettingsOverlay() {
   const t = useGame((s) => s.t);
   const st = useGame((s) => s.save.settings);
+  const character = useCharacter(st.driver);
+  const passengerModel = useCharacter(st.passengerCharacter === 'lynae' || st.passengerCharacter === 'cartethyia' ? st.passengerCharacter : null);
   const status = useGame((s) => s.saveStatus);
   const update = useGame((s) => s.updateSettings);
   const close = useGame((s) => s.closeOverlay);
@@ -70,7 +73,7 @@ export function SettingsOverlay() {
       <input type="range" min={0} max={1} step={0.05} value={st[key]} onChange={(e) => update({ [key]: Number(e.target.value) })} aria-label={label} />
     </label>
   );
-  const toggle = (label: string, key: 'muted' | 'autoRecenter' | 'reducedMotion' | 'speedLimiter') => (
+  const toggle = (label: string, key: 'muted' | 'autoRecenter' | 'reducedMotion') => (
     <label className="set-row">
       <span>{label}</span>
       <input type="checkbox" checked={st[key]} onChange={(e) => update({ [key]: e.target.checked })} aria-label={label} data-testid={`set-${key}`} />
@@ -110,17 +113,25 @@ export function SettingsOverlay() {
             <input type="range" min={0.5} max={1.6} step={0.05} value={st.steerSensitivity} onChange={(e) => update({ steerSensitivity: Number(e.target.value) })} aria-label={t.sensitivity} />
           </label>
           {toggle(t.autoRecenter, 'autoRecenter')}
-          {toggle(t.speedLimiter, 'speedLimiter')}
         </section>
         <section>
           <h3>{t.driver}</h3>
-          <div className="seg">
-            {(['male', 'female'] as const).map((g) => (
+          <div className="seg character-options">
+            {(['male', 'female', 'lynae', 'cartethyia'] as const).map((g) => (
               <button key={g} className={st.driver === g ? 'on' : ''} onClick={() => update({ driver: g })} data-testid={`driver-${g}`}>
-                {g === 'male' ? t.driverMale : t.driverFemale}
+                {g === 'male' ? t.driverMale : g === 'female' ? t.driverFemale : CHARACTER_NAMES[g]}
               </button>
             ))}
           </div>
+          {character.state?.status === 'loading' && <p className="graphics-hint">{t.characterLoading}</p>}
+          {character.state?.status === 'error' && <button className="link" onClick={() => { void loadCharacter(st.driver, true).catch(() => {}); }}>{t.retry}</button>}
+          <label className="graphics-field"><span>{st.language === 'ru' ? 'Пассажиры' : 'Passenger characters'}</span>
+            <select value={st.passengerCharacter} onChange={(e) => update({ passengerCharacter: e.target.value as typeof st.passengerCharacter })} data-testid="passenger-character">
+              <option value="mixed">Lynae / Cartethyia</option><option value="lynae">Lynae</option><option value="cartethyia">Cartethyia</option><option value="original">{st.language === 'ru' ? 'Оригинальные' : 'Original characters'}</option>
+            </select>
+          </label>
+          {passengerModel.state?.status === 'loading' && <p className="graphics-hint">{t.characterLoading}</p>}
+          {passengerModel.state?.status === 'error' && <button className="link" onClick={() => { if (st.passengerCharacter === 'lynae' || st.passengerCharacter === 'cartethyia') void loadCharacter(st.passengerCharacter, true).catch(() => {}); }}>{t.retry}</button>}
           <h3>{t.language}</h3>
           <div className="seg">
             <button className={st.language === 'en' ? 'on' : ''} onClick={() => update({ language: 'en' })}>

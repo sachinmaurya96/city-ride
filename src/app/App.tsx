@@ -1,25 +1,18 @@
-import { Canvas, useThree } from '@react-three/fiber';
-import { Physics } from '@react-three/rapier';
-import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import * as THREE from 'three';
-import { City, getCity } from '../game/world/City';
-import { PlayerVehicle } from '../game/vehicles/PlayerVehicle';
-import { CameraRig } from '../game/camera/CameraRig';
-import { Environment } from '../game/render/Environment';
-import { RideVisuals } from '../game/missions/RideVisuals';
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type * as THREE from 'three';
 import { input } from '../game/input/input';
 import { runtime } from '../game/core/runtime';
 import { pauseManager } from '../game/core/pause';
 import { events } from '../game/core/events';
 import { garageSpawn } from '../game/data/cityMap';
-import { isVehicleId, VEHICLES, type VehicleId } from '../game/data/vehicles';
-import { recoverySystem, recoverVehicle, playerRoad } from '../game/rules/recovery';
+import { isPlayableVehicleId, VEHICLES, type VehicleId } from '../game/data/vehicles';
+import { recoverySystem, recoverVehicle } from '../game/rules/recovery';
 import { rides } from '../game/missions/rides';
 import { busService } from '../game/missions/bus';
 import { violations } from '../game/rules/violations';
 import { audio } from '../game/audio/audio';
 import { fuel } from '../game/vehicles/fuel';
-import { Rain } from '../game/render/Rain';
+import { requestDriverDoor } from '../game/vehicles/entry';
 import { police } from '../game/rules/police';
 import { ensureDailyBoard, paintFor, upgradeLevels } from '../game/progression/progression';
 import { quality, renderPixelRatio, resolveQuality } from '../game/render/quality';
@@ -29,7 +22,6 @@ import { TouchControls } from '../ui/TouchControls';
 import { Hud } from '../ui/Hud';
 import { BootScreen, CancelConfirm, CityMapOverlay, ConflictOverlay, ControlsOverlay, CreditsOverlay, MainMenu, PauseMenu, Receipt, RotateOverlay, SaveBanner } from '../ui/Screens';
 import { useGame } from './store';
-import { debug, TEST_HOOKS } from './devHooks';
 import type { SafeRoadPose } from '../game/vehicles/vehicleController';
 import { fmt } from '../i18n/strings';
 import { lazyOverlay } from '../ui/lazy';
@@ -40,7 +32,8 @@ const StatsOverlay = lazyOverlay(() => import('../ui/Daily').then((m) => m.Stats
 const SettingsOverlay = lazyOverlay(() => import('../ui/Settings').then((m) => m.SettingsOverlay));
 const BusDispatch = lazyOverlay(() => import('../ui/Garage').then((m) => m.BusDispatch));
 const NoticeCard = lazyOverlay(() => import('../ui/Notice').then((m) => m.NoticeCard));
-const GameSystems = lazyOverlay(() => import('../game/GameSystems').then((m) => m.GameSystems));
+const GameCanvas = lazyOverlay(() => import('./GameCanvas').then(m => m.GameCanvas));
+const FuelStation = lazyOverlay(() => import('../ui/FuelStation').then(m => m.FuelStation));
 
 class ErrorBoundary extends Component<{ children: ReactNode; onError: (e: Error) => void }, { failed: boolean }> {
   state = { failed: false };
@@ -53,30 +46,6 @@ class ErrorBoundary extends Component<{ children: ReactNode; onError: (e: Error)
   render() {
     return this.state.failed ? null : this.props.children;
   }
-}
-
-/** Fires once inside <Physics> after Rapier initialised and the first frame rendered. */
-function ReadySignal({ onReady }: { onReady: () => void }) {
-  const { gl, scene, camera } = useThree();
-  useEffect(() => {
-    const canvas = gl.domElement;
-    const lost = (e: Event) => {
-      e.preventDefault();
-      pauseManager.add('CONTEXT_LOST');
-    };
-    const restored = () => pauseManager.remove('CONTEXT_LOST');
-    canvas.addEventListener('webglcontextlost', lost);
-    canvas.addEventListener('webglcontextrestored', restored);
-    runtime.renderer = gl;
-    if (TEST_HOOKS) Object.assign(debug.extra, { gl, scene, camera, THREE });
-    const id = requestAnimationFrame(() => onReady());
-    return () => {
-      cancelAnimationFrame(id);
-      canvas.removeEventListener('webglcontextlost', lost);
-      canvas.removeEventListener('webglcontextrestored', restored);
-    };
-  }, [gl, scene, camera, onReady]);
-  return null;
 }
 
 function usePaused() {
@@ -146,6 +115,8 @@ export function App() {
   const [canRecover, setCanRecover] = useState(false);
   const [reversing, setReversing] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
+  const [canvasRequested, setCanvasRequested] = useState(false);
+  const [worldRequested, setWorldRequested] = useState(false);
   const spawnRef = useRef<SafeRoadPose>(garageSpawn());
 
   // ---------- boot ----------
@@ -166,7 +137,6 @@ export function App() {
       const serverTime = await platform().getServerTimeIfSupported();
       const daily = ensureDailyBoard(s, serverTime ?? Date.now());
       s = daily.save;
-      useGame.getState().commit(s, false);
       if (res.conflict) {
         pendingConflict.value = res.conflict;
         useGame.getState().openOverlay('conflict');
@@ -176,11 +146,10 @@ export function App() {
         const lang = platform().getLanguage();
         if (lang) s = { ...s, settings: { ...s.settings, language: lang.toLowerCase().startsWith('ru') ? 'ru' : 'en' } };
       }
-      st.setBoot(2);
-      await new Promise((r) => setTimeout(r, 30));
-      st.setBoot(3);
-      getCity(); // deterministic city build
-      useGame.getState().setApp('LOADING');
+      useGame.getState().commit(s, false);
+      st.setBoot(4);
+      useGame.getState().setApp('MAIN_MENU');
+      platform().gameReady();
     } catch (e) {
       st.setBoot(0, e instanceof Error ? e.message : String(e));
       st.setApp('RECOVERABLE_ERROR');
@@ -195,8 +164,8 @@ export function App() {
     sceneReadyRef.current = true;
     setSceneReady(true);
     useGame.getState().setBoot(4);
-    useGame.getState().setApp('MAIN_MENU');
-    platform().gameReady();
+    useGame.getState().setApp('PLAYING');
+    platform().gameplayStart();
   }, []);
   const sceneReadyRef = useRef(false);
 
@@ -252,6 +221,16 @@ export function App() {
       if (hidden && rides.mission) rides.checkpoint(true);
       if (hidden && busService.active) busService.checkpoint(true);
     };
+    // Phones/tablets play landscape only: lock on the first tap (lock needs fullscreen + a user gesture).
+    const lockLandscape = () => {
+      if (!matchMedia('(pointer: coarse)').matches) return;
+      const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+      if (!orientation?.lock) return;
+      const lock = () => orientation.lock!('landscape').catch(() => {});
+      if (document.fullscreenElement || !document.documentElement.requestFullscreen) { void lock(); return; }
+      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(lock, lock);
+    };
+    window.addEventListener('pointerup', lockLandscape);
     const orient = () => useGame.getState().setPortrait(window.innerHeight > window.innerWidth * 1.05 && matchMedia('(pointer: coarse)').matches);
     orient();
     document.addEventListener('visibilitychange', vis);
@@ -262,6 +241,7 @@ export function App() {
       document.removeEventListener('visibilitychange', vis);
       window.removeEventListener('resize', orient);
       window.removeEventListener('orientationchange', orient);
+      window.removeEventListener('pointerup', lockLandscape);
       offPlat();
     };
   }, []);
@@ -283,8 +263,6 @@ export function App() {
     const id = setInterval(() => {
       setCanRecover(runtime.canRecover);
       setReversing(runtime.telemetry.reversing && Math.abs(runtime.telemetry.speed) > 0.05);
-      const st = useGame.getState();
-      runtime.limiterKmh = st.save.settings.speedLimiter && playerRoad.proj.segment ? playerRoad.proj.segment.limitKmh : null;
     }, 200);
     const daily = setInterval(() => {
       const st = useGame.getState();
@@ -330,8 +308,10 @@ export function App() {
       spawnRef.current = runtime.lastSafePose ?? garageSpawn();
     }
     st.respawn();
-    st.setApp('PLAYING');
-    platform().gameplayStart();
+    setCanvasRequested(true);
+    setWorldRequested(true);
+    if (sceneReadyRef.current) { st.setApp('PLAYING'); platform().gameplayStart(); }
+    else { st.setBoot(3); st.setApp('LOADING'); }
     if (!s.tutorial.controlsSeen) st.openOverlay('controls');
   }, []);
 
@@ -380,6 +360,14 @@ export function App() {
           st.updateSettings({ cameraMode: next });
         }
         if (a === 'horn') events.emit({ type: 'HORN' });
+        if (a === 'door') {
+          const stage = st.ride.stage;
+          if (stage === 'BOARDING' || stage === 'ALIGHTING' || fuel.refilling) return;
+          const result = requestDriverDoor();
+          if (result === 'moving') st.toast(st.t.stopToExit, 'info');
+          if (result === 'far') st.toast(st.t.nearDoorToEnter, 'info');
+          if (result === 'ok') input.reset();
+        }
         if (a === 'recover') {
           if (recoverVehicle()) {
             rides.markRecovered();
@@ -391,7 +379,7 @@ export function App() {
   );
 
   // ---------- vehicle ----------
-  const vehicleId: VehicleId = isVehicleId(save.equippedVehicleId) ? save.equippedVehicleId : 'bike_basic';
+  const vehicleId: VehicleId = isPlayableVehicleId(save.equippedVehicleId) ? save.equippedVehicleId : 'bike_basic';
   const lastVehicle = useRef(vehicleId);
   if (lastVehicle.current !== vehicleId) {
     // Changing vehicles happens in the garage: leave from a clear garage spawn point.
@@ -401,7 +389,8 @@ export function App() {
   const upgrades = useMemo(() => upgradeLevels(save, vehicleId), [save, vehicleId]);
   const paint = paintFor(save, vehicleId);
   const showGame = appState === 'PLAYING';
-  const showScene = appState === 'LOADING' || appState === 'MAIN_MENU' || appState === 'PLAYING';
+  const showScene = canvasRequested || overlay === 'garage';
+  useEffect(() => { if (overlay === 'garage') setCanvasRequested(true); }, [overlay]);
 
   return (
     <div className={`app ${touch ? 'touch-mode' : 'desktop-mode'}`} data-controls={settings.controls}>
@@ -413,39 +402,10 @@ export function App() {
               useGame.getState().setApp('RECOVERABLE_ERROR');
             }}
           >
-            <Canvas
-              shadows
-              dpr={renderDpr}
-              camera={{ fov: 60, near: 0.3, far: 1800, position: [spawnRef.current.x, 8, spawnRef.current.z - 12] }}
-              gl={{ antialias: true, powerPreference: 'high-performance' }}
-              onCreated={({ gl }) => {
-                // Neutral tone mapping keeps the pastel palette saturated (ACES greys it out).
-                gl.toneMapping = THREE.NeutralToneMapping;
-                gl.toneMappingExposure = 1.0;
-              }}
-            >
-              <Environment rain={weather === 'rain'} preset={graphics} />
-              {weather === 'rain' && <Rain />}
-              <Suspense fallback={null}>
-                <Physics timeStep={1 / 60} paused={paused}>
-                  <City />
-                  <PlayerVehicle
-                    key={`${vehicleId}-${spawnNonce}`}
-                    vehicleId={vehicleId}
-                    paint={paint}
-                    upgrades={upgrades}
-                    rain={weather === 'rain'}
-                    spawn={spawnRef.current}
-                    anchor={anchor}
-                    seatAnchor={seat}
-                  />
-                  <CameraRig anchor={anchor} autoRecenter={settings.autoRecenter} />
-                  <RideVisuals seat={seat} />
-                  {sceneReady && <GameSystems />}
-                  <ReadySignal onReady={onReady} />
-                </Physics>
-              </Suspense>
-            </Canvas>
+            <GameCanvas world={worldRequested} playing={showGame} paused={paused} sceneReady={sceneReady}
+              onReady={onReady} graphics={graphics} dpr={renderDpr} rain={weather === 'rain'}
+              vehicleId={vehicleId} spawnNonce={spawnNonce} spawn={spawnRef.current} paint={paint}
+              upgrades={upgrades} anchor={anchor} seat={seat} autoRecenter={settings.autoRecenter} />
           </ErrorBoundary>
         </div>
       )}
@@ -471,6 +431,7 @@ export function App() {
             {overlay === 'map' && <CityMapOverlay />}
             {overlay === 'controls' && <ControlsOverlay onClose={closeControls} />}
             {overlay === 'bus' && <BusDispatch />}
+            {overlay === 'fuel' && <FuelStation />}
           </>
         )}
         {appState === 'MAIN_MENU' && !overlay && <MainMenu onPlay={startPlaying} />}

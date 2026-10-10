@@ -33,14 +33,13 @@ class Runtime {
   stuckTime = 0;
   canRecover = false;
   distanceDriven = 0;
+  skidMarkCount = 0;
   /** Systems run after each fixed physics step, in registration order. */
   private systems = new Map<string, StepSystem>();
   /** Pending recovery request (executed before the next physics step). */
   pendingRecovery: SafeRoadPose | null = null;
   reducedMotion = false;
   hornUntil = 0;
-  /** Optional speed limiter (km/h) from settings + posted limit; null = off. */
-  limiterKmh: number | null = null;
   /** The single shared renderer (also used for garage previews). */
   renderer: WebGLRenderer | null = null;
 

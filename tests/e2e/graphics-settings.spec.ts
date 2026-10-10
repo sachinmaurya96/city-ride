@@ -27,6 +27,7 @@ test.describe('mobile graphics', () => {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto('/');
     await page.getByTestId('play').waitFor({ timeout: 90000 });
+    await page.waitForFunction(() => !!window.__cr?.store);
     expect(await page.evaluate(() => window.__cr.store.getState().save.settings.quality)).toBe('medium');
     await play(page);
     await waitStage(page, ['OFFERED'], 60000);
@@ -68,6 +69,12 @@ test.describe('mobile graphics', () => {
     await expect(page.getByTestId('graphics-resolution')).toHaveValue('native');
     await expect(page.getByTestId('graphics-shadows')).toHaveValue('off');
     await expect(page.getByTestId('graphics-distance')).toHaveValue('near');
+    // Cold menus have no renderer; saved graphics are applied when Play creates it.
+    expect(await page.evaluate(() => window.__cr.runtime.renderer)).toBeNull();
+    await page.getByRole('button', { name: 'Close', exact: true }).tap();
+    await play(page);
+    await page.getByTestId('pause').tap();
+    await page.getByTestId('pause-menu').getByRole('button', { name: /Settings/ }).tap();
     await expect.poll(() => graphics(page)).toMatchObject({ pixelRatio: 3, shadows: false, fogFar: 270 });
     await page.getByTestId('reset-graphics').tap();
     await expect(page.getByTestId('quality-medium')).toHaveAttribute('aria-pressed', 'true');
@@ -82,6 +89,7 @@ test.describe('graphics panel layout', () => {
   test('graphics controls fit phone and tablet screens in both languages', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('play').waitFor({ timeout: 90000 });
+    await page.waitForFunction(() => !!window.__cr?.store);
     await page.getByTestId('menu-settings').tap();
     for (const language of ['en', 'ru'] as const) {
       await page.evaluate((language) => window.__cr.store.getState().updateSettings({ language, uiScale: language === 'ru' ? 1.3 : 1 }), language);

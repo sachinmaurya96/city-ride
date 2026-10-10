@@ -83,9 +83,9 @@ describe('map data integrity', () => {
       const name = LANDMARK_BY_ID.get(bay.landmark)!.name.toUpperCase();
       expect(city.signs.some((s) => s.text === name && Math.hypot(s.x - bay.waitX, s.z - bay.waitZ) < 9), bay.id).toBe(true);
     }
-    expect(FUEL_STATIONS).toHaveLength(2);
+    expect(FUEL_STATIONS).toHaveLength(SEGMENTS.length / 2);
     for (const bay of FUEL_STATIONS) {
-      expect(city.signs.some((s) => s.text === '⛽ STOP HERE' && Math.hypot(s.x - bay.x, s.z - bay.z) < 9)).toBe(true);
+      expect(city.signs.some((s) => s.text === '⛽ FREE · FULL TANK' && Math.hypot(s.x - bay.x, s.z - bay.z) < 9)).toBe(true);
     }
   });
 

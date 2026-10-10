@@ -1,0 +1,84 @@
+import { expect, test } from '@playwright/test';
+import type * as THREE from 'three';
+import { boot, play, fixture } from './helpers';
+
+test.use({ hasTouch: true, isMobile: true, viewport: { width: 844, height: 390 } });
+test.setTimeout(180000);
+
+test('NPCs stay out of the garage; mobile sound, steering/pedals/drift, instant stop and door entry work together', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await boot(page, { clear: true });
+  await fixture(page, {});
+  await page.evaluate(() => window.__cr.store.getState().updateSettings({ driver: 'cartethyia' }));
+  await page.getByTestId('menu-garage').tap();
+  expect(await page.locator('[data-testid^="vcard-pack_"]').count()).toBe(0);
+  expect(await page.getByTestId('vcard-police_car').count()).toBe(0);
+  await page.getByTestId('vcard-bmw_i8').tap();
+  await expect(page.getByTestId('vehicle-preview')).toHaveAttribute('data-model-state', 'ready', { timeout: 60000 });
+  await page.getByTestId('try-car').tap();
+  await play(page);
+  await expect.poll(() => page.evaluate(() => window.__cr.vehicleEntry.mode), { timeout: 60000 }).toBe('seated');
+  await expect.poll(() => page.evaluate(() => window.__cr.audio.status)).toMatchObject({ state: 'running', muted: false, allowed: true });
+  await expect.poll(() => page.evaluate(() => window.__cr.audio.recorded?.status), { timeout: 30000 }).toBe('ready');
+  await page.getByTestId('sound-toggle').tap();
+  await expect.poll(() => page.evaluate(() => window.__cr.audio.status)).toMatchObject({ muted: true, master: 0, state: 'suspended' });
+  await page.getByTestId('sound-toggle').tap();
+  await expect.poll(() => page.evaluate(() => window.__cr.audio.status)).toMatchObject({ state: 'running', muted: false });
+  await page.evaluate(() => window.__cr.store.getState().openOverlay('pause'));
+  await expect.poll(() => page.evaluate(() => window.__cr.audio.status.state)).toBe('suspended');
+  await page.evaluate(() => window.__cr.store.getState().closeOverlay());
+  await expect.poll(() => page.evaluate(() => window.__cr.audio.status.state)).toBe('running');
+
+  const joy = (await page.locator('.joy-home').boundingBox())!;
+  const brake = (await page.getByTestId('power-brake').boundingBox())!;
+  const center = { x: joy.x + joy.width / 2, y: joy.y + joy.height / 2, id: 1 };
+  const brakePoint = { x: brake.x + brake.width / 2, y: brake.y + brake.height / 2, id: 2 };
+  expect(brake.x).toBeGreaterThan(844 / 2);
+  const gas = (await page.getByTestId('accelerate').boundingBox())!;
+  const gasPoint = { x: gas.x + gas.width / 2, y: gas.y + gas.height / 2, id: 3 };
+  const touch = await page.context().newCDPSession(page);
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [center] });
+  const steerPoint = { ...center, x: center.x + 24, y: center.y - 24 };
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [steerPoint] });
+  await page.evaluate(() => {
+    const c = window.__cr, p = c.runtime.pose;
+    c.runtime.vehicle!.body.setLinvel({ x: p.fx * 12, y: 0, z: p.fz * 12 }, true);
+  });
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [steerPoint, brakePoint, gasPoint] });
+  await expect.poll(() => page.evaluate(() => window.__cr.runtime.telemetry.drifting)).toBe(true);
+  expect(await page.evaluate(() => window.__cr.runtime.telemetry.speedKmh)).toBeGreaterThan(5);
+  await page.screenshot({ path: 'test-results/power-brake-drift-mobile.png' });
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [brakePoint] });
+  await expect.poll(() => page.evaluate(() => window.__cr.runtime.vehicle!.horizontalSpeed()), { intervals: [50] }).toBeLessThan(.05);
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  expect(await page.evaluate(() => window.__cr.runtime.telemetry.reversing)).toBe(false);
+
+  await page.keyboard.press('KeyF');
+  await expect.poll(() => page.evaluate(() => window.__cr.vehicleEntry.mode)).toBe('exiting');
+  await expect.poll(() => page.evaluate(() => window.__cr.vehicleEntry.mode), { timeout: 60000 }).toBe('outside');
+  await expect(page.getByTestId('car-door')).toHaveAccessibleName('Enter car');
+  const before = await page.evaluate(() => window.__cr.vehicleEntry.outside.toArray());
+  await page.keyboard.down('KeyW');
+  await expect.poll(() => page.evaluate(() => window.__cr.vehicleEntry.outside.z)).toBeGreaterThan(before[2] + .3);
+  await page.keyboard.up('KeyW');
+  expect(await page.evaluate(() => window.__cr.runtime.vehicle!.horizontalSpeed())).toBeLessThan(.1);
+  await page.screenshot({ path: 'test-results/cartethyia-outside-mobile.png' });
+  const doorPoint = await page.evaluate(() => {
+    const c = window.__cr, T = c.debug.extra.THREE as typeof THREE;
+    const scene = c.debug.extra.scene as THREE.Scene, camera = c.debug.extra.camera as THREE.Camera;
+    const car = scene.getObjectByName('imported-vehicle-bmw_i8')!;
+    const spec = c.runtime.vehicle!.spec;
+    const point = car.localToWorld(new T.Vector3(-spec.width * .46, spec.height * .55, -spec.length * .03)).project(camera);
+    return { x: (point.x + 1) * window.innerWidth / 2, y: (1 - point.y) * window.innerHeight / 2 };
+  });
+  await page.touchscreen.tap(doorPoint.x, doorPoint.y);
+  await expect.poll(() => page.evaluate(() => window.__cr.vehicleEntry.mode)).toBe('entering');
+  await expect.poll(() => page.evaluate(() => window.__cr.vehicleEntry.mode), { timeout: 60000 }).toBe('seated');
+  await expect(page.getByTestId('car-door')).toHaveAccessibleName('Get out');
+  await page.screenshot({ path: 'test-results/cartethyia-seated-mobile.png' });
+  await page.evaluate(() => window.__cr.store.getState().openOverlay('settings'));
+  expect(await page.getByTestId('set-speedLimiter').count()).toBe(0);
+  await test.info().attach('audio-status.json', { contentType: 'application/json', body: JSON.stringify(await page.evaluate(() => window.__cr.audio.status)) });
+  expect(errors).toEqual([]);
+});

@@ -10,7 +10,7 @@ import type { input } from '../../src/game/input/input';
 import type { audio } from '../../src/game/audio/audio';
 import type * as THREE from 'three';
 
-type GameDebug = { runtime: typeof runtime; rides: typeof rides; rideVisual: typeof rideVisual; fuel: typeof fuel; store: typeof useGame; cityMap: typeof cityMap; debug: typeof debug; input: typeof input; audio: typeof audio };
+type GameDebug = { nav: typeof import('../../src/game/missions/rides').nav; autopilot: { start(speed?: number): void; stop(): void }; vehicles: typeof import('../../src/game/data/vehicles').VEHICLES; loadImportedModel: typeof import('../../src/game/render/importedVehicles').loadImportedModel; quoteRide: typeof import('../../src/game/progression/progression').quoteRide; vehicleEntry: typeof import('../../src/game/vehicles/entry').vehicleEntry; traffic: typeof import('../../src/game/traffic/traffic').traffic; runtime: typeof runtime; rides: typeof rides; rideVisual: typeof rideVisual; fuel: typeof fuel; store: typeof useGame; cityMap: typeof cityMap; debug: typeof debug; input: typeof input; audio: typeof audio };
 declare global { interface Window { __cr: GameDebug } }
 test.setTimeout(120000);
 
@@ -36,6 +36,7 @@ test('passenger visibly boards, rides and walks away from the original dropoff',
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await boot(page, { clear: true });
+  await page.evaluate(() => window.__cr.store.getState().updateSettings({ passengerCharacter: 'original' }));
   await play(page);
   await waitStage(page, ['OFFERED'], 60000);
   await page.getByTestId('accept').click();
@@ -82,21 +83,32 @@ test('passenger visibly boards, rides and walks away from the original dropoff',
   expect(errors).toEqual([]);
 });
 
-test('fuel drains while driving, refills at a station, survives reload and offers help when empty', async ({ page }) => {
+test('fuel drains while driving, fills for free only at a pump, survives reload and offers help when empty', async ({ page }) => {
   await boot(page, { clear: true });
   await play(page);
   await expect(page.getByRole('progressbar', { name: 'Fuel' })).toBeVisible();
   await page.keyboard.down('KeyW');
-  await expect.poll(() => page.evaluate(() => window.__cr.fuel.percent), { intervals: [250] }).toBeLessThan(99.9);
+  await expect.poll(() => page.evaluate(() => window.__cr.fuel.percent), { timeout: 30000, intervals: [250] }).toBeLessThan(99.9);
   await page.keyboard.up('KeyW');
-  await page.evaluate(() => { window.__cr.fuel.tank.percent = 30; });
+  await page.evaluate(() => {
+    const st = window.__cr.store.getState();
+    st.commit({ ...st.save, wallet: 5000, revision: st.save.revision + 1, updatedAt: Date.now() }, true);
+    window.__cr.fuel.tank.percent = 30;
+  });
   await stopAt(page, 'petrol_south_bay1');
-  await expect.poll(() => page.evaluate(() => window.__cr.fuel.refilling), { intervals: [250] }).toBe(true);
-  await expect(page.getByTestId('fuel-gauge')).toContainText('Refueling');
-  await expect.poll(() => page.evaluate(() => window.__cr.fuel.percent)).toBeGreaterThan(45);
+  const dialog = page.getByTestId('fuel-station');
+  await expect(dialog).toBeVisible();
+  expect(await page.evaluate(() => window.__cr.fuel.percent)).toBeLessThan(31);
+  await expect(dialog).toContainText('Free refueling');
+  await expect(dialog.getByTestId('fuel-quote')).toContainText('Full tank · 100%');
   await page.screenshot({ path: 'test-results/fuel-station.png' });
-  await expect.poll(() => page.evaluate(() => window.__cr.fuel.percent)).toBe(100);
-  // Freeze simulation before setting the reload fixture; the curb pump otherwise keeps refilling it.
+  await dialog.getByTestId('fuel-cancel').click();
+  expect(await page.evaluate(() => window.__cr.fuel.percent)).toBeLessThan(31);
+  await page.getByTestId('open-fuel').click();
+  await dialog.getByTestId('fuel-confirm').click();
+  await expect(dialog).toBeHidden();
+  expect(await page.evaluate(() => window.__cr.fuel.percent)).toBe(100);
+  expect(await page.evaluate(() => window.__cr.store.getState().save.wallet)).toBe(5000);
   await page.getByTestId('pause').click();
   await expect(page.getByTestId('pause-menu')).toBeVisible();
   await page.evaluate(() => { window.__cr.fuel.tank.percent = 31; window.__cr.fuel.persist(); });
@@ -110,8 +122,14 @@ test('fuel drains while driving, refills at a station, survives reload and offer
   await expect.poll(() => page.evaluate(() => window.__cr.runtime.simTime)).toBeGreaterThan(heldAt + 0.65);
   await page.keyboard.up('KeyS');
   expect(await page.evaluate(() => Math.abs(window.__cr.runtime.telemetry.speed))).toBeLessThan(0.3);
-  await page.getByTestId('emergency-fuel').click();
-  await expect.poll(() => page.evaluate(() => window.__cr.fuel.percent)).toBe(15);
+  await page.getByTestId('navigate-fuel').click();
+  await expect(page.getByTestId('instruction')).toContainText(/Petrol/);
+  await page.getByTestId('tow-fuel').click();
+  await expect(dialog).toBeVisible();
+  expect(await page.evaluate(() => window.__cr.fuel.percent)).toBe(0);
+  await dialog.getByTestId('fuel-confirm').click();
+  await expect.poll(() => page.evaluate(() => window.__cr.fuel.percent)).toBe(100);
+  expect(await page.evaluate(() => window.__cr.store.getState().save.wallet)).toBe(5000);
 });
 
 test('horn sounds from both keyboard and button, including after audio is suspended', async ({ page }) => {
@@ -136,7 +154,7 @@ test.describe('touch controls', () => {
   test('the fuel bar and speed readout leave the joystick and utility buttons clear', async ({ page }) => {
     await boot(page, { clear: true });
     await play(page);
-    await page.getByTestId('gesture-layer').tap({ position: { x: 600, y: 270 } });
+    await page.getByTestId('gesture-layer').tap({ position: { x: 400, y: 190 } });
     await expect(page.locator('.app')).toHaveClass(/touch-mode/);
     await page.evaluate(() => { window.__cr.fuel.tank.percent = 10; });
     await expect(page.getByTestId('fuel-gauge')).toContainText('Low fuel');

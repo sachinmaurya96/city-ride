@@ -1,3 +1,4 @@
+import { CAR_BOARD_SECONDS, CAR_ALIGHT_SECONDS, vehicleEntry } from '../vehicles/entry';
 import { BAYS, BAY_BY_ID, DIR_VEC, FUEL_STATIONS, LANDMARK_BY_ID, SEGMENT_BY_ID, garageSpawn, landmarkName, type Bay } from '../data/cityMap';
 import { VEHICLES, type VehicleId, type VehicleSpec } from '../data/vehicles';
 import { RIDE_TIMING, SATISFACTION } from '../data/economy';
@@ -5,7 +6,7 @@ import { runtime } from '../core/runtime';
 import { events } from '../core/events';
 import { mulberry32, pick, type Rng } from '../core/rng';
 import { input } from '../input/input';
-import { findRoute, progressAlong, turnType, type Route } from '../navigation/roadGraph';
+import { findRoute, progressAlong, routeInstruction, type Route } from '../navigation/roadGraph';
 import { routeFrom } from '../navigation/routing';
 import { enforcement } from '../rules/enforcementState';
 import { levelForXP, quoteRide, settleRide, dismissReceipt } from '../progression/progression';
@@ -199,7 +200,7 @@ export class RideSystem {
         expiresAt: Infinity,
       };
     }
-    const candidates = BAYS.filter((b) => !b.bus && !FUEL_STATIONS.includes(b) && b.allowed.includes(spec.kind));
+    const candidates = BAYS.filter((b) => !b.bus && !FUEL_STATIONS.some(s => s.id === b.id) && b.allowed.includes(spec.kind));
     const maxPick = 650 + level * 60;
     const [minLen, maxLen] = level <= 2 ? [220, 650] : level <= 5 ? [300, 1000] : [350, 1500];
     for (let attempt = 0; attempt < 14; attempt++) {
@@ -372,7 +373,7 @@ export class RideSystem {
 
   private routeFromPlayer(bay: Bay) {
     const p = runtime.pose;
-    return routeFrom(p.x, p.z, p.fx, p.fz, { segmentId: bay.segmentId, s: bay.s, bay: true }, this.spec.kind);
+    return routeFrom(p.x, p.z, p.fx, p.fz, { segmentId: bay.segmentId, s: bay.s, bay: true, position: [bay.x, bay.z] }, this.spec.kind);
   }
 
   private setRoute(bay: Bay, target: 'pickup' | 'dropoff') {
@@ -546,6 +547,7 @@ export class RideSystem {
         if (this.stage === 'TO_DROPOFF') nav.elapsed += dt;
         this.comfort(dt);
         const bay = BAY_BY_ID.get(this.stage === 'TO_PICKUP' ? m.pickupBayId : m.dropBayId)!;
+        if (vehicleEntry.mode !== 'seated') return;
         const chk = checkStop(bay, this.spec, m.partySize <= this.spec.passengerSeats);
         if (chk.ok) this.stopTimer += dt;
         else this.stopTimer = 0;
@@ -581,8 +583,8 @@ export class RideSystem {
       }
       case 'BOARDING': {
         this.phaseTimer += dt;
-        rideVisual.boardProgress = Math.min(1, this.phaseTimer / RIDE_TIMING.boardTime);
-        if (this.phaseTimer >= RIDE_TIMING.boardTime) {
+        rideVisual.boardProgress = Math.min(1, this.phaseTimer / (VEHICLES[runtime.vehicleId].kind === 'car' ? CAR_BOARD_SECONDS : RIDE_TIMING.boardTime));
+        if (this.phaseTimer >= (VEHICLES[runtime.vehicleId].kind === 'car' ? CAR_BOARD_SECONDS : RIDE_TIMING.boardTime)) {
           if (runtime.vehicle) runtime.vehicle.holdBrake = false;
           this.enterToDropoff(true);
         }
@@ -590,9 +592,9 @@ export class RideSystem {
       }
       case 'ALIGHTING': {
         this.phaseTimer += dt;
-        rideVisual.alightProgress = Math.min(1, this.phaseTimer / RIDE_TIMING.alightTime);
-        rideVisual.onboard = rideVisual.alightProgress < 0.15;
-        if (this.phaseTimer >= RIDE_TIMING.alightTime) this.complete();
+        rideVisual.alightProgress = Math.min(1, this.phaseTimer / (VEHICLES[runtime.vehicleId].kind === 'car' ? CAR_ALIGHT_SECONDS : RIDE_TIMING.alightTime));
+        rideVisual.onboard = rideVisual.alightProgress < (VEHICLES[runtime.vehicleId].kind === 'car' ? .46 : .15);
+        if (this.phaseTimer >= (VEHICLES[runtime.vehicleId].kind === 'car' ? CAR_ALIGHT_SECONDS : RIDE_TIMING.alightTime)) this.complete();
         return;
       }
       case 'COMPLETED':
@@ -653,34 +655,7 @@ export class RideSystem {
       this.setRoute(bay, nav.target === 'dropoff' ? 'dropoff' : 'pickup');
       return;
     }
-    // Next instruction from the planned segment chain.
-    let acc = 0;
-    let seen = 0;
-    const segs = r.segments;
-    let found: 'left' | 'right' | null = null;
-    for (let i = 0; i < segs.length; i++) {
-      const segLen = (i === segs.length - 1 ? r.goalS : segs[i].length) - (i === 0 ? r.startS : 0);
-      acc += segLen + (i < segs.length - 1 ? 22 : 0);
-      if (acc < prog.along) continue;
-      if (i < segs.length - 1) {
-        const tt = turnType(segs[i], segs[i + 1]);
-        if (tt === 'left' || tt === 'right') {
-          found = tt;
-          seen = acc - 22 - prog.along;
-          break;
-        }
-      }
-    }
-    if (nav.remaining < 45) {
-      nav.instruction = nav.remaining < 15 ? 'stop' : 'arriving';
-      nav.instructionDist = nav.remaining;
-    } else if (found) {
-      nav.instruction = found;
-      nav.instructionDist = Math.max(0, seen);
-    } else {
-      nav.instruction = 'continue';
-      nav.instructionDist = nav.remaining;
-    }
+    Object.assign(nav, routeInstruction(r, prog.along));
   }
 
   /** Spawn pose for a restored mission (collision-checked by the recovery system on spawn). */

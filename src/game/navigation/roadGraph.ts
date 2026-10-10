@@ -90,6 +90,8 @@ export interface RouteTarget {
   s: number;
   /** Ease the final approach from the curb lane into the bay strip. */
   bay?: boolean;
+  /** Exact stopping area, including forecourts outside the curb strip. */
+  position?: readonly [number, number];
 }
 
 export interface Route {
@@ -102,6 +104,8 @@ export interface Route {
   points: [number, number][];
   /** Cumulative distance along `points`. */
   cumulative: number[];
+  /** Polyline indices where junction turns begin/end; distances use actual curve lengths. */
+  turns: { type: 'left' | 'right'; start: number; end: number }[];
 }
 
 const TURN_PENALTY: Record<TurnType, number> = { straight: 0, left: 6, right: 18, uturn: 1e6 };
@@ -159,7 +163,7 @@ export function findRoute(fromSeg: Segment, fromS: number, target: RouteTarget, 
   const goal = SEGMENT_BY_ID.get(target.segmentId);
   if (!goal) return null;
   if (fromSeg.id === goal.id && target.s >= fromS - 0.5) {
-    return buildRoute([fromSeg], fromS, target.s, target.bay);
+    return buildRoute([fromSeg], fromS, target.s, target.bay, target.position);
   }
   const [gx, gz] = segmentPoint(goal, target.s, 0);
   // Dijkstra/A* over directed segments; cost to reach the START of a segment.
@@ -190,7 +194,7 @@ export function findRoute(fromSeg: Segment, fromS: number, target: RouteTarget, 
         id = prev.get(id);
       }
       chain.unshift(fromSeg);
-      return buildRoute(chain, fromS, target.s, target.bay);
+      return buildRoute(chain, fromS, target.s, target.bay, target.position);
     }
     for (const n of successors(cur.seg)) {
       if (!segmentAllowed(n, kind) || closed.has(n.id) || !turnOk(cur.seg, n)) continue;
@@ -252,40 +256,61 @@ export function turnCurve(a: Segment, b: Segment, ka = curbLaneIndex(a), kb = cu
   return pts;
 }
 
-export function buildRoute(segments: Segment[], startS: number, goalS: number, intoBay = false): Route {
+export function buildRoute(segments: Segment[], startS: number, goalS: number, intoBay = false, destination?: readonly [number, number]): Route {
   const points: [number, number][] = [];
+  const turns: Route['turns'] = [];
   segments.forEach((seg, i) => {
     const s0 = i === 0 ? startS : 0;
     const s1 = i === segments.length - 1 ? goalS : seg.length;
     const last = i === segments.length - 1;
     const laneLat = laneOffset(seg, curbLaneIndex(seg));
     const bayLat = stripOffset(seg);
+    const goal = lanePoint(seg, s1);
     const at = (s: number): [number, number] => {
       if (!last || !intoBay) return lanePoint(seg, s);
       const k = Math.max(0, Math.min(1, 1 - (s1 - s) / 22));
       const e = k * k * (3 - 2 * k);
+      if (destination) {
+        const [x, z] = lanePoint(seg, s);
+        return [x + (destination[0] - goal[0]) * e, z + (destination[1] - goal[1]) * e];
+      }
       return segmentPoint(seg, s, laneLat + (bayLat - laneLat) * e);
     };
     const step = 4;
     for (let s = s0; s < s1; s += step) points.push(at(s));
     points.push(at(s1));
-    if (i < segments.length - 1) points.push(...turnCurve(seg, segments[i + 1]));
+    if (i < segments.length - 1) {
+      const start = points.length - 1, type = turnType(seg, segments[i + 1]);
+      points.push(...turnCurve(seg, segments[i + 1]));
+      if (type === 'left' || type === 'right') turns.push({ type, start, end: points.length });
+    }
   });
   const cumulative = [0];
   for (let i = 1; i < points.length; i++) {
     cumulative.push(cumulative[i - 1] + Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]));
   }
-  return { segments, startS, goalS, length: cumulative[cumulative.length - 1], points, cumulative };
+  return { segments, startS, goalS, length: cumulative[cumulative.length - 1], points, cumulative, turns };
+}
+
+/** Shared GPS instructions for rides, buses and fuel; no estimated junction lengths. */
+export function routeInstruction(route: Route, along: number, stopDistance = 15) {
+  const remaining = Math.max(0, route.length - along);
+  if (remaining < 45) return { instruction: remaining < stopDistance ? 'stop' as const : 'arriving' as const, instructionDist: remaining };
+  const next = route.turns.find(turn => route.cumulative[turn.end] > along + 1);
+  return { instruction: next?.type ?? 'continue' as const,
+    instructionDist: next ? Math.max(0, route.cumulative[next.start] - along) : remaining };
 }
 
 /** Nearest distance-along-route of a world point, searching near a hint index. */
 export function progressAlong(route: Route, x: number, z: number, hint = 0): { along: number; index: number; offRoute: number } {
+  if (route.points.length < 2) {
+    const point = route.points[0];
+    return { along: 0, index: 0, offRoute: point ? Math.hypot(x - point[0], z - point[1]) : Infinity };
+  }
   let best = Infinity;
   let bestIdx = hint;
   let bestAlong = 0;
-  const from = Math.max(0, hint - 20);
-  const to = Math.min(route.points.length - 1, hint + 60);
-  for (let i = from; i < to; i++) {
+  const search = (from: number, to: number) => { for (let i = from; i < to; i++) {
     const [ax, az] = route.points[i];
     const [bx, bz] = route.points[i + 1];
     const vx = bx - ax;
@@ -300,6 +325,9 @@ export function progressAlong(route: Route, x: number, z: number, hint = 0): { a
       bestIdx = i;
       bestAlong = route.cumulative[i] + Math.sqrt(len2) * t;
     }
-  }
+  } };
+  search(Math.max(0, hint - 20), Math.min(route.points.length - 1, hint + 60));
+  // Recovery, shortcuts and large jumps can put the player beyond the hint window.
+  if (best > 18) search(0, route.points.length - 1);
   return { along: bestAlong, index: bestIdx, offRoute: best };
 }

@@ -4,12 +4,15 @@ import { pauseManager } from '../core/pause';
 import { VEHICLES } from '../data/vehicles';
 import { enforcement } from '../rules/enforcementState';
 import type { GameSettings } from '../../storage/schema';
+import { RecordedEngine } from './recordedEngine';
 import { fuel } from '../vehicles/fuel';
+import { vehicleEntry } from '../vehicles/entry';
 
-// Procedural Web Audio (plan §15.1): no audio files are downloaded. Separate master / sfx / ambience /
+// Web Audio: recorded vehicle engines and doors with procedural horns, ambience and UI tones. Separate master / sfx / ambience /
 // music buses; unlocked on the first user gesture; suspended with the pause manager; mute always wins.
 
-class AudioEngine {
+export class AudioEngine {
+  recorded: RecordedEngine | null = null;
   private ctx: AudioContext | null = null;
   private master!: GainNode;
   private sfx!: GainNode;
@@ -28,23 +31,34 @@ class AudioEngine {
   private platformAudio = true;
   private lastChime = new Map<string, number>();
   private raf = 0;
+  private resuming = false;
+  private mobileBridge: HTMLAudioElement | null = null;
   rain = false;
 
   /** Create the context on the first user gesture (browser autoplay rules). */
   unlock() {
     if (this.ctx) {
-      if (this.ctx.state === 'suspended' && this.allowed()) void this.ctx.resume().catch(() => {});
+      this.primeFromGesture();
       return;
     }
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
     try {
-      this.ctx = new AC();
+      // Safari otherwise treats Web Audio as ambient audio, silenced by the ringer switch.
+      const nav = navigator as Navigator & { audioSession?: { type: string } };
+      if (nav.audioSession) nav.audioSession.type = 'playback';
+    } catch { /* Older browsers do not expose AudioSession. */ }
+    try {
+      this.ctx = new AC({ latencyHint: 'interactive' });
     } catch {
       return;
     }
     const c = this.ctx;
+    c.onstatechange = () => {
+      if (c.state === 'running' && !this.allowed()) this.applyVolumes();
+    };
     this.master = c.createGain();
+    this.master.gain.value = 0;
     this.master.connect(c.destination);
     this.sfx = c.createGain();
     this.amb = c.createGain();
@@ -109,9 +123,51 @@ class AudioEngine {
     sf.frequency.value = 1800;
     this.sirenOsc.connect(sf).connect(this.sirenGain);
     this.sirenOsc.start();
+    this.recorded = new RecordedEngine(c, this.sfx);
     this.startMusic();
     this.applyVolumes();
+    this.primeFromGesture();
     this.loop();
+  }
+
+  private primeFromGesture() {
+    const c = this.ctx;
+    if (!c || c.state === 'closed') return;
+    // Unlock inside the gesture even if the Play/menu click has not cleared its pause reason yet.
+    // Capture listeners also see taps whose UI handler stops propagation.
+    const source = c.createBufferSource();
+    source.buffer = c.createBuffer(1, 1, c.sampleRate);
+    source.connect(c.destination);
+    source.onended = () => source.disconnect();
+    source.start();
+    this.resumeContext(true);
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (ios && !(navigator as Navigator & { audioSession?: unknown }).audioSession && this.settings && !this.settings.muted && this.platformAudio) {
+      // Older iOS needs an unlocked media element to route Web Audio to the speaker.
+      this.mobileBridge ??= new Audio(new URL('../../../assets/audio/silence.wav', import.meta.url).href);
+      this.mobileBridge.loop = true;
+      this.mobileBridge.setAttribute('playsinline', '');
+      void this.mobileBridge.play().catch(() => {});
+    }
+  }
+
+  private resumeContext(gesture = false) {
+    const c = this.ctx;
+    if (!c || c.state === 'closed' || this.resuming || (!gesture && !this.allowed())) return;
+    // Safari reports "interrupted" after phone calls, screen locks and tab switches.
+    if ((c.state as string) === 'running' && !gesture) return;
+    this.resuming = true;
+    void c.resume().catch(() => {}).finally(() => {
+      this.resuming = false;
+      if (this.ctx === c && c.state === 'running' && !this.allowed()) this.applyVolumes();
+    });
+  }
+
+  get status() {
+    // AudioParam.value can retain its last rendered value while the context is suspended.
+    // Report the effective output gain so the UI/debug state reflects the audible mixer.
+    return { state: this.ctx?.state ?? 'locked', muted: !!this.settings?.muted, allowed: this.allowed(),
+      master: this.allowed() && this.ctx?.state === 'running' ? this.master?.gain.value ?? 0 : 0 };
   }
 
   private allowed() {
@@ -133,15 +189,24 @@ class AudioEngine {
     if (!this.ctx || !this.settings) return;
     const s = this.settings;
     const t = this.ctx.currentTime;
-    this.master.gain.setTargetAtTime(s.muted ? 0 : s.masterVolume, t, 0.05);
+    if (this.allowed()) this.master.gain.setTargetAtTime(s.masterVolume, t, 0.05);
+    else {
+      // A suspended context freezes its automation clock. Mute must reach zero before
+      // suspension, rather than leave a pending fade at the previous audible volume.
+      this.master.gain.cancelScheduledValues(t);
+      this.master.gain.value = 0;
+      this.master.gain.setValueAtTime(0, t);
+    }
     this.sfx.gain.setTargetAtTime(s.sfxVolume, t, 0.05);
     this.amb.gain.setTargetAtTime(s.ambienceVolume * 0.6, t, 0.05);
     this.music.gain.setTargetAtTime(s.musicVolume * 0.35, t, 0.05);
     if (this.allowed()) {
-      if (this.ctx.state === 'suspended') void this.ctx.resume().catch(() => {});
+      this.resumeContext();
+      if (this.mobileBridge?.paused) void this.mobileBridge.play().catch(() => {});
     } else if (this.ctx.state === 'running') {
+      this.mobileBridge?.pause();
       void this.ctx.suspend().catch(() => {});
-    }
+    } else this.mobileBridge?.pause();
   }
 
   private loop = () => {
@@ -156,7 +221,9 @@ class AudioEngine {
     this.engineOsc?.frequency.setTargetAtTime(pitch, t, 0.08);
     this.engineOsc2?.frequency.setTargetAtTime(pitch * 1.505, t, 0.08);
     this.engineFilter.frequency.setTargetAtTime(380 + frac * 1200, t, 0.1);
-    this.engineGain.gain.setTargetAtTime(runtime.vehicle && fuel.percent > 0 ? 0.05 + frac * 0.07 : 0, t, 0.1);
+    const running = !!runtime.vehicle && fuel.percent > 0 && vehicleEntry.mode === 'seated';
+    const recorded = this.recorded?.update(spec, speed, running);
+    this.engineGain.gain.setTargetAtTime(!recorded && running ? 0.05 + frac * 0.07 : 0, t, 0.1);
     this.rainGain.gain.setTargetAtTime(this.rain ? 0.22 : 0, t, 0.5);
     if (enforcement.pursuit && this.sirenOsc) {
       const wob = Math.sin(t * Math.PI * 1.4) > 0 ? 960 : 720;
@@ -192,7 +259,7 @@ class AudioEngine {
     this.unlock();
     const c = this.ctx;
     if (!c || !this.allowed()) return;
-    if (c.state === 'suspended') await c.resume().catch(() => {});
+    if ((c.state as string) !== 'running') await c.resume().catch(() => {});
     if (c !== this.ctx || c.state !== 'running' || !this.allowed()) return;
     const now = performance.now();
     if (now - (this.lastChime.get('horn') ?? -Infinity) < 250) return;
@@ -245,11 +312,19 @@ class AudioEngine {
 
   attach() {
     const unlock = () => this.unlock();
-    window.addEventListener('pointerdown', unlock);
-    window.addEventListener('keydown', unlock);
+    document.addEventListener('pointerdown', unlock, true);
+    document.addEventListener('touchend', unlock, true);
+    document.addEventListener('keydown', unlock, true);
+    const restore = () => { if (document.visibilityState === 'visible') this.applyVolumes(); };
+    window.addEventListener('focus', restore);
+    window.addEventListener('pageshow', restore);
+    document.addEventListener('visibilitychange', restore);
     const offPause = pauseManager.subscribe(() => this.applyVolumes());
     const offEvents = events.on((e) => {
       switch (e.type) {
+        case 'CAR_DOOR':
+          if (this.allowed()) this.recorded?.oneShot(e.open ? 'open' : 'close');
+          break;
         case 'HORN':
           void this.horn();
           break;
@@ -297,14 +372,22 @@ class AudioEngine {
       }
     });
     return () => {
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
+      document.removeEventListener('pointerdown', unlock, true);
+      document.removeEventListener('touchend', unlock, true);
+      document.removeEventListener('keydown', unlock, true);
+      window.removeEventListener('focus', restore);
+      window.removeEventListener('pageshow', restore);
+      document.removeEventListener('visibilitychange', restore);
       offPause();
       offEvents();
       cancelAnimationFrame(this.raf);
       if (this.musicTimer) clearInterval(this.musicTimer);
+      this.recorded?.dispose(); this.recorded = null;
+      this.mobileBridge?.pause(); this.mobileBridge = null;
+      if (this.ctx) this.ctx.onstatechange = null;
       void this.ctx?.close().catch(() => {});
       this.ctx = null;
+      this.resuming = false;
     };
   }
 }
