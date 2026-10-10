@@ -475,14 +475,6 @@ export function setLook(mesh: THREE.SkinnedMesh, look: Look, detail: 0 | 1 = 1) 
   mesh.geometry = buildCharacterGeometry(look, detail);
 }
 
-export function resetPose(rig: Rig) {
-  rig.bones.forEach((b, i) => {
-    b.rotation.set(0, 0, 0);
-    const p = PARENT[i];
-    if (p < 0) b.position.copy(rig.P.joints[i]);
-  });
-}
-
 /**
  * Static geometry in a pose: each rigid part is moved by its bone's (world × inverse-bind) matrix.
  * `pose` receives a rig in bind pose and sets bone rotations (and may call the arm IK helpers).

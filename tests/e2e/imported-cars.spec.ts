@@ -34,7 +34,7 @@ test('both supplied cars preview, drive with animated wheels and persist without
   page.on('request', (r) => { if (r.url().includes('.glb') && r.resourceType() === 'fetch') modelRequests.push(r.url()); });
   await boot(page);
   await fixture(page, { owned: ['bike_basic', 'bmw_i8', 'bmw_m4_gt3'] });
-  expect(modelRequests.filter(url => /bmw_|lambo|mustang|mclaren|rr-spectr/.test(url))).toEqual([]);
+  expect(modelRequests.filter(url => /bmw_|lambo|mustang|mclaren|rolls-royce|naran|mansory|aston|audi|m3gtr/.test(url))).toEqual([]);
   const wallet = await page.evaluate(() => window.__cr.store.getState().save.wallet);
   for (const id of ['bmw_i8', 'bmw_m4_gt3']) {
     await page.evaluate(() => window.__cr.store.getState().openOverlay('garage'));
@@ -50,8 +50,9 @@ test('both supplied cars preview, drive with animated wheels and persist without
     await expect.poll(() => page.evaluate(() => window.__cr.vehicleEntry.active), { timeout: 60000 }).toBe(false);
     const car = (await carState(page, id))!;
     await test.info().attach(`${id}-render.json`, { body: JSON.stringify(car, null, 2), contentType: 'application/json' });
-    // The M4 GT3 adds a mirrored copy of its single race seat (1297 triangles) for the passenger side.
-    expect(car.triangles).toBe(id === 'bmw_i8' ? 39933 : 109277);
+    // The M4 GT3 adds a mirrored copy of its single race seat (1297 triangles) for the passenger side, and its doors are
+    // split exactly on their traced seams (6366 more pieces of the same surface; see asset-audit.test.ts).
+    expect(car.triangles).toBe(id === 'bmw_i8' ? 39933 : 115643);
     expect(car.meshes).toBeLessThan(70);
     expect(car.reflected).toBe(car.meshes);
     expect(car.textured).toBeGreaterThan(0);

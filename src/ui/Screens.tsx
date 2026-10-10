@@ -353,35 +353,6 @@ export function ControlsOverlay({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function BootScreen({ stage, error, onRetry }: { stage: number; error: string | null; onRetry: () => void }) {
-  const t = useGame((s) => s.t);
-  const total = t.loadingStages.length - 1;
-  return (
-    <div className="boot" data-testid="boot">
-      <div className="wordmark">
-        <span className="w1">CITY</span> <span className="w2">RIDE</span>
-        <div className="w3">{t.subtitle}</div>
-      </div>
-      {error ? (
-        <div className="boot-error">
-          <p>{error}</p>
-          <button className="btn primary" onClick={onRetry}>
-            {t.retry}
-          </button>
-        </div>
-      ) : (
-        <>
-          <div className="boot-bar">
-            <i style={{ width: `${(stage / total) * 100}%` }} />
-          </div>
-          <div className="boot-stage">{t.loadingStages[Math.min(stage, total)]}…</div>
-          <div className="boot-tip">{t.loadTip}</div>
-        </>
-      )}
-    </div>
-  );
-}
-
 export function RotateOverlay() {
   const t = useGame((s) => s.t);
   return (

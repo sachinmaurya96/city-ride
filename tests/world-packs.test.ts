@@ -3,12 +3,12 @@ import * as THREE from 'three';
 import { readAsset } from './assets';
 import { prepareWorldPack, worldAssets, type WorldPack } from '../src/game/world/worldAssets';
 import { roadPlacements } from '../src/game/world/ImportedCity';
-import { buildCity } from '../src/game/world/cityBuilder';
+import { BILLBOARD_SIZE, buildCity } from '../src/game/world/cityBuilder';
 import { INTERSECTIONS, SEGMENTS, FUEL_STATIONS, DIR_VEC, roadHalfWidth } from '../src/game/data/cityMap';
 
 describe('supplied city resources', () => {
   const packs: [WorldPack, string, number][] = [['buildings', 'city-building-pack', 15], ['skyline', 'night-city-building-pack', 1],
-    ['forest', 'forest-tree-pack', 8], ['palms', 'palm-tree-pack', 4], ['bananas', 'banana-tree-pack', 3], ['roads', 'road-pack', 6], ['petrol', 'hp-petrol-pump', 1]];
+    ['forest', 'forest-tree-pack', 8], ['palms', 'palm-tree-pack', 4], ['bananas', 'banana-tree-pack', 3], ['roads', 'road-pack', 6], ['petrol', 'hp-petrol-pump', 1], ['billboards', 'billboard', 3]];
   for (const [pack, file, minimum] of packs) it(`${pack}: preserves materials and normalizes real geometry without display offsets`, async () => {
     const { scene } = await readAsset(`${file}.glb`), materials = new Set<THREE.Material>();
     scene.traverse(o => { if (o instanceof THREE.Mesh) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => materials.add(m)); });
@@ -43,6 +43,33 @@ describe('supplied city resources', () => {
     for (const p of city.worldPlacements.filter(p => p.pack === 'buildings')) {
       const collider = city.staticBoxes.find(b => b.x === p.x && b.z === p.z && b.ry === p.ry)!;
       expect(collider.hx * 2).toBeCloseTo(p.width); expect(collider.hz * 2).toBeCloseTo(p.depth); expect(collider.hy * 2).toBeCloseTo(p.height);
+    }
+  });
+  it('splits the billboard pack into its three structures, each whole, ad-facing +Z and placed on the Ring Road verge', async () => {
+    const models = prepareWorldPack((await readAsset('billboard.glb')).scene, 'billboards');
+    expect(models).toHaveLength(3);
+    for (const model of models) {
+      // Identical structures (export units are cm): one ad panel and the full frame, pole and walkways each.
+      expect(model.size.clone().multiplyScalar(.01).distanceTo(new THREE.Vector3(BILLBOARD_SIZE.width, BILLBOARD_SIZE.height, BILLBOARD_SIZE.depth))).toBeLessThan(.01);
+      const frame = model.parts.find(part => part.material.name === 'Billboardslambert36SG')!, ad = model.parts.find(part => part !== frame)!;
+      expect(Math.abs(frame.geometry.attributes.position.count / 3 - 1888 / 3)).toBeLessThan(5);
+      // Two ad faces back to back, square to the structure: normals ±Z, never coplanar (no z-fighting).
+      const p = ad.geometry.attributes.position, zs = new Set<string>();
+      for (let i = 0; i < p.count; i++) zs.add(p.getZ(i).toFixed(3));
+      expect(zs.size).toBe(2);
+    }
+    const city = buildCity(), boards = city.worldPlacements.filter(p => p.pack === 'billboards');
+    expect(boards).toHaveLength(16);
+    expect(new Set(boards.map(b => b.variant % 3)).size).toBe(3);
+    const ring = 480 + roadHalfWidth('bypass');
+    for (const b of boards) {
+      // Past the 2.2 m hedge, clear of every outbound road and every perimeter tree.
+      expect(Math.max(Math.abs(b.x), Math.abs(b.z))).toBeGreaterThan(ring + 9 + 1.1 + 3);
+      const along = Math.abs(b.x) > Math.abs(b.z) ? b.z : b.x;
+      for (const road of [-480, -240, 0, 240, 480]) expect(Math.abs(along - road)).toBeGreaterThan(roadHalfWidth('local') + 10);
+      for (const tree of city.worldPlacements.filter(p => p.pack === 'forest' || p.pack === 'palms' || p.pack === 'bananas')) {
+        expect(Math.hypot(tree.x - b.x, tree.z - b.z)).toBeGreaterThan(Math.max(BILLBOARD_SIZE.width, BILLBOARD_SIZE.depth) / 2 + tree.width / 2 - .5);
+      }
     }
   });
   it('places a supplied station on every street section, with every filling area entirely off the road', () => {

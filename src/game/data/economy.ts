@@ -45,30 +45,6 @@ export const RATING_BANDS: [number, number, number][] = [
   [0, 1, 0],
 ];
 
-export const FINES = {
-  speeding: 40,
-  redLight: 60,
-  wrongWay: 60,
-  blockingCrossing: 30,
-  crash: 80,
-  pedestrian: 100,
-  impound: 100,
-};
-
-export const HEAT = {
-  redLight: 20,
-  speeding: 15,
-  wrongWay: 20,
-  crash: 35,
-  pedestrianMin: 80,
-  pursuitThreshold: 60,
-  cautionThreshold: 30,
-  decayGrace: 15,
-  decayPerSecond: 1.2,
-  escapeSeconds: 20,
-  pursuitTimeout: 60,
-};
-
 export const RIDE_TIMING = {
   offerDelayMin: 3,
   offerDelayMax: 6,

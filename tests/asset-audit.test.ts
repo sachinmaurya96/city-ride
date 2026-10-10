@@ -23,6 +23,19 @@ function triangles(root: THREE.Object3D) {
   root.traverse(o => { if (o instanceof THREE.Mesh) count += (o.geometry.index?.count ?? o.geometry.getAttribute('position').count) / 3; });
   return count;
 }
+function surface(root: THREE.Object3D) {
+  root.updateMatrixWorld(true);
+  let area = 0; const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  root.traverse(o => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry, p = g.getAttribute('position');
+    for (let i = 0; i < p.count; i += 3) {
+      a.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld); b.fromBufferAttribute(p, i + 1).applyMatrix4(o.matrixWorld); c.fromBufferAttribute(p, i + 2).applyMatrix4(o.matrixWorld);
+      area += b.sub(a).cross(c.sub(a)).length() / 2;
+    }
+  });
+  return area;
+}
 function posedBounds(root: THREE.Object3D) {
   root.updateMatrixWorld(true);
   root.traverse(o => { if (o instanceof THREE.SkinnedMesh) o.skeleton.update(); });
@@ -41,11 +54,18 @@ describe('actual supplied asset geometry', () => {
       const root = bike ? prepareImportedBike(source as THREE.Group, spec) : prepareImportedModel(source as THREE.Group, spec);
       prepared.set(spec.id, root);
       expect(triangles(root)).toBeGreaterThan(100);
-      // The truck bakes a skinned copy; the Maybach drops its 12-triangle showroom box; the M4 GT3's single race
-      // seat is mirrored as a copy for the passenger side (mirroring the cockpit itself adds or loses nothing).
-      if (spec.id === 'mercedes_maybach') expect(originalTriangles - triangles(root)).toBeLessThanOrEqual(36);
-      else if (CAR_CABINS[spec.id]?.copySeat) { expect(triangles(root) - originalTriangles).toBeGreaterThan(500); expect(triangles(root) - originalTriangles).toBeLessThan(3000); }
-      else if (spec.id !== 'western_star') expect(triangles(root)).toBe(originalTriangles);
+      // Normalized but uncut (as NPC traffic uses it): every supplied triangle, except the Maybach's 12-triangle showroom box.
+      const uncut = bike ? root : prepareImportedModel(source as THREE.Group, { ...spec, npcOnly: true });
+      if (spec.id === 'mercedes_maybach') expect(originalTriangles - triangles(uncut)).toBeLessThanOrEqual(36);
+      else expect(triangles(uncut)).toBe(originalTriangles);
+      if (!bike && !spec.npcOnly) {
+        // Doors are split exactly on their seams: triangles crossing a seam become pieces covering the same surface.
+        // Mirroring the cockpit adds or loses nothing; only the M4 GT3's single race seat is copied for the passenger.
+        const added = triangles(root) - triangles(uncut);
+        expect(added).toBeGreaterThanOrEqual(0); expect(added).toBeLessThan(triangles(uncut) * .2);
+        if (CAR_CABINS[spec.id]?.copySeat) expect(surface(root) - surface(uncut)).toBeGreaterThan(.05);
+        else expect(Math.abs(surface(root) - surface(uncut)) / surface(uncut), `${spec.id} surface`).toBeLessThan(1e-5);
+      }
       if (bike) {
         // Measured contact points: seat between the wheels at riding height, grips ahead of it, pegs below/behind.
         const rig = root.userData.bike as BikeRig;

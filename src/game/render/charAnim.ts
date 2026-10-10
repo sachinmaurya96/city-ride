@@ -293,8 +293,3 @@ export function reachArm(rig: Rig, side: 1 | -1, target: THREE.Vector3, pole: TH
   fa.quaternion.setFromUnitVectors(f, vTmp);
   fa.updateWorldMatrix(false, false);
 }
-
-/** Vertical offset that puts the hip joint `aboveSeat` metres over a seat surface at y = 0. */
-export function seatedHipLift(rig: Rig, aboveSeat = 0.1) {
-  return aboveSeat - rig.P.joints[0].y;
-}

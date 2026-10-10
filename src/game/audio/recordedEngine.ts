@@ -33,10 +33,11 @@ export function engineProfile(spec: VehicleSpec): EngineProfile {
   if (bike) return { type: bike, recording: 'bikeSound2', bike: true, ...BIKE_VOICES[bike] };
   const type = spec.id === 'bmw_i8' ? 'hybrid' : spec.id === 'bmw_m4_gt3' ? 'race6' : EXTRA_BY_ID.get(spec.id)?.engine ?? (spec.kind === 'bus' ? 'diesel' : spec.kind === 'bike' || spec.kind === 'auto' ? 'bike' : 'petrol');
   const recording = type === 'diesel' ? 'diesel' : type === 'bike' ? 'bike' : spec.kind === 'car' ? 'supercar' : 'petrol';
-  return { type, recording: recording as Recording, idle: type === 'diesel' ? 650 : type === 'race6' ? 1100 : 850,
-    redline: type === 'diesel' ? 2500 : type === 'race6' ? 8000 : type === 'flat6' ? 7800 : 6500,
-    pitch: type === 'hybrid' ? .82 : type === 'v8' ? .68 : type === 'inline6' ? 1.04 : type === 'race6' ? 1.28 : 1,
-    gain: type === 'hybrid' ? .40 : type === 'diesel' ? .55 : type === 'race6' ? .62 : spec.kind === 'car' ? .52 : .27,
+  // v10: high-revving and bright; v12: smooth supercar; v12lux: hushed, low-revving limousine.
+  return { type, recording: recording as Recording, idle: type === 'diesel' ? 650 : type === 'race6' ? 1100 : type === 'v12lux' ? 600 : 850,
+    redline: type === 'diesel' ? 2500 : type === 'race6' ? 8000 : type === 'flat6' ? 7800 : type === 'v10' ? 8700 : type === 'v12' ? 7500 : type === 'v12lux' ? 5250 : 6500,
+    pitch: type === 'hybrid' ? .82 : type === 'v8' ? .68 : type === 'inline6' ? 1.04 : type === 'race6' ? 1.28 : type === 'v10' ? .92 : type === 'v12' ? .8 : type === 'v12lux' ? .6 : 1,
+    gain: type === 'hybrid' ? .40 : type === 'diesel' ? .55 : type === 'race6' ? .62 : type === 'v12lux' ? .36 : spec.kind === 'car' ? .52 : .27,
     layers: recording === 'supercar' ? SUPERCAR_LAYERS : undefined };
 }
 

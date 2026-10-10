@@ -89,13 +89,17 @@ describe('asset compatibility and recorded engine selection', () => {
     expect(engineProfile(VEHICLES.porsche_718).recording).toBe('supercar');
     expect(engineProfile(VEHICLES.bmw_i8).recording).toBe('supercar');
     expect(engineProfile(VEHICLES.supercar).recording).toBe('supercar');
-    expect(engineProfile(VEHICLES.western_star).recording).toBe('diesel');
+    expect(engineProfile(VEHICLES.bus_long).recording).toBe('diesel');
     // Both superbikes play the start-to-ride-away recording, each with its own tuning, gearing and EQ.
     expect(engineProfile(VEHICLES.bike_basic).recording).toBe('bikeSound2');
     expect(engineProfile(VEHICLES.ducati_v4r).recording).toBe('bikeSound2');
     expect(engineProfile(VEHICLES.ducati_v4r).pitch).toBeLessThan(engineProfile(VEHICLES.bike_basic).pitch);
     expect(engineProfile(VEHICLES.ducati_v4r).tone).not.toEqual(engineProfile(VEHICLES.bike_basic).tone);
     expect(engineProfile(VEHICLES.bmw_i8).pitch).not.toBe(engineProfile(VEHICLES.bmw_m4_gt3).pitch);
-    expect(engineProfile(VEHICLES.western_star).redline).toBeLessThan(engineProfile(VEHICLES.supra_a80).redline);
+    expect(engineProfile(VEHICLES.bus_long).redline).toBeLessThan(engineProfile(VEHICLES.supra_a80).redline);
+    // The Audi's V10 revs highest; the Ghost's V12 is the calm, low-revving luxury voice, unlike the One-77's.
+    expect(engineProfile(VEHICLES.audi_r8_gt).redline).toBeGreaterThan(engineProfile(VEHICLES.aston_one77).redline);
+    expect(engineProfile(VEHICLES.rolls_ghost).redline).toBeLessThan(engineProfile(VEHICLES.aston_one77).redline);
+    expect(engineProfile(VEHICLES.rolls_ghost).gain).toBeLessThan(engineProfile(VEHICLES.aston_one77).gain);
   });
 });

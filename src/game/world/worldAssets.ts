@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { loadGlb, releaseGlb } from '../render/glbAssets';
 
-export type WorldPack = 'buildings' | 'skyline' | 'forest' | 'palms' | 'bananas' | 'roads' | 'petrol';
+export type WorldPack = 'buildings' | 'skyline' | 'forest' | 'palms' | 'bananas' | 'roads' | 'petrol' | 'billboards';
 export const WORLD_URLS: Record<WorldPack, string> = {
   buildings: new URL('../../../assets/optimized/world/city-building-pack.glb', import.meta.url).href,
   skyline: new URL('../../../assets/optimized/world/night-city-building-pack.glb', import.meta.url).href,
@@ -11,16 +11,68 @@ export const WORLD_URLS: Record<WorldPack, string> = {
   bananas: new URL('../../../assets/optimized/world/banana-tree-pack.glb', import.meta.url).href,
   roads: new URL('../../../assets/optimized/world/road-pack.glb', import.meta.url).href,
   petrol: new URL('../../../assets/optimized/world/hp-petrol-pump.glb', import.meta.url).href,
+  billboards: new URL('../../../assets/optimized/world/billboard.glb', import.meta.url).href,
 };
 export interface WorldModel { name: string; size: THREE.Vector3; parts: { geometry: THREE.BufferGeometry; material: THREE.Material }[] }
 export const worldAssets = new Map<WorldPack, WorldModel[]>();
 let task: Promise<void> | null = null;
 
+/**
+ * The billboard pack is three identical structures standing diagonally in one frame mesh, each with its own ad
+ * panel. Give every frame triangle to the nearest panel (top view), then turn each structure so its ad faces +Z.
+ */
+function splitBillboards(scene: THREE.Group): THREE.Group[] {
+  const world = (mesh: THREE.Mesh) => { const g = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone(); g.applyMatrix4(mesh.matrixWorld); return g; };
+  const meshes: THREE.Mesh[] = []; scene.traverse(o => { if (o instanceof THREE.Mesh) meshes.push(o); });
+  const frame = meshes.reduce((a, b) => (a.geometry.index?.count ?? 0) > (b.geometry.index?.count ?? 0) ? a : b);
+  const panels = meshes.filter(m => m !== frame).map(mesh => {
+    const geometry = world(mesh), box = new THREE.Box3().setFromBufferAttribute(geometry.getAttribute('position') as THREE.BufferAttribute);
+    const p = geometry.getAttribute('position'), a = new THREE.Vector3().fromBufferAttribute(p, 0), b = new THREE.Vector3().fromBufferAttribute(p, 1), c = new THREE.Vector3().fromBufferAttribute(p, 2);
+    const normal = new THREE.Vector3().crossVectors(b.sub(a), c.sub(a)).setY(0).normalize();
+    // Panel edge in the top view: perpendicular to its normal through the centre.
+    const centre = box.getCenter(new THREE.Vector3()), along = new THREE.Vector3(-normal.z, 0, normal.x), half = Math.hypot(box.max.x - box.min.x, box.max.z - box.min.z) / 2;
+    return { mesh, geometry, box, normal, centre, along, half, frame: [] as number[] };
+  });
+  const frameGeometry = world(frame), fp = frameGeometry.getAttribute('position'), v = new THREE.Vector3();
+  for (let t = 0; t < fp.count / 3; t++) {
+    v.set((fp.getX(t * 3) + fp.getX(t * 3 + 1) + fp.getX(t * 3 + 2)) / 3, 0, (fp.getZ(t * 3) + fp.getZ(t * 3 + 1) + fp.getZ(t * 3 + 2)) / 3);
+    let best = 0, distance = Infinity;
+    panels.forEach((panel, i) => {
+      const dx = v.x - panel.centre.x, dz = v.z - panel.centre.z, u = THREE.MathUtils.clamp(dx * panel.along.x + dz * panel.along.z, -panel.half, panel.half);
+      const d = Math.hypot(dx - panel.along.x * u, dz - panel.along.z * u); if (d < distance) { distance = d; best = i; }
+    });
+    panels[best].frame.push(t);
+  }
+  return panels.map((panel, i) => {
+    // The service walkway runs along the front, below the ad: that side is the one people should read.
+    let side = 0; const below = panel.box.min.y;
+    for (const t of panel.frame) {
+      v.set(0, 0, 0); for (let k = 0; k < 3; k++) v.add(new THREE.Vector3().fromBufferAttribute(fp, t * 3 + k).divideScalar(3));
+      if (v.y < below && v.y > below - (panel.box.max.y - below) * .4) side += v.sub(panel.centre).setY(0).dot(panel.normal);
+    }
+    if (side < 0) panel.normal.negate();
+    const turn = new THREE.Matrix4().makeRotationY(-Math.atan2(panel.normal.x, panel.normal.z));
+    const group = new THREE.Group(); group.name = `billboard-${i}`;
+    const frameMesh = new THREE.Mesh(triangles(frameGeometry, panel.frame).applyMatrix4(turn), frame.material);
+    group.add(frameMesh, new THREE.Mesh(panel.geometry.applyMatrix4(turn), panel.mesh.material));
+    return group;
+  });
+}
+function triangles(geometry: THREE.BufferGeometry, list: number[]) {
+  const result = new THREE.BufferGeometry();
+  for (const [name, attribute] of Object.entries(geometry.attributes)) {
+    const values = new Float32Array(list.length * 3 * attribute.itemSize);
+    list.forEach((t, j) => { for (let k = 0; k < 3 * attribute.itemSize; k++) values[j * 3 * attribute.itemSize + k] = attribute.array[t * 3 * attribute.itemSize + k]; });
+    result.setAttribute(name, new THREE.BufferAttribute(values, attribute.itemSize, attribute.normalized));
+  }
+  return result;
+}
+
 /** Bake export transforms, remove display-layout offsets, and normalize each usable module to a unit box. */
 export function prepareWorldPack(scene: THREE.Group, pack: WorldPack): WorldModel[] {
   scene.updateMatrixWorld(true);
   const container = scene.getObjectByName(pack === 'palms' ? 'Palm_2' : 'RootNode');
-  const nodes = pack === 'petrol' ? [scene] : container?.children ?? [scene];
+  const nodes = pack === 'petrol' ? [scene] : pack === 'billboards' ? splitBillboards(scene) : container?.children ?? [scene];
   return nodes.filter(node => {
     if (pack === 'buildings') return node.name.startsWith('BACKGROUND_BUILDING');
     if (pack === 'forest') return node.name.startsWith('Background_Tree_Atlas') && new THREE.Box3().setFromObject(node).getSize(new THREE.Vector3()).y > 10;

@@ -57,6 +57,37 @@ test('supplied city packs and petrol pumps render, with filling only in the off-
   expect(errors).toEqual([]);
 });
 
+test('roadside billboards stand beyond the Ring Road hedge with the supplied ad artwork on both faces', async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 700 });
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  await boot(page, { clear: true }); await play(page);
+  // Outer lane of the northern Ring Road, driving east toward the billboard at x = -120.
+  await page.evaluate(() => window.__cr.runtime.requestRecovery({ x: -190, z: -485.5, heading: Math.PI / 2 }));
+  await expect.poll(() => page.evaluate(() => window.__cr.runtime.pendingRecovery)).toBeNull();
+  // Billboards stream in with the other decoration packs after the core city.
+  const board = () => page.evaluate(() => {
+    const scene = window.__cr.debug.extra.scene as THREE.Scene, out = { meshes: 0, textured: 0, visible: 0 };
+    scene.getObjectByName('resource-city')!.traverse(o => {
+      const mesh = o as THREE.InstancedMesh; if (!mesh.isInstancedMesh || mesh.userData.pack !== 'billboards') return;
+      out.meshes++; out.visible += mesh.count; if ((mesh.material as THREE.MeshStandardMaterial).map) out.textured++;
+    });
+    return out;
+  });
+  await expect.poll(async () => (await board()).visible, { timeout: 90000 }).toBeGreaterThan(0);
+  const loaded = await board();
+  // Three structures, each a frame plus its own ad: every part keeps its texture.
+  expect(loaded.meshes).toBe(6); expect(loaded.textured).toBe(6);
+  // Square to the road: eastbound traffic reads one face, westbound the other.
+  for (const [name, cam] of [['front', { x: -150, y: 2.2, z: -486, tx: -120, ty: 5, tz: -505 }], ['back', { x: -90, y: 2.2, z: -482, tx: -120, ty: 5, tz: -505 }],
+    ['verge', { x: -150, y: 9, z: -470, tx: -120, ty: 3, tz: -505 }]] as const) {
+    await page.evaluate((cam) => { window.__cr.debug.cam = cam; }, cam);
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: `test-results/billboard-${name}.png` });
+  }
+  await page.evaluate(() => { window.__cr.debug.cam = null; });
+  expect(errors).toEqual([]);
+});
+
 test.describe('mobile pump', () => {
   test.use({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
   test('₹60 full-tank confirmation fits touch screens and fills on credit with zero cash', async ({ page }) => {

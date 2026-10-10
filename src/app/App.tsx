@@ -29,6 +29,7 @@ import { fmt } from '../i18n/strings';
 import { lazyOverlay } from '../ui/lazy';
 import { KeyHint } from '../ui/KeyHint';
 import { SHORTCUTS } from '../game/input/input';
+import { ownLocalCars } from './localCars';
 
 const GarageOverlay = lazyOverlay(() => import('../ui/Garage').then((m) => m.GarageOverlay));
 const DailyOverlay = lazyOverlay(() => import('../ui/Daily').then((m) => m.DailyOverlay));
@@ -155,6 +156,7 @@ export function App() {
         const lang = platform().getLanguage();
         if (lang) s = { ...s, settings: { ...s.settings, language: lang.toLowerCase().startsWith('ru') ? 'ru' : 'en' } };
       }
+      if (import.meta.env.DEV) s = ownLocalCars(s, window.location.hostname);
       useGame.getState().commit(s, false);
       st.setBoot(4);
       // Hold the cover for its full 3 s so the progress bar completes instead of flashing past.

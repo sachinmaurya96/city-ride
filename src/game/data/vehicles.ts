@@ -471,18 +471,14 @@ const BASE_VEHICLES = {
 
 /** Showroom prices (₹, all under 10,000) for the imported cars; NPC-only models are never sold. */
 const EXTRA_PRICES: Partial<Record<ExtraVehicleId, number>> = {
-  classic_sport: 2000, fast_72: 3000, western_star: 4000, supra_a80: 4500, mustang_rtr: 5500, porsche_718: 6500,
-  lambo_lp670: 8000, black_huracan: 8500, mclaren_p1: 9000, mercedes_maybach: 9500, rolls_spectre: 9900,
+  bmw_m3_gtr: 4000, supra_a80: 4500, mustang_rtr: 5500, audi_r8_gt: 6000, porsche_718: 6500, amg_gt_mansory: 7000,
+  bmw_m4_widebody: 7800, lambo_lp670: 8000, black_huracan: 8500, aston_one77: 8800, mclaren_p1: 9000, naran_hyper: 9200,
+  mercedes_maybach: 9500, rolls_ghost: 9900,
 };
 
 function extraSpec(car: typeof EXTRA_CARS[number]): VehicleSpec {
   const heavy = car.height > 2.4;
   const wheels = fourWheels(car.width * .8, car.wheelbase, car.radius, heavy ? .4 : .28);
-  if (car.id === 'western_star') {
-    wheels.physics.forEach((w) => { w.z += .6; });
-    wheels.visual.forEach((w) => { w.z += .6; });
-    wheels.visual.push(...wheels.visual.slice(2).map((w) => ({ ...w, z: w.z - 1.32 })));
-  }
   return {
     id: car.id, name: car.name, nameRu: car.name, kind: 'car', importedModel: car.id,
     npcOnly: car.id === 'police_car' || car.id.startsWith('pack_'),

@@ -1,4 +1,4 @@
-import { INTERSECTIONS, type Dir, type Intersection } from '../data/cityMap';
+import type { Dir, Intersection } from '../data/cityMap';
 
 // Authoritative signal controller (plan §10.2). Signal meshes, AI permission, pedestrian crossing
 // permission and red-light violation detection all read phaseAt(); nothing keeps its own copy.
@@ -50,5 +50,3 @@ export function lightFor(n: Intersection, d: Dir, simTime: number): Light {
   const p = phaseAt(n, simTime);
   return p[axisOf(d)];
 }
-
-export const INTERSECTION_INDEX = new Map(INTERSECTIONS.map((n) => [n.id, n]));

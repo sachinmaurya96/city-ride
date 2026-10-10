@@ -1,4 +1,4 @@
-import { BLOCKS, CROSSWALK_GAP, CROSSWALK_WIDTH, CURB_HEIGHT, DIR_VEC, INTERSECTIONS, OUTGOING, lineClass, roadHalfWidth, type Block, type Intersection } from '../data/cityMap';
+import { BLOCKS, CROSSWALK_GAP, CROSSWALK_WIDTH, DIR_VEC, INTERSECTIONS, OUTGOING, lineClass, roadHalfWidth, type Block, type Intersection } from '../data/cityMap';
 import { mulberry32 } from '../core/rng';
 import { runtime } from '../core/runtime';
 import { phaseAt } from '../traffic/signals';
@@ -239,4 +239,3 @@ export class PedestrianSystem {
 }
 
 export const pedestrians = new PedestrianSystem();
-export const PED_Y = CURB_HEIGHT;

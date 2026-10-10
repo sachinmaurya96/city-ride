@@ -3,7 +3,7 @@ import { chromium } from '@playwright/test';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 
 const url = process.env.E2E_URL ?? 'http://localhost:4190/';
-const cars = (process.env.CARS ?? (process.env.THUMB ? 'bike_basic,bmw_i8,bmw_m4_gt3,lambo_lp670,black_huracan,mclaren_p1,mustang_rtr,rolls_spectre,porsche_718,supra_a80,western_star,fast_72,classic_sport' : 'bmw_m4_gt3,black_huracan,porsche_718,mclaren_p1')).split(',');
+const cars = (process.env.CARS ?? (process.env.THUMB ? 'bike_basic,bmw_i8,bmw_m4_gt3,lambo_lp670,black_huracan,mclaren_p1,mustang_rtr,porsche_718,supra_a80,mercedes_maybach,amg_gt_mansory,naran_hyper,aston_one77,audi_r8_gt,bmw_m4_widebody,bmw_m3_gtr,rolls_ghost' : 'bmw_m4_gt3,black_huracan,porsche_718,mclaren_p1')).split(',');
 // THUMB=1 writes small garage-card thumbnails instead of full splash covers.
 const thumb = !!process.env.THUMB, dir = thumb ? 'src/assets/thumbs' : 'src/assets/splash';
 const [outW, outH] = thumb ? [400, 225] : [960, 540];

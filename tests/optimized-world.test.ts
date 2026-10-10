@@ -3,7 +3,7 @@ import { expect, it } from 'vitest';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
 const worldFiles = new Set(['city-building-pack', 'night-city-building-pack', 'forest-tree-pack', 'palm-tree-pack',
-  'banana-tree-pack', 'road-pack', 'hp-petrol-pump']);
+  'banana-tree-pack', 'road-pack', 'hp-petrol-pump', 'billboard']);
 async function asset(path: string) {
   const bytes = await readFile(new URL(`../assets/${path}.glb`, import.meta.url));
   const length = bytes.readUInt32LE(12);
