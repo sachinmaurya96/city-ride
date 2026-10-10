@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { FUEL_TANK_PRICE } from '../data/economy';
 import {
   BAYS,
   BLOCKS,
@@ -865,7 +866,7 @@ export function buildCity(): CityBuild {
     chunks.push({ id: station.id, center: new THREE.Vector3(x, 0, z), radius: 40, merged: builder.build(), batches: new BatchSet() });
     const horizontal = Math.abs(lx) < .5;
     platformBoxes.push({ x, y: CURB_HEIGHT / 2, z, hx: horizontal ? 17 : 19, hy: CURB_HEIGHT / 2, hz: horizontal ? 19 : 17, ry: 0 });
-    ctx.signs.push({ text: '⛽ FREE · FULL TANK', x: station.x + lx * 7, y: 3.5, z: station.z + lz * 7, ry: station.pumpHeading,
+    ctx.signs.push({ text: `⛽ FULL TANK · ₹${FUEL_TANK_PRICE}`, x: station.x + lx * 7, y: 3.5, z: station.z + lz * 7, ry: station.pumpHeading,
       w: 9, h: 1.2, bg: '#ed693c', fg: '#ffffff' });
   }
   const markings = buildMarkings(ctx);

@@ -3,30 +3,31 @@ import { autopilot, boot, completeRide, fixture, play, state, waitStage } from '
 
 // Plan §21.2 flow 2 (buy auto → equip → group-capable ride → reload) and Phase 6 exit (bus tiers complete routes).
 
-test('buy the City Auto, equip it, complete a ride, keep it after reload', async ({ page }) => {
+test('buy the Classic Sport, drive it, complete a ride, keep it after reload', async ({ page }) => {
   await boot(page, { clear: true });
   await fixture(page, { wallet: 2500, xp: 400, jobs: 3 }); // level 3, enough cash (test fixture)
   await page.click('[data-testid=menu-garage]');
-  await page.click('[data-testid=vcard-auto_city]');
+  await page.click('[data-testid=vcard-classic_sport]');
+  await expect(page.getByTestId('vcard-auto_city')).toHaveCount(0);
   await page.click('[data-testid=buy]');
   await page.click('[data-testid=confirm-yes]');
   // a second click on a stale button cannot buy twice
   await expect(page.locator('[data-testid=buy]')).toHaveCount(0);
-  await page.click('[data-testid=equip]');
-  await page.click('[data-testid=garage-close]');
+  await expect(page.getByTestId('vehicle-preview')).toHaveAttribute('data-model-state', 'ready', { timeout: 60000 });
+  await page.click('[data-testid=try-car]'); // equips and closes the garage
   let s = await page.evaluate(() => (window as unknown as { __cr: { store: { getState(): { save: { wallet: number; ownedVehicleIds: string[]; equippedVehicleId: string } } } } }).__cr.store.getState().save);
-  expect(s.wallet).toBe(700);
-  expect(s.ownedVehicleIds).toEqual(['bike_basic', 'auto_city']);
-  expect(s.equippedVehicleId).toBe('auto_city');
+  expect(s.wallet).toBe(500);
+  expect(s.ownedVehicleIds).toEqual(['bike_basic', 'classic_sport']);
+  expect(s.equippedVehicleId).toBe('classic_sport');
   await play(page);
   await completeRide(page);
   const after = await state(page);
-  expect(after.wallet).toBeGreaterThan(700);
+  expect(after.wallet).toBeGreaterThan(500);
   await page.click('[data-testid=next-ride]');
   await boot(page);
   s = await page.evaluate(() => (window as unknown as { __cr: { store: { getState(): { save: { wallet: number; ownedVehicleIds: string[]; equippedVehicleId: string } } } } }).__cr.store.getState().save);
-  expect(s.ownedVehicleIds).toEqual(['bike_basic', 'auto_city']);
-  expect(s.equippedVehicleId).toBe('auto_city');
+  expect(s.ownedVehicleIds).toEqual(['bike_basic', 'classic_sport']);
+  expect(s.equippedVehicleId).toBe('classic_sport');
   expect(s.wallet).toBe(after.wallet);
 });
 

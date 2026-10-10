@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { readAsset } from './assets';
 import { VEHICLES, VEHICLE_ORDER, isPlayableVehicleId } from '../src/game/data/vehicles';
-import { EXTRA_BY_ID } from '../src/game/data/importedCatalog';
-import { prepareImportedModel, calibratedVehicleSpec } from '../src/game/render/importedVehicles';
+import { BIKE_MODELS, CAR_CABINS, EXTRA_BY_ID } from '../src/game/data/importedCatalog';
+import { prepareImportedBike, prepareImportedModel, calibratedVehicleSpec, type BikeRig } from '../src/game/render/importedVehicles';
 import { prepareCharacter, createAvatar, animateAvatar, reachAvatarArm } from '../src/game/render/importedCharacters';
 import { cabinLayout, seatedCharacterFit } from '../src/game/vehicles/cabin';
 import { createCharacterMesh, PLAYER_LOOK, PLAYER_LOOK_FEMALE } from '../src/game/render/characters';
@@ -33,14 +33,34 @@ describe('actual supplied asset geometry', () => {
   for (const spec of Object.values(VEHICLES).filter(s => s.importedModel)) {
     it(`${spec.id}: preserves geometry and keeps rotating tires bounded around their hubs`, async () => {
       const extra = EXTRA_BY_ID.get(spec.id);
-      const file = extra?.file ?? (spec.id === 'bmw_i8' ? 'bmw_i8.glb' : '2025_bmw_m4_gt3_evo_g82.glb');
+      const bike = BIKE_MODELS[spec.id as keyof typeof BIKE_MODELS];
+      const file = bike?.file ?? extra?.file ?? (spec.id === 'bmw_i8' ? 'bmw_i8.glb' : '2025_bmw_m4_gt3_evo_g82.glb');
       const { scene } = await asset(file);
       const source = extra && 'node' in extra ? scene.getObjectByName(extra.node)! : scene;
       const originalTriangles = triangles(source);
-      const root = prepareImportedModel(source as THREE.Group, spec);
+      const root = bike ? prepareImportedBike(source as THREE.Group, spec) : prepareImportedModel(source as THREE.Group, spec);
       prepared.set(spec.id, root);
       expect(triangles(root)).toBeGreaterThan(100);
-      if (spec.id !== 'western_star') expect(triangles(root)).toBe(originalTriangles);
+      // The truck bakes a skinned copy; the Maybach drops its 12-triangle showroom box; the M4 GT3's single race
+      // seat is mirrored as a copy for the passenger side (mirroring the cockpit itself adds or loses nothing).
+      if (spec.id === 'mercedes_maybach') expect(originalTriangles - triangles(root)).toBeLessThanOrEqual(36);
+      else if (CAR_CABINS[spec.id]?.copySeat) { expect(triangles(root) - originalTriangles).toBeGreaterThan(500); expect(triangles(root) - originalTriangles).toBeLessThan(3000); }
+      else if (spec.id !== 'western_star') expect(triangles(root)).toBe(originalTriangles);
+      if (bike) {
+        // Measured contact points: seat between the wheels at riding height, grips ahead of it, pegs below/behind.
+        const rig = root.userData.bike as BikeRig;
+        expect(rig.hip.y).toBeGreaterThan(.6); expect(rig.hip.y).toBeLessThan(1.05);
+        expect(rig.grips[0].x).toBeGreaterThan(.15); expect(rig.grips[1].x).toBeLessThan(-.15);
+        for (const g of rig.grips) expect(g.z).toBeGreaterThan(rig.hip.z);
+        for (const p of rig.pegs) { expect(p.y).toBeLessThan(rig.hip.y - .35); expect(p.z).toBeLessThan(rig.hip.z + .05); }
+        // The automatic detection (used for bikes without measurements) lands within 4 cm of the measured points.
+        const auto = prepareImportedBike(source.clone(true) as THREE.Group, spec, { useCatalogRig: false }).userData.bike as BikeRig;
+        expect(auto.hip.distanceTo(rig.hip), `${spec.id} seat`).toBeLessThan(.06);
+        for (const i of [0, 1]) {
+          expect(auto.grips[i].distanceTo(rig.grips[i]), `${spec.id} grip ${i}`).toBeLessThan(.04);
+          expect(auto.pegs[i].distanceTo(rig.pegs[i]), `${spec.id} peg ${i}`).toBeLessThan(.04);
+        }
+      }
       if (spec.npcOnly) {
         expect(VEHICLE_ORDER).not.toContain(spec.id);
         expect(isPlayableVehicleId(spec.id)).toBe(false);
@@ -57,7 +77,7 @@ describe('actual supplied asset geometry', () => {
         expect(size.y / size.z, `${spec.id} wheel ${i} roundness`).toBeGreaterThan(.8);
         expect(size.y / size.z, `${spec.id} wheel ${i} roundness`).toBeLessThan(1.2);
         expect(size.y).toBeLessThan(spec.wheelRadius * 2.9);
-        if (i < calibrated.wheels.physics.length) {
+        if (spec.kind === 'car' && i < calibrated.wheels.physics.length) {
           expect(calibrated.wheels.physics[i].x).toBeCloseTo(wheel.position.x);
           expect(calibrated.wheels.physics[i].z).toBeCloseTo(wheel.position.z);
         }
@@ -88,7 +108,8 @@ describe('actual supplied asset geometry', () => {
         const label = `${id}/${character.name}`;
         expect(scale, label).toBeGreaterThan(character.name.includes('fallback') ? .3 : .75);
         expect(hipY + (bounds.max.y - character.hip) * scale, label).toBeLessThanOrEqual(cabin.roofY - .039);
-        expect(hipY + (bounds.min.y - character.hip) * scale, label).toBeGreaterThanOrEqual(cabin.floorY + .019);
+        // Measured cabins plant the feet on the footwell floor by IK (see cabins.test.ts); others fit the hanging legs.
+        if (!cabin.measured) expect(hipY + (bounds.min.y - character.hip) * scale, label).toBeGreaterThanOrEqual(cabin.floorY + .019);
         expect(cabin.seatX + Math.max(Math.abs(bounds.min.x), Math.abs(bounds.max.x)) * scale * widthScale, label).toBeLessThanOrEqual(spec.width * .48 + .001);
       }
     }

@@ -52,9 +52,10 @@ describe('character rig', () => {
       const ys = [BONE.footL, BONE.footR].map((b) => rig.bones[b].getWorldPosition(v).y);
       lowest.push(Math.min(...ys));
     }
-    // ankle joints of the stance foot stay at ankle height (no floating / sinking) within 2.5 cm
+    // The lower ankle never sinks into the ground; it only rises as the heel lifts over the ball of the foot
+    // late in stance (rolling heel to toe), never floating off the ground.
     const ankle = rig.P.ankleH;
-    for (const y of lowest.slice(30)) expect(Math.abs(y - ankle)).toBeLessThan(0.025);
+    for (const y of lowest.slice(30)) { expect(y - ankle).toBeGreaterThan(-0.01); expect(y - ankle).toBeLessThan(0.06); }
     expect(st.speed).toBeGreaterThan(1.1);
   });
   it('arm IK puts the hand on the steering grip', () => {

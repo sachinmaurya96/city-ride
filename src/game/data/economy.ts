@@ -1,6 +1,9 @@
 // Economy, XP, satisfaction and enforcement parameters (plan §9.5, §10.4, §11, §12.3, §13).
 // All values are initial design parameters — tune here, not in systems.
 
+/** Flat price (₹) of a full tank for any vehicle. */
+export const FUEL_TANK_PRICE = 60;
+
 export const ECONOMY = {
   fareBase: 80,
   farePerMeter: 0.45,

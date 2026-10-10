@@ -7,7 +7,9 @@ import { MeshoptEncoder } from 'meshoptimizer';
 // Chromium's native WebP encoder preserves transparency without a runtime decoder dependency.
 const worldFiles = new Set(['city-building-pack', 'night-city-building-pack', 'forest-tree-pack', 'palm-tree-pack',
   'banana-tree-pack', 'road-pack', 'hp-petrol-pump']);
-const files = (await readdir('assets/glb-files')).filter(file => file.endsWith('.glb')).map(file => file.slice(0, -4));
+// ONLY=a,b limits the run to those files (new models) instead of re-optimizing everything.
+const only = process.env.ONLY?.split(',');
+const files = (await readdir('assets/glb-files')).filter(file => file.endsWith('.glb')).map(file => file.slice(0, -4)).filter(name => !only || only.includes(name));
 await MeshoptEncoder.ready;
 const output = resolve('assets/optimized');
 await mkdir(output, { recursive: true });

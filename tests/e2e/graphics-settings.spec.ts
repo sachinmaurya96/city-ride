@@ -3,6 +3,8 @@ import type * as THREE from 'three';
 import { play, waitStage } from './helpers';
 
 test.setTimeout(180000);
+// The touch landscape lock enters fullscreen on tap, which would block viewport resizing in tests.
+test.beforeEach(({ page }) => page.addInitScript(() => { Element.prototype.requestFullscreen = () => Promise.reject(new Error('disabled in tests')); }));
 
 async function graphics(page: Page) {
   return page.evaluate(() => {

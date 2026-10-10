@@ -6,6 +6,8 @@ import { VEHICLES } from '../game/data/vehicles';
 import { runtime } from '../game/core/runtime';
 import { vehicleEntry } from '../game/vehicles/entry';
 import { audio } from '../game/audio/audio';
+import { KeyHint } from './KeyHint';
+import { SHORTCUTS } from '../game/input/input';
 
 export type ControlPreset = 'joystick' | 'pedals';
 
@@ -29,6 +31,7 @@ interface Props {
 export function TouchControls({ preset, showTouch, canRecover, reversing, onCamera, onHorn, onRecover, labels }: Props) {
   const layer = useRef<HTMLDivElement>(null);
   const joyHome = useRef<HTMLDivElement>(null);
+  const lastTouchTap = useRef(-Infinity);
   const owners = useRef(new Map<number, { role: 'joy' | 'cam' | 'steer' | 'door'; ox: number; oy: number; lx: number; ly: number; radius: number; started: number }>());
   const [joy, setJoy] = useState<{ bx: number; by: number; kx: number; ky: number } | null>(null);
   const [hint, setHint] = useState(true);
@@ -154,10 +157,19 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
     onPointerCancel: () => on(false),
     onLostPointerCapture: () => on(false),
   });
+  // Browsers synthesize no click while another finger is down (e.g. holding the joystick),
+  // so touch fires on pointerdown; the click that may follow is ignored. Mouse/keyboard keep onClick.
   const tap = (fn: () => void) => ({
-    onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+    onPointerDown: (e: React.PointerEvent) => {
+      e.stopPropagation();
+      if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+      e.preventDefault();
+      lastTouchTap.current = performance.now();
+      fn();
+    },
     onClick: (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (performance.now() - lastTouchTap.current < 600) return;
       fn();
     },
   });
@@ -198,29 +210,29 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
       )}
       <div className={`util-buttons ${showTouch ? '' : 'desktop'}`}>
         <button className="util" aria-label={labels.horn} title={`${labels.horn} (H)`} {...tap(onHorn)}>
-          <ControlIcon name="horn" /><span>{labels.horn}</span>
+          <ControlIcon name="horn" /><span>{labels.horn}</span><KeyHint k={SHORTCUTS.horn} />
         </button>
         <button className="util" aria-label={labels.camera} title={`${labels.camera} (C)`} {...tap(onCamera)}>
-          <ControlIcon name="camera" /><span>{labels.camera}</span>
+          <ControlIcon name="camera" /><span>{labels.camera}</span><KeyHint k={SHORTCUTS.camera} />
         </button>
         <button className="util" data-testid="sound-toggle" aria-label={muted ? t.unmute : t.mute} aria-pressed={muted} {...tap(() => { useGame.getState().updateSettings({ muted: !muted }); audio.unlock(); })}>
-          <ControlIcon name={muted ? 'muted' : 'sound'} /><span>{t.audio}</span>
+          <ControlIcon name={muted ? 'muted' : 'sound'} /><span>{t.audio}</span><KeyHint k={SHORTCUTS.mute} />
         </button>
         {VEHICLES[vehicleId as keyof typeof VEHICLES]?.kind === 'car' && (
           <button className="util door-control" data-testid="car-door" aria-label={driverMode === 'outside' ? t.getIn : t.getOut} title={`${t.doorHint} (F)`} disabled={doorBusy} {...tap(() => input.emit('door'))}>
-            <ControlIcon name="door" /><span>{driverMode === 'outside' ? t.getIn : t.getOut}</span>
+            <ControlIcon name="door" /><span>{driverMode === 'outside' ? t.getIn : t.getOut}</span><KeyHint k={SHORTCUTS.door} />
           </button>
         )}
         {canRecover && (
           <button className="util recover" aria-label={labels.recover} title={`${labels.recover} (R)`} {...tap(onRecover)}>
-            <ControlIcon name="recover" /><span>{labels.recover}</span>
+            <ControlIcon name="recover" /><span>{labels.recover}</span><KeyHint k={SHORTCUTS.recover} />
           </button>
         )}
       </div>
       {driverMode !== 'outside' && (
         <button className="power-brake" data-testid="power-brake" aria-label={t.powerBrake} title={`${t.powerBrakeHint} (Space / Shift)`} {...hold((v) => (input.brakeButton = v))}>
           <ControlIcon name="brake" /><span>{t.powerBrake}</span>
-          {!showTouch && <kbd>Space / Shift</kbd>}
+          <KeyHint k={SHORTCUTS.brake} />
         </button>
       )}
       {drifting && <div className="drift-badge" aria-live="polite">DRIFT</div>}

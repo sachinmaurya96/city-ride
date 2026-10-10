@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { FuelTank, FuelSystem, FUEL } from '../src/game/vehicles/fuel';
+import { FuelTank, FuelSystem, FUEL, chargeFullTank, fuelBill } from '../src/game/vehicles/fuel';
 import { createDefaultSave, defaultSettings, validateSave } from '../src/storage/schema';
 import { FUEL_STATIONS, SEGMENT_BY_ID, segmentPoint, laneOffset } from '../src/game/data/cityMap';
 import { runtime } from '../src/game/core/runtime';
@@ -74,11 +74,24 @@ describe('free pump refueling and empty-tank navigation', () => {
     system.dismiss(); system.step(10);
     expect(useGame.getState().overlay).toBeNull(); expect(useGame.getState().save.wallet).toBe(0); expect(system.percent).toBe(20);
   });
-  it.each([0, 300, 5000])('fills to 100%% with cash %i and never charges, including duplicate confirmation', wallet => {
+  it.each([0, 300, 5000])('fills to 100%% with cash %i, charging ₹60 or recording it as due, with no duplicate confirmation', wallet => {
     const system = pump(wallet); expect(system.fillTank()).toBe(true);
     expect(system.percent).toBe(100); expect(useGame.getState().save.fuelByVehicle.car_compact).toBe(100);
-    expect(useGame.getState().save.wallet).toBe(wallet); expect(system.fillTank()).toBe(false);
+    expect(useGame.getState().save.wallet).toBe(Math.max(0, wallet - 60));
+    expect(useGame.getState().save.fuelDebt).toBe(wallet >= 60 ? 0 : 60);
+    expect(system.fillTank()).toBe(false);
     system.step(5); expect(useGame.getState().overlay).toBeNull();
+  });
+  it('charges earlier unpaid fuel on the next refuel, carrying over whatever cash cannot cover', () => {
+    const base = useGame.getState().save;
+    let s = chargeFullTank({ ...base, wallet: 0, fuelDebt: 0, transactionHistory: [] }, 'car_compact', 1);
+    expect(s).toMatchObject({ wallet: 0, fuelDebt: 60 });
+    expect(fuelBill({ ...s, wallet: 100 })).toMatchObject({ total: 120, paid: 100, owed: 20 });
+    s = chargeFullTank({ ...s, wallet: 100 }, 'car_compact', 2);
+    expect(s).toMatchObject({ wallet: 0, fuelDebt: 20 });
+    s = chargeFullTank({ ...s, wallet: 500 }, 'car_compact', 3);
+    expect(s).toMatchObject({ wallet: 420, fuelDebt: 0 });
+    expect(s.transactionHistory.filter(t => t.kind === 'fuel').map(t => t.cash)).toEqual([-100, -80]);
   });
   it('does not offer filling on the travel lane or curb parking strip', () => {
     const system = pump(), station = FUEL_STATIONS[0], seg = SEGMENT_BY_ID.get(station.segmentId)!;

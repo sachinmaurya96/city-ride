@@ -3,6 +3,7 @@ import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { loadGlb } from './glbAssets';
 import type { SeatDynamics, SeatPose } from './charAnim';
+import { WALK, footAt, smooth } from './gait';
 
 export type CharacterId = 'male' | 'female' | 'lynae' | 'cartethyia';
 export const CHARACTER_NAMES: Record<CharacterId, string> = { male: 'Male Rover', female: 'Female Rover', lynae: 'Lynae', cartethyia: 'Cartethyia' };
@@ -145,6 +146,11 @@ export interface Avatar {
   root: THREE.Group; bones: Partial<Record<Joint, THREE.Bone>>; rest: Map<THREE.Bone, THREE.Quaternion>; hipHeight: number; phase: number; gait: number; footDown: number;
   hipRest: THREE.Vector3; footHeight: number; orientations: Partial<Record<Joint, THREE.Quaternion>>;
   sleeves: THREE.Bone[];
+  /** Walking: smoothed ground speed (m/s), current step length (m) and a clock for breathing. */
+  speed: number; step: number; time: number;
+  /** Rest pose in avatar space: pelvis, hip joints (L, R) and hip → ankle length. */
+  legs: { pelvis: THREE.Vector3; hip: [THREE.Vector3, THREE.Vector3]; length: number };
+  female: boolean;
 }
 export function createAvatar(template: THREE.Group, id: CharacterId): Avatar {
   const root = clone(template) as THREE.Group; root.updateMatrixWorld(true);
@@ -157,7 +163,11 @@ export function createAvatar(template: THREE.Group, id: CharacterId): Avatar {
   const orientations: Avatar['orientations'] = {}, inverse = root.getWorldQuaternion(new THREE.Quaternion()).invert();
   for (const key of ['footL', 'footR', 'head'] as const) if (bones[key]) orientations[key] = bones[key]!.getWorldQuaternion(new THREE.Quaternion()).premultiply(inverse);
   const footHeight = Math.min(...(['footL', 'footR'] as const).map(key => root.worldToLocal(bones[key]!.getWorldPosition(new THREE.Vector3())).y));
-  return { root, bones, rest, hipHeight, phase: 0, gait: 0, footDown: 0, hipRest: bones.hips!.position.clone(), footHeight, orientations, sleeves };
+  const at = (bone: THREE.Object3D) => root.worldToLocal(bone.getWorldPosition(new THREE.Vector3()));
+  const hip = [at(bones.thighL!), at(bones.thighR!)] as [THREE.Vector3, THREE.Vector3];
+  const length = Math.min(...(['L', 'R'] as const).map((side, i) => hip[i].distanceTo(at(bones[`calf${side}`]!)) + at(bones[`calf${side}`]!).distanceTo(at(bones[`foot${side}`]!))));
+  return { root, bones, rest, hipHeight, phase: 0, gait: 0, footDown: 0, hipRest: bones.hips!.position.clone(), footHeight, orientations, sleeves,
+    speed: 0, step: .1, time: 0, legs: { pelvis: at(bones.hips!), hip, length }, female: id !== 'male' };
 }
 export function useCharacter(id: CharacterId | null) {
   const state = useSyncExternalStore(subscribe, () => id ? states.get(id) ?? loading : null);
@@ -169,13 +179,24 @@ export function useCharacter(id: CharacterId | null) {
 
 const from = new THREE.Vector3(), to = new THREE.Vector3(), direction = new THREE.Vector3();
 const worldQ = new THREE.Quaternion(), parentQ = new THREE.Quaternion(), deltaQ = new THREE.Quaternion();
-const avatarPoint = new THREE.Vector3(), lift = new THREE.Vector3(), rotationX = new THREE.Quaternion(), rotationY = new THREE.Quaternion(), X_AXIS = new THREE.Vector3(1, 0, 0), Y_AXIS = new THREE.Vector3(0, 1, 0);
-function orientFoot(avatar: Avatar, key: 'footL' | 'footR', roll: number) {
-  const bone = avatar.bones[key], bind = avatar.orientations[key]; if (!bone || !bind) return;
+const rotationX = new THREE.Quaternion(), rotationY = new THREE.Quaternion(), X_AXIS = new THREE.Vector3(1, 0, 0), Y_AXIS = new THREE.Vector3(0, 1, 0);
+function orientFoot(avatar: Avatar, key: 'footL' | 'footR' | 'head', roll: number, weight = 1) {
+  const bone = avatar.bones[key], bind = avatar.orientations[key]; if (!bone || !bind || weight <= 0) return;
   rotationX.setFromAxisAngle(X_AXIS, roll);
   avatar.root.getWorldQuaternion(worldQ).multiply(rotationX).multiply(bind);
+  bone.parent!.getWorldQuaternion(parentQ).invert(); parentQ.multiply(worldQ);
+  if (weight < 1) bone.quaternion.slerp(parentQ, weight); else bone.quaternion.copy(parentQ);
+  bone.updateWorldMatrix(false, true);
+}
+/** Rotate a bone about an axis of the avatar's own frame (world-space delta), e.g. pelvis yaw or thorax twist. */
+function turnInAvatar(avatar: Avatar, key: Joint, axis: THREE.Vector3, angle: number) {
+  const bone = avatar.bones[key]; if (!bone || !angle) return;
+  avatar.root.getWorldQuaternion(worldQ); rotationY.setFromAxisAngle(axis, angle);
+  deltaQ.copy(worldQ).multiply(rotationY).multiply(parentQ.copy(worldQ).invert());
+  bone.getWorldQuaternion(worldQ).premultiply(deltaQ);
   bone.parent!.getWorldQuaternion(parentQ).invert(); bone.quaternion.copy(parentQ.multiply(worldQ)); bone.updateWorldMatrix(false, true);
 }
+
 /** Aim in avatar space, allowing native and generated rigs to share poses. */
 function aim(avatar: Avatar, key: Joint, end: Joint, x: number, y: number, z: number) {
   direction.set(x, y, z).normalize().applyQuaternion(avatar.root.getWorldQuaternion(worldQ));
@@ -188,30 +209,95 @@ function aimWorld(avatar: Avatar, key: Joint, end: Joint, desired: THREE.Vector3
   bone.getWorldQuaternion(worldQ).premultiply(deltaQ);
   bone.parent!.getWorldQuaternion(parentQ).invert(); bone.quaternion.copy(parentQ.multiply(worldQ)); bone.updateWorldMatrix(false, true);
 }
+const ankles = [new THREE.Vector3(), new THREE.Vector3()], footPitch = [0, 0], legTarget = new THREE.Vector3(), legPole = new THREE.Vector3(), pelvisPoint = new THREE.Vector3();
+const LEG_KEYS = ['thighL', 'calfL', 'footL', 'thighR', 'calfR', 'footR'] as const;
+const seatedLegs = LEG_KEYS.map(() => new THREE.Quaternion()), legRootQ = new THREE.Quaternion();
+const Z_AXIS = new THREE.Vector3(0, 0, 1);
 export function animateAvatar(avatar: Avatar, dt: number, moved: number, sit: number, reach = 0, crouch = 0, wave = false, driver = false, pose: SeatPose = 'car', dynamics?: SeatDynamics) {
   avatar.rest.forEach((q, bone) => bone.quaternion.copy(q));
   avatar.bones.hips!.position.copy(avatar.hipRest);
-  avatar.phase = (avatar.phase + Math.min(.25, moved) * 7) % (Math.PI * 2);
-  const targetGait = Math.min(1, dt > 0 ? moved / dt / 1.4 : 0) * (1 - sit);
-  avatar.gait += (targetGait - avatar.gait) * (1 - Math.exp(-dt * 12));
-  const gait = avatar.gait;
+  avatar.time += dt;
+  // Locomotion: speed from the distance actually covered (in avatar units); steps lengthen with speed
+  // (short steps when shuffling, ~0.7 m at a brisk 1.3 m/s) and the phase advances with distance.
+  const units = Math.min(.25, moved) / (avatar.root.scale.y || 1), legs = avatar.legs, female = avatar.female;
+  avatar.speed += ((dt > 0 ? Math.min(4, units / dt) : 0) - avatar.speed) * (1 - Math.exp(-dt * 6));
+  avatar.step += (THREE.MathUtils.clamp(.08 + .45 * avatar.speed, .08, .9) * legs.length / .8 - avatar.step) * (1 - Math.exp(-dt * 5));
+  avatar.phase = (avatar.phase + units / (2 * avatar.step)) % 1;
+  const stand = 1 - smooth(sit / .3), w = smooth(avatar.speed / .8) * stand;
+  avatar.gait = w;
   const bend = Math.min(1, sit + crouch * .6);
   const bike = pose === 'bike' || pose === 'pillion';
   avatar.footDown += ((pose === 'bike' && dynamics && Math.abs(dynamics.speed) < .6 ? 1 : 0) - avatar.footDown) * Math.min(1, dt * 4);
-  const lean = crouch * .65 + (bike ? .42 : pose === 'car' ? .26 : .1) * sit + (dynamics ? THREE.MathUtils.clamp(-dynamics.longAccel * .022, -.12, .14) : 0);
-  const sway = Math.sin(avatar.phase) * gait * .035;
-  aim(avatar, 'spine', 'head', sway + (dynamics && !bike ? THREE.MathUtils.clamp(-dynamics.lateralAccel * .014, -.11, .11) : 0), 1, lean);
-  for (const side of ['L', 'R'] as const) {
-    const sign = side === 'L' ? 1 : -1; const swing = Math.sin(avatar.phase + (sign > 0 ? 0 : Math.PI)) * gait;
+  const control = dynamics?.control;
+  // Gait targets: each foot's ankle and pitch; the pelvis sways over the stance foot, rotates with the swing
+  // leg, drops on the swing side, and rides as high as both legs allow (the bob of an inverted pendulum).
+  const toStance = Math.cos(2 * Math.PI * (avatar.phase - WALK.duty / 2));
+  const yaw = -.075 * w * Math.cos(2 * Math.PI * avatar.phase), roll = (female ? .07 : .045) * w * toStance, pelvisX = (female ? .03 : .022) * w * toStance;
+  let drop = 0;
+  if (stand > 0) {
+    for (const i of [0, 1]) {
+      footPitch[i] = footAt((avatar.phase + i * .5) % 1, avatar.step, w, avatar.footHeight, ankles[i]);
+      ankles[i].x = legs.hip[i].x * (female ? .74 : .9);
+      const hip = legs.hip[i], limb = legs.length * .985, dx = ankles[i].x - hip.x - pelvisX, dz = ankles[i].z - hip.z;
+      drop = Math.min(drop, ankles[i].y + Math.sqrt(Math.max(0, limb * limb - dx * dx - dz * dz)) - hip.y);
+    }
+    // Knees stay soft through mid-stance (flattening the bob); ducking into a car bends them; standing, a slow breath.
+    drop = Math.min(drop, -.01 - .025 * w) - crouch * .2 + Math.sin(avatar.time * 1.7) * .004 * (1 - w);
+    const hips = avatar.bones.hips!;
+    pelvisPoint.copy(legs.pelvis).add(legTarget.set(pelvisX, drop, 0).multiplyScalar(stand));
+    avatar.root.localToWorld(pelvisPoint); hips.position.copy(hips.parent!.worldToLocal(pelvisPoint));
+    hips.updateWorldMatrix(false, true);
+    turnInAvatar(avatar, 'hips', Y_AXIS, yaw * stand); turnInAvatar(avatar, 'hips', Z_AXIS, roll * stand);
+  }
+  // Car occupants recline with the seat back (the driver leans in only as far as the wheel needs: extraLean).
+  const lean = crouch * .65 + (bike ? .42 : pose === 'car' ? -.3 : .1) * sit + (dynamics ? THREE.MathUtils.clamp(-dynamics.longAccel * .022, -.12, .14) : 0)
+    + (control ? control.drive * (bike ? .07 : .04) * sit : 0) + (dynamics?.extraLean ?? 0) * sit + (.05 * w + Math.sin(avatar.time * 1.7) * .012 * (1 - w)) * stand;
+  // Riders fold from the hips: pitch the pelvis forward too, otherwise only the chest leans and the
+  // shoulders stay too high for low clip-on bars (leg IK re-plants the feet afterwards).
+  const fold = bike ? THREE.MathUtils.clamp((dynamics?.extraLean ?? 0) * .4, -.1, .6) * sit : 0;
+  if (fold) turnInAvatar(avatar, 'hips', X_AXIS, fold);
+  // +X is the character's left: lean the upper body into the steering direction (walking: over the stance foot).
+  aim(avatar, 'spine', 'head', .02 * w * toStance + (dynamics && !bike ? THREE.MathUtils.clamp(-dynamics.lateralAccel * .014, -.11, .11) : 0)
+    - (control ? control.steer * (bike ? .12 : .08) * sit : 0), 1, lean);
+  // The thorax counter-rotates against the pelvis so the shoulders stay square.
+  turnInAvatar(avatar, 'spine', Y_AXIS, -yaw * 1.6 * stand);
+  // A tucked rider still looks ahead: keep the head level instead of following the folded spine; walkers too.
+  if (bike && sit > .5 && lean > .5) orientFoot(avatar, 'head', Math.min(.35, (lean - .5) * .3));
+  else if (pose === 'car' && sit > 0) {
+    // Eyes on the road: head level, glancing into the turn.
+    orientFoot(avatar, 'head', .06, sit * .9);
+    turnInAvatar(avatar, 'head', Y_AXIS, -(control?.steer ?? 0) * .3 * sit);
+  }
+  else if (!wave) orientFoot(avatar, 'head', .05 * w, stand * .85);
+  if (stand < 1) for (const side of ['L', 'R'] as const) {
+    const sign = side === 'L' ? 1 : -1;
     const footDown = side === 'L' && bike ? avatar.footDown * sit : 0;
-    const stride = swing * .68, knee = Math.max(0, -swing) * .9;
-    aim(avatar, `thigh${side}`, `calf${side}`, bike ? sign * sit * (.26 + footDown * .16) : sign * gait * .015, -Math.cos(stride) * (1 - bend) - .04 - (bike ? .45 * sit + footDown * .6 : 0), bend * (1 - footDown * .6) + Math.sin(stride) * (1 - bend));
+    aim(avatar, `thigh${side}`, `calf${side}`, bike ? sign * sit * (.26 + footDown * .16) : 0, -(1 - bend) - .04 - (bike ? .45 * sit + footDown * .6 : 0), bend * (1 - footDown * .6));
     // In a car the feet extend into the footwell, rather than hanging vertically below the seat.
-    aim(avatar, `calf${side}`, `foot${side}`, 0, -Math.cos(knee) * (1 - (pose === 'car' ? .58 : 0) * sit), (pose === 'car' ? 1.05 * sit : -(bike ? .35 * sit * (1 - footDown) : 0)) - Math.sin(knee) * (1 - sit));
-    orientFoot(avatar, `foot${side}`, Math.max(0, -swing) * .16 * (1 - sit));
+    aim(avatar, `calf${side}`, `foot${side}`, 0, -(1 - (pose === 'car' ? .58 : 0) * sit), pose === 'car' ? 1.05 * sit : -(bike ? .35 * sit * (1 - footDown) : 0));
+    orientFoot(avatar, `foot${side}`, 0);
+  }
+  if (stand > 0) {
+    if (stand < 1) LEG_KEYS.forEach((key, i) => seatedLegs[i].copy(avatar.bones[key]!.quaternion));
+    avatar.root.getWorldQuaternion(legRootQ);
+    for (const i of [0, 1]) {
+      const side = i ? -1 : 1;
+      legTarget.copy(ankles[i]); avatar.root.localToWorld(legTarget);
+      reachAvatarLeg(avatar, side, legTarget, legPole.set(side * .12, 0, 1).normalize().applyQuaternion(legRootQ), footPitch[i]);
+    }
+    if (stand < 1) {
+      LEG_KEYS.forEach((key, i) => avatar.bones[key]!.quaternion.copy(seatedLegs[i].slerp(avatar.bones[key]!.quaternion, stand)));
+      avatar.bones.hips!.updateWorldMatrix(false, true);
+    }
+  }
+  // Arms counter-swing to the legs (left arm forward with the right leg), elbows bending more on the way forward.
+  const armSwing = (female ? .26 : .34) * w;
+  for (const side of ['L', 'R'] as const) {
+    const sign = side === 'L' ? 1 : -1, forward = sign * Math.cos(2 * Math.PI * (avatar.phase - .5));
+    const a = armSwing * forward, elbow = stand * (.16 + .1 * w + .3 * Math.max(0, forward) * w);
     const handReach = side === 'L' ? reach : 0;
-    aim(avatar, `upper${side}`, `fore${side}`, sign * (.12 + handReach * .25), -1 + sit * .65 + handReach * .9, sit * (driver ? .8 : .45) + handReach - swing * .3);
-    aim(avatar, `fore${side}`, `hand${side}`, 0, -1 + sit * .75 + handReach, sit * .75 + handReach + .12);
+    aim(avatar, `upper${side}`, `fore${side}`, sign * (.12 + handReach * .25), -Math.cos(a) + sit * .65 + handReach * .9, Math.sin(a) + sit * (driver ? .8 : .45) + handReach);
+    aim(avatar, `fore${side}`, `hand${side}`, 0, -Math.cos(a + elbow) + sit * .75 + handReach, Math.sin(a + elbow) + sit * .75 + handReach + .12);
   }
   if (wave) { aim(avatar, 'upperL', 'foreL', .5, .8, .1); aim(avatar, 'foreL', 'handL', .2, 1, .1); }
   // Long hanging sleeves fold into the lap when seated, so they do not dictate the body's height.
@@ -223,22 +309,16 @@ export function animateAvatar(avatar: Avatar, dt: number, moved: number, sit: nu
     deltaQ.slerp(worldQ, sit);
     bone.parent!.getWorldQuaternion(parentQ).invert(); bone.quaternion.copy(parentQ.multiply(deltaQ)); bone.updateWorldMatrix(false, true);
   }
-  if (gait > .001 && sit < 1) {
-    const minFoot = Math.min(...(['footL', 'footR'] as const).map(key => avatar.root.worldToLocal(avatar.bones[key]!.getWorldPosition(avatarPoint)).y));
-    lift.set(0, (avatar.footHeight - minFoot) * (1 - sit), 0).applyQuaternion(avatar.root.getWorldQuaternion(worldQ)).multiplyScalar(avatar.root.getWorldScale(avatarPoint).y);
-    const hip = avatar.bones.hips!; hip.getWorldPosition(from).add(lift); hip.position.copy(hip.parent!.worldToLocal(from));
-  }
   avatar.root.updateWorldMatrix(true, true);
 }
 
 const shoulder = new THREE.Vector3(), elbow = new THREE.Vector3(), hand = new THREE.Vector3(), axis = new THREE.Vector3(), poleDirection = new THREE.Vector3(), elbowTarget = new THREE.Vector3();
-/** Two-bone IK keeps imported riders' hands on moving handlebars and steering grips. */
-export function reachAvatarArm(avatar: Avatar, side: 1 | -1, target: THREE.Vector3, pole: THREE.Vector3) {
-  const suffix = side === 1 ? 'L' : 'R';
-  const upper = avatar.bones[`upper${suffix}`], fore = avatar.bones[`fore${suffix}`], wrist = avatar.bones[`hand${suffix}`];
-  if (!upper || !fore || !wrist) return;
+/** Two-bone IK: upper → mid → end reaches target, bending toward pole (elbows, knees). */
+function reachAvatarLimb(avatar: Avatar, upperKey: Joint, midKey: Joint, endKey: Joint, target: THREE.Vector3, pole: THREE.Vector3) {
+  const upper = avatar.bones[upperKey], mid = avatar.bones[midKey], end = avatar.bones[endKey];
+  if (!upper || !mid || !end) return;
   avatar.root.updateWorldMatrix(true, true);
-  upper.getWorldPosition(shoulder); fore.getWorldPosition(elbow); wrist.getWorldPosition(hand);
+  upper.getWorldPosition(shoulder); mid.getWorldPosition(elbow); end.getWorldPosition(hand);
   const a = shoulder.distanceTo(elbow), b = elbow.distanceTo(hand);
   axis.subVectors(target, shoulder); const distance = axis.length(); if (distance < 1e-5) return;
   axis.divideScalar(distance);
@@ -248,7 +328,25 @@ export function reachAvatarArm(avatar: Avatar, side: 1 | -1, target: THREE.Vecto
   if (poleDirection.lengthSq() < 1e-8) poleDirection.set(1, 0, 0).addScaledVector(axis, -axis.x);
   poleDirection.normalize();
   elbowTarget.copy(shoulder).addScaledVector(axis, a * cos).addScaledVector(poleDirection, a * Math.sqrt(1 - cos * cos));
-  direction.subVectors(elbowTarget, shoulder).normalize(); aimWorld(avatar, `upper${suffix}`, `fore${suffix}`, direction);
-  fore.getWorldPosition(elbow);
-  direction.subVectors(target, elbow).normalize(); aimWorld(avatar, `fore${suffix}`, `hand${suffix}`, direction);
+  direction.subVectors(elbowTarget, shoulder).normalize(); aimWorld(avatar, upperKey, midKey, direction);
+  mid.getWorldPosition(elbow);
+  direction.subVectors(target, elbow).normalize(); aimWorld(avatar, midKey, endKey, direction);
+}
+/** Two-bone IK keeps imported riders' hands on moving handlebars and steering grips. */
+export function reachAvatarArm(avatar: Avatar, side: 1 | -1, target: THREE.Vector3, pole: THREE.Vector3) {
+  const s = side === 1 ? 'L' : 'R';
+  reachAvatarLimb(avatar, `upper${s}`, `fore${s}`, `hand${s}`, target, pole);
+}
+/** Feet onto footpegs (or the road when stopped), knees toward pole; the foot then sits flat, toes forward. */
+export function reachAvatarLeg(avatar: Avatar, side: 1 | -1, target: THREE.Vector3, pole: THREE.Vector3, toeRoll = 0) {
+  const s = side === 1 ? 'L' : 'R';
+  reachAvatarLimb(avatar, `thigh${s}`, `calf${s}`, `foot${s}`, target, pole);
+  orientFoot(avatar, `foot${s}`, toeRoll);
+}
+/** Shoulder position (world) and full arm length, for posture controllers. */
+export function avatarArm(avatar: Avatar, side: 1 | -1, out: THREE.Vector3) {
+  const s = side === 1 ? 'L' : 'R', upper = avatar.bones[`upper${s}`], fore = avatar.bones[`fore${s}`], wrist = avatar.bones[`hand${s}`];
+  if (!upper || !fore || !wrist) return 0;
+  upper.getWorldPosition(out); fore.getWorldPosition(elbow); wrist.getWorldPosition(hand);
+  return out.distanceTo(elbow) + elbow.distanceTo(hand);
 }

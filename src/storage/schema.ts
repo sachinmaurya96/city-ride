@@ -163,6 +163,9 @@ export const SaveSchema = z.object({
   upgradesByVehicle: z.record(z.string(), UpgradeLevelsSchema),
   paintByVehicle: z.record(z.string(), z.string().regex(/^#[0-9a-fA-F]{6}$/)),
   fuelByVehicle: z.record(z.string(), z.number().min(0).max(100)).default({}),
+  /** Unpaid fuel (₹), charged on top of the next refuel. */
+  fuelDebt: counter.default(0),
+  welcomeBonusClaimed: z.boolean().default(false),
   lifetime: LifetimeSchema,
   recentRatings: z.array(z.number().min(1).max(5)).max(20),
   tutorial: TutorialSchema,
@@ -230,6 +233,8 @@ export function createDefaultSave(now: number, dayKey: string, settings: GameSet
     upgradesByVehicle: {},
     paintByVehicle: {},
     fuelByVehicle: {},
+    fuelDebt: 0,
+    welcomeBonusClaimed: false,
     lifetime: { jobs: 0, busRoutes: 0, passengers: 0, distanceM: 0, fareCredits: 0, finesPaid: 0, cleanRides: 0, highestLevel: 1, captures: 0 },
     recentRatings: [],
     tutorial: { controlsSeen: false, firstRideDone: false, skipped: false },

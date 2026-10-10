@@ -9,7 +9,8 @@ test('first play load time', async ({ page }) => {
   await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: 40, downloadThroughput: 20e6 / 8, uploadThroughput: 5e6 / 8 });
   await page.addInitScript(() => { Element.prototype.requestFullscreen = () => Promise.reject(new Error('test')); });
   const sizes: string[] = [];
-  page.on('requestfinished', async r => { const b = (await r.sizes()).responseBodySize; if (b > 50000) sizes.push(`${Math.round(b / 1024)}KB ${r.url().split('/').pop()}`); });
+  // Late responses may finish after the page closes; their sizes are only informational.
+  page.on('requestfinished', async r => { const b = (await r.sizes().catch(() => null))?.responseBodySize ?? 0; if (b > 50000) sizes.push(`${Math.round(b / 1024)}KB ${r.url().split('/').pop()}`); });
   const t0 = Date.now();
   await page.goto('/');
   await page.waitForSelector('[data-testid=play]', { timeout: 120000 });

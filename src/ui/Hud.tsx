@@ -9,6 +9,8 @@ import { busDoor } from '../game/missions/bus';
 import { VEHICLES } from '../game/data/vehicles';
 import { fuel, FUEL } from '../game/vehicles/fuel';
 import { ControlIcon } from './ControlIcon';
+import { KeyHint } from './KeyHint';
+import { SHORTCUTS } from '../game/input/input';
 
 /** Poll a value from the simulation at a limited rate (never per-frame React updates). */
 export function usePoll<T>(fn: () => T, ms = 100, eq: (a: T, b: T) => boolean = Object.is): T {
@@ -154,9 +156,9 @@ function FuelGauge() {
       <div className="fuel-label"><span>⛽ {f.percent === 0 ? t.fuelEmpty : low ? t.fuelLow : t.fuel}</span><b>{f.percent}%</b></div>
       <div className="fuel-track" role="progressbar" aria-label={t.fuel} aria-valuemin={0} aria-valuemax={100} aria-valuenow={f.percent}><i style={{ width: `${f.percent}%` }} /></div>
       {f.refilling ? <small>{t.refueling}</small> : f.inBay ? <small>{t.stopToRefuel}</small> : low && f.name ? <small>{f.name} · {meters(f.distance)}</small> : null}
-      {f.percent === 0 && !f.inBay && <button onClick={() => fuel.navigateToPump()} data-testid="navigate-fuel">{t.navigateToFuel}</button>}
-      {f.percent === 0 && !f.inBay && f.navigating && <button onClick={() => fuel.towToPump()} data-testid="tow-fuel">{t.towToFuel}</button>}
-      {f.percent < 100 && f.inBay && <button onClick={() => fuel.openPump()} data-testid="open-fuel">{t.refuel}</button>}
+      {f.percent === 0 && !f.inBay && <button onClick={() => fuel.navigateToPump()} data-testid="navigate-fuel">{t.navigateToFuel}<KeyHint k={SHORTCUTS.fuel} /></button>}
+      {f.percent === 0 && !f.inBay && f.navigating && <button onClick={() => fuel.towToPump()} data-testid="tow-fuel">{t.towToFuel}<KeyHint k={SHORTCUTS.fuel} /></button>}
+      {f.percent < 100 && f.inBay && <button onClick={() => fuel.openPump()} data-testid="open-fuel">{t.refuel}<KeyHint k={SHORTCUTS.fuel} /></button>}
     </div>
   );
 }
@@ -313,11 +315,11 @@ export function OfferCard() {
       </div>
       <div className="offer-actions">
         <button className="btn primary" onClick={() => rides.accept(offer.id)} data-testid="accept">
-          {t.accept} <kbd>E</kbd>
+          {t.accept}<KeyHint k={SHORTCUTS.accept} />
         </button>
         {!offer.tutorial && (
           <button className="btn ghost" onClick={() => rides.decline()} data-testid="decline">
-            {t.decline}
+            {t.decline}<KeyHint k={SHORTCUTS.decline} />
           </button>
         )}
       </div>
@@ -355,8 +357,10 @@ export function Hud({ onPause, tutorial }: { onPause: () => void; tutorial?: Rea
       </div>
       <div className="hud-top-right">
         <Minimap />
+        <kbd className="key-hint map-key" aria-hidden>{SHORTCUTS.map}</kbd>
         <button className="pause-btn" aria-label={t.paused} onClick={onPause} data-testid="pause">
           <ControlIcon name="pause" />
+          <KeyHint k={SHORTCUTS.pause} />
         </button>
       </div>
       <div className="hud-instruments">

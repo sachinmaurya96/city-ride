@@ -1,4 +1,5 @@
-import { CAR_BOARD_SECONDS, CAR_ALIGHT_SECONDS, vehicleEntry } from '../vehicles/entry';
+import * as THREE from 'three';
+import { ALIGHT_WALK, BOARD_WALK, CAR_BOARD_SECONDS, CAR_ALIGHT_SECONDS, bayWaitPoint, passengerDoorPoint, vehicleEntry, walkTimedProgress } from '../vehicles/entry';
 import { BAYS, BAY_BY_ID, DIR_VEC, FUEL_STATIONS, LANDMARK_BY_ID, SEGMENT_BY_ID, garageSpawn, landmarkName, type Bay } from '../data/cityMap';
 import { VEHICLES, type VehicleId, type VehicleSpec } from '../data/vehicles';
 import { RIDE_TIMING, SATISFACTION } from '../data/economy';
@@ -119,12 +120,15 @@ export class RideSystem {
   private offerTimer = 4;
   private stopTimer = 0;
   private phaseTimer = 0;
+  /** Boarding/alighting clock stretched so the passenger walks the real distance at a natural pace. */
+  private timing = walkTimedProgress(CAR_BOARD_SECONDS, BOARD_WALK, 0);
   private navAcc = 0;
   private checkpointAcc = 0;
   private offRouteTime = 0;
   private lastReroute = 0;
   private harshCooldown = 0;
   private recent: string[] = [];
+  private recentNames: string[] = [];
   private rng: Rng = mulberry32((Date.now() & 0xffff) ^ 0x5eed);
   private counter = 0;
 
@@ -175,7 +179,7 @@ export class RideSystem {
     const st = useGame.getState();
     const save = st.save;
     const spec = this.spec;
-    if (spec.kind === 'bus') return null;
+    if (spec.kind === 'bus' || st.testDrive) return null;
     const level = levelForXP(save.totalXP);
     const rain = st.weather === 'rain';
     const seed = Math.floor(this.rng() * 1e9);
@@ -233,7 +237,7 @@ export class RideSystem {
         seed,
         pickup,
         drop,
-        passengerName: pick(rng, PASSENGER_NAMES),
+        passengerName: pick(rng, PASSENGER_NAMES.filter(n => !this.recentNames.includes(n))),
         avatar: Math.floor(rng() * AVATARS.length),
         partySize: party,
         rideType,
@@ -274,6 +278,7 @@ export class RideSystem {
     const spec = this.spec;
     if (o.partySize > spec.passengerSeats) return false;
     this.recent = [...this.recent, `${o.pickup.landmark}>${o.drop.landmark}`].slice(-4);
+    this.recentNames = [...this.recentNames, o.passengerName].slice(-8);
     this.mission = {
       id: o.id,
       kind: 'ride',
@@ -558,7 +563,13 @@ export class RideSystem {
           this.phaseTimer = 0;
           if (runtime.vehicle) runtime.vehicle.holdBrake = true;
           rideVisual.stopPose = { x: runtime.pose.x, z: runtime.pose.z, heading: runtime.pose.heading };
-          if (this.stage === 'TO_PICKUP') {
+          const car = this.spec.kind === 'car', board = this.stage === 'TO_PICKUP';
+          const door = passengerDoorPoint(this.spec, rideVisual.stopPose, new THREE.Vector3());
+          const curb = bayWaitPoint(bay, board ? -(Math.min(3, m.partySize) - 1) * .45 : 3, new THREE.Vector3());
+          this.timing = board
+            ? walkTimedProgress(car ? CAR_BOARD_SECONDS : RIDE_TIMING.boardTime, BOARD_WALK, door.distanceTo(curb))
+            : walkTimedProgress(car ? CAR_ALIGHT_SECONDS : RIDE_TIMING.alightTime, ALIGHT_WALK, door.distanceTo(curb), true);
+          if (board) {
             this.stage = 'BOARDING';
             rideVisual.boardProgress = 0;
           } else {
@@ -583,8 +594,8 @@ export class RideSystem {
       }
       case 'BOARDING': {
         this.phaseTimer += dt;
-        rideVisual.boardProgress = Math.min(1, this.phaseTimer / (VEHICLES[runtime.vehicleId].kind === 'car' ? CAR_BOARD_SECONDS : RIDE_TIMING.boardTime));
-        if (this.phaseTimer >= (VEHICLES[runtime.vehicleId].kind === 'car' ? CAR_BOARD_SECONDS : RIDE_TIMING.boardTime)) {
+        rideVisual.boardProgress = this.timing.progress(this.phaseTimer);
+        if (this.phaseTimer >= this.timing.total) {
           if (runtime.vehicle) runtime.vehicle.holdBrake = false;
           this.enterToDropoff(true);
         }
@@ -592,9 +603,9 @@ export class RideSystem {
       }
       case 'ALIGHTING': {
         this.phaseTimer += dt;
-        rideVisual.alightProgress = Math.min(1, this.phaseTimer / (VEHICLES[runtime.vehicleId].kind === 'car' ? CAR_ALIGHT_SECONDS : RIDE_TIMING.alightTime));
+        rideVisual.alightProgress = this.timing.progress(this.phaseTimer);
         rideVisual.onboard = rideVisual.alightProgress < (VEHICLES[runtime.vehicleId].kind === 'car' ? .46 : .15);
-        if (this.phaseTimer >= (VEHICLES[runtime.vehicleId].kind === 'car' ? CAR_ALIGHT_SECONDS : RIDE_TIMING.alightTime)) this.complete();
+        if (this.phaseTimer >= this.timing.total) this.complete();
         return;
       }
       case 'COMPLETED':

@@ -3,7 +3,7 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { BONE, createCharacterMesh, type Look } from './characters';
 import { animateLocomotion, newAnimState, poseSeated, reachArm, type SeatDynamics, type SeatPose } from './charAnim';
-import { animateAvatar, reachAvatarArm, useCharacter, type CharacterId } from './importedCharacters';
+import { animateAvatar, avatarArm, reachAvatarArm, reachAvatarLeg, useCharacter, type CharacterId } from './importedCharacters';
 import { MATERIALS } from './materials';
 import { runtime } from '../core/runtime';
 import { pauseManager } from '../core/pause';
@@ -16,6 +16,16 @@ export interface Actor {
   seatedBounds: THREE.Box3;
   animate: (dt: number, moved: number, sit: number, reach?: number, crouch?: number, wave?: boolean, dynamics?: SeatDynamics) => void;
   reachArm: (side: 1 | -1, target: THREE.Vector3, pole: THREE.Vector3, scale: number) => void;
+  /** Leg IK (imported characters; the loading fallback keeps its seated pose). */
+  reachLeg: (side: 1 | -1, target: THREE.Vector3, pole: THREE.Vector3, toeRoll?: number) => void;
+  /** Shoulder world position into out; returns arm length (0 when unknown). */
+  arm: (side: 1 | -1, out: THREE.Vector3) => number;
+  /** Ankle height above the sole at scale 1 (rest pose). */
+  footHeight: number;
+  /** Hip joint → ankle at scale 1. */
+  legLength: number;
+  /** World position of a wrist/ankle after the current pose; false while the loading stand-in is shown. */
+  limb: (key: 'handL' | 'handR' | 'footL' | 'footR', out: THREE.Vector3) => boolean;
 }
 /** One instance remains visible from the curb, through the doorway, onto the seat and back out. */
 export function CharacterActor({ id, look, name, driver = false, pose = 'car', frame }: { id: CharacterId | null; look: Look; name: string; driver?: boolean; pose?: SeatPose; frame: (actor: Actor, dt: number) => void }) {
@@ -38,6 +48,11 @@ export function CharacterActor({ id, look, name, driver = false, pose = 'car', f
     object.position.copy(position); object.quaternion.copy(rotation); object.scale.copy(scale);
     return { object, hipHeight: avatar?.hipHeight ?? fallback.rig.P.joints[0].y, seatedBounds, animate,
       reachArm: (side, target, pole, scale) => { if (avatar) reachAvatarArm(avatar, side, target, pole); else reachArm(fallback.rig, side, target, pole, scale); },
+      reachLeg: (side, target, pole, toeRoll) => { if (avatar) reachAvatarLeg(avatar, side, target, pole, toeRoll); },
+      arm: (side, out) => avatar ? avatarArm(avatar, side, out) : 0,
+      footHeight: avatar?.footHeight ?? .08,
+      legLength: avatar?.legs.length ?? .8,
+      limb: (key, out) => { const bone = avatar?.bones[key]; if (!bone) return false; bone.getWorldPosition(out); return true; },
     };
   }, [avatar, fallback, state, driver, pose]);
   actor.object.name = name; actor.object.userData.character = avatar ? id : 'original';

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { VehicleSpec } from '../data/vehicles';
-import { EXTRA_CARS, EXTRA_BY_ID } from '../data/importedCatalog';
+import { BIKE_MODELS, CAR_CABINS, EXTRA_CARS, EXTRA_BY_ID, carDoor, driverCabin, type CarCabin } from '../data/importedCatalog';
 import { loadGlb, releaseGlb } from './glbAssets';
 import { cabinLayout, doorPivot } from '../vehicles/cabin';
 
@@ -22,6 +22,9 @@ const urls: Record<string, string> = {
   ...Object.fromEntries(EXTRA_CARS.filter(car => car.id.startsWith('pack_')).map(car => [car.id, new URL('../../../assets/optimized/vehicles/traffic_racer_npc_vehicles_pack.glb', import.meta.url).href])),
   bmw_i8: new URL('../../../assets/optimized/vehicles/bmw_i8.glb', import.meta.url).href,
   bmw_m4_gt3: new URL('../../../assets/optimized/vehicles/2025_bmw_m4_gt3_evo_g82.glb', import.meta.url).href,
+  mercedes_maybach: new URL('../../../assets/optimized/vehicles/maercedes.glb', import.meta.url).href,
+  bike_basic: new URL('../../../assets/optimized/vehicles/ninjabike.glb', import.meta.url).href,
+  ducati_v4r: new URL('../../../assets/optimized/vehicles/ducativ4r.glb', import.meta.url).href,
 };
 
 type ModelState = { status: 'loading' | 'ready' | 'error'; model?: THREE.Group };
@@ -49,7 +52,7 @@ export function loadImportedModel(spec: VehicleSpec, retry = false): Promise<THR
       const extra = EXTRA_BY_ID.get(id);
       const selected = extra && 'node' in extra ? scene.getObjectByName(extra.node) : scene;
       if (!selected) throw new Error('Missing vehicle in traffic pack');
-      const model = prepareImportedModel(selected as THREE.Group, spec);
+      const model = spec.kind === 'bike' ? prepareImportedBike(selected as THREE.Group, spec) : prepareImportedModel(selected as THREE.Group, spec);
       states.set(id, { status: 'ready', model });
       const pack = extra && 'node' in extra;
       if (!pack || EXTRA_CARS.filter((car) => 'node' in car).every((car) => states.get(car.id)?.status === 'ready')) {
@@ -96,7 +99,64 @@ export function wheelSideGeometry(geometry: THREE.BufferGeometry, side: 1 | -1) 
   return result;
 }
 
-type Part = { geometry: THREE.BufferGeometry; material: THREE.Material; wheel: number | null; brake: boolean; door: number };
+type Part = { geometry: THREE.BufferGeometry; material: THREE.Material; wheel: number | null; brake: boolean; door: number; steer?: boolean };
+
+/** Mirror triangle t of a non-indexed geometry across x = 0, keeping its winding (front faces) and shading. */
+function mirrorTriangle(geometry: THREE.BufferGeometry, t: number) {
+  for (const [name, attribute] of Object.entries(geometry.attributes)) {
+    const i = t * 3, n = attribute.itemSize;
+    if (name === 'position' || name === 'normal' || name === 'tangent') for (let v = 0; v < 3; v++) {
+      attribute.setComponent(i + v, 0, -attribute.getComponent(i + v, 0));
+      if (name === 'tangent' && n > 3) attribute.setComponent(i + v, 3, -attribute.getComponent(i + v, 3));
+    }
+    // Swap the 2nd and 3rd vertex so the mirrored triangle still faces outward.
+    for (let c = 0; c < n; c++) { const tmp = attribute.getComponent(i + 1, c); attribute.setComponent(i + 1, c, attribute.getComponent(i + 2, c)); attribute.setComponent(i + 2, c, tmp); }
+    attribute.needsUpdate = true;
+  }
+}
+
+/**
+ * Left-hand-drive models in a keep-left city: mirror the front of the cockpit (dashboard, instruments, steering
+ * wheel, pedals) across the centre line in place, so the wheel sits ahead of the right-hand seat. Nothing is added
+ * or lost and the bodywork outside the cabin (badges, text) keeps its orientation. A single race seat is copied.
+ */
+export function mirrorCockpit(raw: { geometry: THREE.BufferGeometry }[], cabin: CarCabin, halfWidth: number) {
+  const [, wy, wz] = cabin.wheel.centre, inner = Math.min(halfWidth * .64 - .02, Math.abs(cabin.wheel.centre[0]) + .3);
+  const z0 = cabin.swapFrom ?? wz - .32, z1 = wz + 1.1, y0 = cabin.floor - .15, y1 = wy + cabin.wheel.radius + .22;
+  let mirrored = 0, copied = 0;
+  for (const part of raw) {
+    const p = part.geometry.getAttribute('position'), copies: number[] = [];
+    for (let t = 0; t < p.count / 3; t++) {
+      const i = t * 3, x = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, y = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3, z = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3;
+      if (Math.abs(x) < inner && y > y0 && y < y1 && z > z0 && z < z1) { mirrorTriangle(part.geometry, t); mirrored++; }
+      else if (cabin.copySeat && x > .08 && x < inner && y > y0 && y < 1.05 && z > cabin.copySeat[0] && z < cabin.copySeat[1]) copies.push(t);
+    }
+    if (copies.length) {
+      const copy = triangleSubset(part.geometry, copies);
+      for (let t = 0; t < copies.length; t++) mirrorTriangle(copy, t);
+      const merged = mergeGeometries([part.geometry, copy]);
+      if (merged) { part.geometry.dispose(); part.geometry = merged; copied += copies.length; }
+      copy.dispose();
+    }
+  }
+  return { mirrored, copied };
+}
+
+/** Point-in-polygon (even-odd) for a side-view door outline of (z, y) points. */
+export function insideOutline(z: number, y: number, outline: readonly (readonly [number, number])[]) {
+  let inside = false;
+  for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
+    const [zi, yi] = outline[i], [zj, yj] = outline[j];
+    if ((yi > y) !== (yj > y) && z < (zj - zi) * (y - yi) / (yj - yi) + zi) inside = !inside;
+  }
+  return inside;
+}
+
+/** The steering wheel's frame: origin at the rim centre, +Z toward the driver, +Y toward 12 o'clock. */
+export function steeringFrame(wheel: { centre: readonly number[]; normal: readonly number[] }) {
+  const z = new THREE.Vector3(...wheel.normal).normalize(), y = new THREE.Vector3(0, 1, 0).addScaledVector(z, -z.y).normalize();
+  return new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(y, z), y, z).setPosition(new THREE.Vector3(...wheel.centre));
+}
 
 /** Copy complete triangles so separating wheels and doors never changes the closed model. */
 export function triangleSubset(geometry: THREE.BufferGeometry, triangles: number[]) {
@@ -126,6 +186,8 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
     if (!(o instanceof THREE.Mesh)) return;
     // This truck contains a displaced static duplicate and a skinned copy. Bake only the latter.
     if (spec.id === 'western_star' && !(o instanceof THREE.SkinnedMesh)) return;
+    // The Maybach file ships inside a 10 m showroom box with light-streak planes; it is not part of the car.
+    if (spec.id === 'mercedes_maybach' && /frame/i.test((Array.isArray(o.material) ? o.material[0] : o.material).name)) return;
     const original = o.geometry.clone();
     if (o instanceof THREE.SkinnedMesh) {
       const positions = original.getAttribute('position');
@@ -162,6 +224,16 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
   const normalize = modelNormalization(bounds, spec.length);
   raw.forEach((p) => { p.geometry.applyMatrix4(normalize); p.geometry.computeBoundingBox(); });
   const size = bounds.getSize(new THREE.Vector3()).multiplyScalar(spec.length / bounds.getSize(point).z);
+  const measured = CAR_CABINS[spec.id], cabin = driverCabin(spec.id), measuredDoor = carDoor(spec.id);
+  if (measured?.lhd && !spec.npcOnly) mirrorCockpit(raw, measured, size.x / 2);
+  // The driver's steering wheel turns with the steering: its rim, spokes and hub become their own part.
+  const steerFrame = cabin && !spec.npcOnly ? steeringFrame(cabin.wheel) : null, steerInverse = steerFrame?.clone().invert();
+  const wheelLocal = new THREE.Vector3();
+  const onSteeringWheel = (x: number, y: number, z: number) => {
+    if (!steerInverse || !cabin) return false;
+    wheelLocal.set(x, y, z).applyMatrix4(steerInverse);
+    return Math.hypot(wheelLocal.x, wheelLocal.y) < cabin.wheel.radius + .035 && wheelLocal.z > -.05 && wheelLocal.z < .1;
+  };
   const wheelBounds = spec.wheels.visual.map(() => new THREE.Box3());
   const frontYaw: number[] = [];
   const parts: Part[] = [];
@@ -211,7 +283,7 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
   });
   for (const p of raw) {
     const a = p.geometry.getAttribute('position');
-    const groups = new Map<string, { wheel: number | null; door: number; triangles: number[] }>();
+    const groups = new Map<string, { wheel: number | null; door: number; steer: boolean; triangles: number[] }>();
     for (let i = 0; i < a.count; i += 3) {
       const x = (a.getX(i) + a.getX(i + 1) + a.getX(i + 2)) / 3;
       const y = (a.getY(i) + a.getY(i + 1) + a.getY(i + 2)) / 3;
@@ -230,16 +302,19 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
         const pivot = pivots[wheel];
         if (!pivot || Math.hypot(z - pivot.center.z, y - pivot.center.y) > pivot.radius * 1.08) wheel = null;
       }
-      const explicitDoor = /Door_[LR]|door(?:_|$)/i.test(p.name) && !/Indoor/i.test(p.name);
-      const inDoor = z > c.back && z < c.front && y > c.sill && y < spec.height * .94 && Math.abs(x) > size.x * .32;
+      const explicitDoor = !measuredDoor && /Door_[LR]|door(?:_|$)/i.test(p.name) && !/Indoor/i.test(p.name);
+      // Measured cars cut the panel along its traced seams (skin through inner trim); others use a box.
+      const inDoor = measuredDoor ? Math.abs(x) > measuredDoor.inner && insideOutline(z, y, measuredDoor.outline)
+        : z > c.back && z < c.front && y > c.sill && y < spec.height * .94 && Math.abs(x) > size.x * .32;
       const door = !spec.npcOnly && wheel === null && (explicitDoor || inDoor) ? (x > 0 ? 1 : -1) : 0;
-      const key = `${wheel}:${door}`;
-      const group = groups.get(key) ?? { wheel, door, triangles: [] }; group.triangles.push(i / 3); groups.set(key, group);
+      const steer = wheel === null && door === 0 && [0, 1, 2].every((v) => onSteeringWheel(a.getX(i + v), a.getY(i + v), a.getZ(i + v)));
+      const key = `${wheel}:${door}:${steer}`;
+      const group = groups.get(key) ?? { wheel, door, steer, triangles: [] }; group.triangles.push(i / 3); groups.set(key, group);
     }
     for (const group of groups.values()) {
       const geometry = triangleSubset(p.geometry, group.triangles);
       geometry.computeBoundingBox();
-      parts.push({ geometry, material: p.material, wheel: group.wheel, brake: p.brake, door: group.door });
+      parts.push({ geometry, material: p.material, wheel: group.wheel, brake: p.brake, door: group.door, steer: group.steer });
       if (group.wheel !== null && !p.brake) wheelBounds[group.wheel].union(geometry.boundingBox!);
     }
     // Retain the i8's factory front-wheel correction.
@@ -252,6 +327,9 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
   model.userData.dimensions = size.toArray();
   const body = new THREE.Group(); body.name = 'imported-body'; model.add(body);
   const doors = [1, -1].map((side) => { const door = new THREE.Group(); door.name = `vehicle-door-${side}`; door.position.copy(doorPivot(spec, side)); body.add(door); return door; });
+  const steering = new THREE.Group(); steering.name = 'steering-wheel';
+  // userData survives clone() only as JSON: keep the rest orientation as a plain array.
+  if (steerFrame) { steerFrame.decompose(steering.position, steering.quaternion, steering.scale); steering.userData.rest = steering.quaternion.toArray(); steering.userData.radius = cabin!.wheel.radius; body.add(steering); }
   const wheels = wheelBounds.map((bounds, i) => {
     const steer = new THREE.Group(); steer.name = `imported-wheel-${i}`;
     if (!bounds.isEmpty()) steer.position.copy(pivots[i].center);
@@ -267,6 +345,7 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
       const wheel = wheels[part.wheel]; part.geometry.translate(-wheel.steer.position.x, -wheel.steer.position.y, -wheel.steer.position.z);
       if (frontYaw[part.wheel]) part.geometry.rotateY(-frontYaw[part.wheel]); parent = part.brake ? wheel.steer : wheel.spin;
     } else if (part.door) { parent = doors[part.door > 0 ? 0 : 1]; part.geometry.translate(-parent.position.x, -parent.position.y, -parent.position.z); }
+    else if (part.steer && steerInverse) { parent = steering; part.geometry.applyMatrix4(steerInverse); }
     const key = `${parent.uuid}|${part.material.uuid}|${Object.keys(part.geometry.attributes).sort().join(',')}`;
     const batch = batches.get(key) ?? { parent, material: part.material, geometries: [] }; batch.geometries.push(part.geometry); batches.set(key, batch);
   }
@@ -280,9 +359,159 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
   model.updateMatrixWorld(true); return model;
 }
 
+export interface BikeRig { hip: THREE.Vector3; grips: [THREE.Vector3, THREE.Vector3]; pegs: [THREE.Vector3, THREE.Vector3]; steerZ: number }
+type RigPoint = readonly [number, number, number];
+const pair = ([x, y, z]: RigPoint) => [new THREE.Vector3(x, y, z), new THREE.Vector3(-x, y, z)] as [THREE.Vector3, THREE.Vector3];
+function catalogBikeRig(rig: { hip: RigPoint; grip: RigPoint; peg: RigPoint }, steerZ: number): BikeRig {
+  return { hip: new THREE.Vector3(...rig.hip), grips: pair(rig.grip), pegs: pair(rig.peg), steerZ };
+}
+
+/**
+ * Fallback for bikes without measured contact points, tuned on the supplied Ninja and Ducati:
+ * - seat: the dip in the top surface (sampled across triangles: seats are big flat panels) between tail and tank;
+ * - grips: the widest points 30–45 cm behind the front axle at about seat height (levers, fairing and mirrors sit further forward);
+ * - pegs: the widest pair present on both sides just below and behind the hip (exhausts are one-sided).
+ */
+export function detectBikeRig(raw: { geometry: THREE.BufferGeometry }[], size: THREE.Vector3, axle: number[], radius: number[]): BikeRig {
+  const L = size.z, top = new Float64Array(120).fill(-Infinity), z0 = axle[1] + radius[1] * .3, z1 = Math.min(.15, axle[0] - radius[0]);
+  const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), P = new THREE.Vector3();
+  for (const { geometry } of raw) {
+    const a = geometry.getAttribute('position');
+    for (let i = 0; i + 2 < a.count; i += 3) {
+      A.fromBufferAttribute(a, i); B.fromBufferAttribute(a, i + 1); C.fromBufferAttribute(a, i + 2);
+      if (Math.abs((A.x + B.x + C.x) / 3) > .1) continue;
+      for (let u = 0; u <= 1; u += .125) for (let v = 0; u + v <= 1; v += .125) {
+        P.copy(A).multiplyScalar(1 - u - v).addScaledVector(B, u).addScaledVector(C, v);
+        if (P.z <= z0 || P.z >= z1 || Math.abs(P.x) > .1) continue;
+        const bin = Math.min(119, Math.floor((P.z - z0) / (z1 - z0) * 120)); top[bin] = Math.max(top[bin], P.y);
+      }
+    }
+  }
+  let seat = -1; top.forEach((y, b) => { if (y > size.y * .45 && (seat < 0 || y < top[seat] - .004)) seat = b; });
+  // Riders sit at the front of the flat seat area, just behind the tank.
+  let front = seat; while (seat >= 0 && front + 1 < 120 && top[front + 1] > size.y * .45 && top[front + 1] < top[seat] + .015) front++;
+  const seatY = seat < 0 ? size.y * .7 : top[seat], seatZ = seat < 0 ? -L * .12 : z0 + (front + .5) / 120 * (z1 - z0) - .04;
+  const hip = new THREE.Vector3(0, seatY + .09, seatZ);
+  // Grips: outermost points in the clip-on window.
+  const grip = [{ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }];
+  // Pegs: per-side widest point in 1 cm (y, z) cells; keep cells wide on both sides.
+  const cells = [new Map<string, number>(), new Map<string, number>()];
+  for (const { geometry } of raw) {
+    const a = geometry.getAttribute('position');
+    for (let i = 0; i < a.count; i++) {
+      const x = a.getX(i), y = a.getY(i), z = a.getZ(i), s = x >= 0 ? 0 : 1, w = Math.abs(x);
+      if (z > axle[0] - .45 && z < axle[0] - .3 && y > seatY - .1 && y < seatY + .12 && w > grip[s].x) grip[s] = { x: w, y, z };
+      if (z > hip.z - .25 && z < hip.z + .05 && y > .25 && y < .5 && w > .15 && w < .34) {
+        const key = `${Math.round(y * 100)},${Math.round(z * 100)}`; cells[s].set(key, Math.max(cells[s].get(key) ?? 0, w));
+      }
+    }
+  }
+  let peg = new THREE.Vector3(.22, .38, hip.z - .05), best = 0;
+  cells[0].forEach((w, key) => {
+    const other = cells[1].get(key); if (other === undefined || Math.abs(other - w) > .03) return;
+    const [cy, cz] = key.split(',').map(Number), width = Math.min(w, other);
+    if (width > best) { best = width; peg = new THREE.Vector3(width - .035, cy / 100, cz / 100); }
+  });
+  // The hand sits on the grip a few centimetres inboard of the bar end.
+  const grips = grip.map((g, s) => g.x ? new THREE.Vector3((s ? -1 : 1) * (g.x - .035), g.y, g.z + .01) : new THREE.Vector3((s ? -1 : 1) * .32, seatY, axle[0] - .38)) as [THREE.Vector3, THREE.Vector3];
+  return { hip, grips, pegs: [peg, new THREE.Vector3(-peg.x, peg.y, peg.z)], steerZ: axle[0] - radius[0] * .9 };
+}
+
+/**
+ * Motorcycles arrive as unnamed meshes, so the wheels are found from the shape: the two ground-contact
+ * clusters give the axles, the tyre's fore/aft extent at axle height gives each radius. Seat and handlebar
+ * grips are measured too, so the rider sits on the real seat with hands on the real bars.
+ */
+export function prepareImportedBike(source: THREE.Group, spec: VehicleSpec, options: { useCatalogRig?: boolean } = {}) {
+  source.updateWorldMatrix(true, true);
+  const yaw = BIKE_MODELS[spec.id as keyof typeof BIKE_MODELS]?.yaw ?? 0;
+  const orientation = new THREE.Matrix4().makeRotationY(yaw);
+  const raw: { geometry: THREE.BufferGeometry; material: THREE.Material }[] = [];
+  const bounds = new THREE.Box3();
+  source.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const original = o.geometry.clone().applyMatrix4(o.matrixWorld).applyMatrix4(orientation);
+    const geometry = original.index ? original.toNonIndexed() : original;
+    if (geometry !== original) original.dispose();
+    geometry.computeBoundingBox(); bounds.union(geometry.boundingBox!);
+    raw.push({ geometry, material: Array.isArray(o.material) ? o.material[0] : o.material });
+  });
+  const normalize = modelNormalization(bounds, spec.length);
+  raw.forEach((p) => { p.geometry.applyMatrix4(normalize); p.geometry.computeBoundingBox(); });
+  const size = bounds.getSize(new THREE.Vector3()).multiplyScalar(spec.length / bounds.getSize(new THREE.Vector3()).z);
+  const guessR = spec.wheelRadius;
+  const each = (fn: (x: number, y: number, z: number) => void) => raw.forEach(({ geometry }) => {
+    const a = geometry.getAttribute('position'); for (let i = 0; i < a.count; i++) fn(a.getX(i), a.getY(i), a.getZ(i));
+  });
+  // Tyres are the front-most / rear-most low parts. The height of that tip above the tyre's bottom is the
+  // radius (the tip is level with the axle) and the axle sits one radius inside it. Kickstands, which can
+  // reach lower than the tyres, sit mid-bike and never form the tip.
+  const lowBand = guessR * 1.3, slim = size.x * .2;
+  const tips = [-Infinity, Infinity];
+  each((x, y, z) => { if (y < lowBand && Math.abs(x) < slim) { tips[0] = Math.max(tips[0], z); tips[1] = Math.min(tips[1], z); } });
+  const tipY = [{ y: 0, n: 0 }, { y: 0, n: 0 }], bottom = [Infinity, Infinity];
+  each((x, y, z) => {
+    if (Math.abs(x) >= slim) return;
+    tips.forEach((tip, k) => {
+      const inside = k ? z - tip : tip - z;
+      if (y < lowBand && inside < .012) { tipY[k].y += y; tipY[k].n++; }
+      if (inside >= 0 && inside < guessR * 2.4) bottom[k] = Math.min(bottom[k], y);
+    });
+  });
+  const radius = tipY.map((t, k) => THREE.MathUtils.clamp(t.n ? t.y / t.n - bottom[k] : guessR, guessR * .7, guessR * 1.45));
+  const axle = tips.map((tip, k) => tip + (k ? radius[k] : -radius[k]));
+  const centerY = radius.map((r, k) => bottom[k] === Infinity ? r : bottom[k] + r);
+  const centers = axle.map((z, i) => new THREE.Vector3(0, centerY[i], z));
+  // Tyre half-width, measured at the contact patch. Fork legs and brake calipers sit outside it, so only
+  // the tyre and rim spin (spinning the fork made it look bent).
+  const halfWidth = [0, 0];
+  each((x, y, z) => centers.forEach((c, k) => {
+    if (Math.abs(z - c.z) < radius[k] * .35 && y < c.y - radius[k] * .7 && Math.abs(x) < slim) halfWidth[k] = Math.max(halfWidth[k], Math.abs(x));
+  }));
+  halfWidth.forEach((w, k) => { halfWidth[k] = THREE.MathUtils.clamp(w * 1.12, .045, slim); });
+  const rig = options.useCatalogRig !== false && BIKE_MODELS[spec.id as keyof typeof BIKE_MODELS]?.rig;
+  const measured = rig ? catalogBikeRig(rig, axle[0] - radius[0] * .9) : detectBikeRig(raw, size, axle, radius);
+  // Split each mesh: triangles inside a tyre disc spin with that wheel, the rest is the body.
+  const model = new THREE.Group(); model.name = `imported-vehicle-${spec.id}`;
+  model.userData.dimensions = size.toArray();
+  const body = new THREE.Group(); body.name = 'imported-body'; model.add(body);
+  const wheels = centers.map((center, i) => {
+    const steer = new THREE.Group(); steer.name = `imported-wheel-${i}`; steer.position.copy(center);
+    steer.userData.restY = center.y; steer.userData.radius = radius[i];
+    const spin = new THREE.Group(); spin.name = `imported-wheel-spin-${i}`; steer.add(spin); model.add(steer); return { steer, spin };
+  });
+  for (const p of raw) {
+    const a = p.geometry.getAttribute('position'), groups: number[][] = [[], [], []];
+    for (let i = 0; i < a.count; i += 3) {
+      const x = (a.getX(i) + a.getX(i + 1) + a.getX(i + 2)) / 3, y = (a.getY(i) + a.getY(i + 1) + a.getY(i + 2)) / 3, z = (a.getZ(i) + a.getZ(i + 1) + a.getZ(i + 2)) / 3;
+      const w = centers.findIndex((c, k) => Math.abs(x) < halfWidth[k] && Math.hypot(y - c.y, z - c.z) < radius[k] * 1.02);
+      groups[w < 0 ? 2 : w].push(i / 3);
+    }
+    groups.forEach((triangles, g) => {
+      if (!triangles.length) return;
+      const geometry = triangleSubset(p.geometry, triangles);
+      if (g < 2) geometry.translate(0, -centers[g].y, -centers[g].z);
+      const mesh = new THREE.Mesh(geometry, p.material); mesh.castShadow = true; mesh.receiveShadow = true;
+      (g < 2 ? wheels[g].spin : body).add(mesh);
+    });
+    p.geometry.dispose();
+  }
+  model.userData.bike = measured satisfies BikeRig;
+  model.updateMatrixWorld(true); return model;
+}
+
 /** Match the support points/radii to the imported tires instead of approximating every car alike. */
 export function calibratedVehicleSpec(spec: VehicleSpec, model?: THREE.Group): VehicleSpec {
   if (!model || spec.npcOnly) return spec;
+  if (spec.kind === 'bike') {
+    // Two visual wheels (front, rear); the four invisible support wheels follow their axles.
+    const visual = spec.wheels.visual.map((w, i) => {
+      const wheel = model.getObjectByName(`imported-wheel-${i}`);
+      return wheel ? { ...w, z: wheel.position.z, radius: wheel.userData.radius as number } : w;
+    });
+    return { ...spec, wheelRadius: (visual[0].radius + visual[1].radius) / 2,
+      wheels: { visual, physics: spec.wheels.physics.map((w) => ({ ...w, z: w.z > 0 ? visual[0].z : visual[1].z })) } };
+  }
   const visual = spec.wheels.visual.map((w, i) => {
     const wheel = model.getObjectByName(`imported-wheel-${i}`);
     return wheel ? { ...w, x: wheel.position.x, z: wheel.position.z, radius: wheel.userData.radius as number } : w;

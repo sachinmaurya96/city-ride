@@ -10,6 +10,8 @@ import {
   grantRewardedBonus,
   levelForXP,
   purchaseVehicle,
+  claimWelcomeBonus,
+  nextVehicleGoal,
   quoteRide,
   ratingFor,
   settleRide,
@@ -19,7 +21,7 @@ import {
   type RideSummary,
 } from '../src/game/progression/progression';
 import { deriveHandling } from '../src/game/vehicles/handling';
-import { VEHICLES } from '../src/game/data/vehicles';
+import { VEHICLES, VEHICLE_ORDER, inGarage } from '../src/game/data/vehicles';
 
 const DAY = Date.UTC(2026, 9, 8, 12, 0, 0);
 
@@ -152,10 +154,10 @@ describe('purchases and upgrades', () => {
     const rich = { ...s, wallet: 5000, totalXP: xpForLevel(3) };
     const a = purchaseVehicle(rich, 'auto_city', DAY);
     expect(a.error).toBeUndefined();
-    expect(a.save.wallet).toBe(3200);
+    expect(a.save.wallet).toBe(3500);
     const b = purchaseVehicle(a.save, 'auto_city', DAY);
     expect(b.error).toBe('owned');
-    expect(b.save.wallet).toBe(3200);
+    expect(b.save.wallet).toBe(3500);
     expect(purchaseVehicle({ ...rich, wallet: 100 }, 'auto_city', DAY).error).toBe('funds');
   });
   it('equip is blocked during an active job and bike always remains', () => {
@@ -225,5 +227,48 @@ describe('save validation', () => {
     expect(validateSave({ wallet: 'lots' }).ok).toBe(false);
     expect(validateSave(null).ok).toBe(false);
     expect(validateSave({ ...s, schemaVersion: 99 }).ok).toBe(false);
+  });
+});
+
+describe('starter economy', () => {
+  it('pays the ₹1000 welcome bonus exactly once and keeps it across save validation', () => {
+    const s = claimWelcomeBonus(fresh(), DAY);
+    expect(s.wallet).toBe(1000); expect(s.welcomeBonusClaimed).toBe(true);
+    expect(claimWelcomeBonus(s, DAY + 1).wallet).toBe(1000);
+    const loaded = validateSave(JSON.parse(JSON.stringify(s)));
+    expect(loaded.ok && loaded.data.welcomeBonusClaimed).toBe(true);
+  });
+  it('older saves without the new fields load with no fuel due and an unclaimed bonus', () => {
+    const raw = JSON.parse(JSON.stringify(fresh())); delete raw.fuelDebt; delete raw.welcomeBonusClaimed;
+    const loaded = validateSave(raw);
+    expect(loaded.ok && loaded.data).toMatchObject({ fuelDebt: 0, welcomeBonusClaimed: false });
+  });
+  it('imported cars now cost money and cannot be bought without enough cash', () => {
+    const s = fresh();
+    expect(s.ownedVehicleIds).toEqual(['bike_basic']);
+    expect(purchaseVehicle({ ...s, wallet: 1000 }, 'bmw_i8', DAY).error).toBe('funds');
+    const r = purchaseVehicle({ ...s, wallet: 7000 }, 'bmw_i8', DAY);
+    expect(r.error).toBeUndefined(); expect(r.save.wallet).toBe(1000); expect(r.save.ownedVehicleIds).toContain('bmw_i8');
+  });
+  it('only the starter bike is free and every other vehicle costs under ₹10,000', () => {
+    for (const id of VEHICLE_ORDER) {
+      if (id === 'bike_basic') expect(VEHICLES[id].price).toBe(0);
+      else { expect(VEHICLES[id].price, id).toBeGreaterThan(0); expect(VEHICLES[id].price, id).toBeLessThan(10000); }
+    }
+  });
+});
+
+describe('garage showroom', () => {
+  it('lists only vehicles with a real 3D model plus the starter bike, keeping already-owned older ones', () => {
+    const listed = VEHICLE_ORDER.filter((id) => inGarage(id));
+    expect(listed).toContain('bike_basic');
+    for (const id of listed) if (id !== 'bike_basic') expect(VEHICLES[id].importedModel, id).toBeTruthy();
+    for (const id of ['auto_city', 'car_compact', 'car_coupe', 'mpv_seven', 'bus_small', 'bus_medium', 'bus_long', 'supercar'] as const) {
+      expect(inGarage(id), id).toBe(false);
+      expect(inGarage(id, ['bike_basic', id]), id).toBe(true);
+    }
+  });
+  it('suggests the cheapest showroom car not yet owned as the next goal', () => {
+    expect(nextVehicleGoal(fresh())).toMatchObject({ id: 'classic_sport', price: 2000 });
   });
 });

@@ -5,7 +5,7 @@ import { fuel } from '../game/vehicles/fuel';
 import { rides, nav } from '../game/missions/rides';
 import { busService } from '../game/missions/bus';
 import { runtime } from '../game/core/runtime';
-import { levelProgress, nextVehicleGoal } from '../game/progression/progression';
+import { claimWelcomeBonus, levelProgress, nextVehicleGoal, WELCOME_BONUS } from '../game/progression/progression';
 import { VEHICLES } from '../game/data/vehicles';
 import { fmt, money } from '../i18n/strings';
 import { drawMap } from './mapDraw';
@@ -13,6 +13,7 @@ import { pendingConflict } from '../storage/persistence';
 import type { SaveData } from '../storage/schema';
 import { CashLevel } from './Hud';
 import { ControlIcon } from './ControlIcon';
+import { SPLASH_CARS } from './Splash';
 
 /** Accessible modal: traps focus, Escape closes (when closable), restores focus on close. */
 export function Modal({ children, onClose, label, className = '', testId }: { children: ReactNode; onClose?: () => void; label: string; className?: string; testId?: string }) {
@@ -160,7 +161,7 @@ export function MainMenu({ onPlay }: { onPlay: () => void }) {
   const started = save.lifetime.jobs > 0 || !!save.mission || save.tutorial.firstRideDone;
   const vehicle = VEHICLES[save.equippedVehicleId as keyof typeof VEHICLES];
   return (
-    <div className="main-menu" data-testid="main-menu">
+    <div className="main-menu" data-testid="main-menu" style={{ '--menu-cover': `url(${SPLASH_CARS[0].src})` } as React.CSSProperties}>
       <div className="menu-card">
         <div className="wordmark">
           <span className="w1">CITY</span> <span className="w2">RIDE</span>
@@ -415,6 +416,29 @@ export function CreditsOverlay() {
 }
 
 /** Non-blocking notice when saving is unavailable or failing (never claims "Saved" falsely). */
+/** One-time starter cash, shown over the main menu until claimed. */
+export function WelcomeBonus() {
+  const t = useGame((s) => s.t);
+  const claimed = useGame((s) => s.save.welcomeBonusClaimed);
+  // Browser-test builds start from a known wallet unless a test opts in with ?welcome=1.
+  const hiddenInTests = import.meta.env.VITE_E2E === '1' && !new URLSearchParams(location.search).has('welcome');
+  if (claimed || hiddenInTests) return null;
+  const claim = () => {
+    const st = useGame.getState();
+    st.commit(claimWelcomeBonus(st.save, Date.now()), true);
+    st.toast(fmt(t.welcomeClaimed, { amount: money(WELCOME_BONUS) }), 'good');
+  };
+  return (
+    <Modal label={t.welcomeTitle} onClose={claim} className="small welcome-bonus" testId="welcome-bonus">
+      <div className="welcome-coin" aria-hidden>🎁</div>
+      <h2>{t.welcomeTitle}</h2>
+      <p className="welcome-amount">{money(WELCOME_BONUS)}</p>
+      <p>{t.welcomeBody}</p>
+      <button className="btn primary" onClick={claim} data-testid="claim-welcome">{fmt(t.welcomeClaim, { amount: money(WELCOME_BONUS) })}</button>
+    </Modal>
+  );
+}
+
 export function SaveBanner() {
   const t = useGame((s) => s.t);
   const status = useGame((s) => s.saveStatus);

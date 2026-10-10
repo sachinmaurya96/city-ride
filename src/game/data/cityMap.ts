@@ -442,13 +442,15 @@ export const FUEL_STATIONS: FuelStation[] = SEGMENTS.filter(s => s.dir === 'E' |
   const innerSide = section.dir === 'E' && section.lineCoord === -480 || section.dir === 'S' && section.lineCoord === 480;
   const seg = existing ? SEGMENT_BY_ID.get(existing.segmentId)! : innerSide ? SEGMENT_BY_ID.get(`${section.to}-${section.from}`)! : section;
   const candidates = [.24, .76, .38, .62].map(t => t * seg.length);
-  const s = existing?.s ?? candidates.reduce((best, value) => {
+  const pumpS = existing?.s ?? candidates.reduce((best, value) => {
     const clearance = (v: number) => Math.min(...BAYS.filter(b => b.segmentId === seg.id || b.segmentId === `${seg.to}-${seg.from}`).map(b => Math.abs(v - (b.segmentId === seg.id ? b.s : seg.length - b.s))), seg.length);
     return clearance(value) > clearance(best) ? value : best;
   });
   const offset = roadHalfWidth(seg.cls) + SIDEWALK_WIDTH;
-  const [x, z] = segmentPoint(seg, s, offset + 4.2), [pumpX, pumpZ] = segmentPoint(seg, s, offset + 20);
-  const bay: FuelStation = { id: existing?.id ?? `fuel_${section.id}`, landmark: existing?.landmark ?? 'petrol_west', segmentId: seg.id, s,
+  // The station model's HP pylon stands at its front corner; set the filling bay back so the pylon never covers it.
+  const bayS = Math.max(10, pumpS - 5);
+  const [x, z] = segmentPoint(seg, bayS, offset + 4.2), [pumpX, pumpZ] = segmentPoint(seg, pumpS, offset + 20);
+  const bay: FuelStation = { id: existing?.id ?? `fuel_${section.id}`, landmark: existing?.landmark ?? 'petrol_west', segmentId: seg.id, s: bayS,
     x, z, length: 18, width: 6, heading: headingOf(seg.dir), roadSide: 'left', bus: false, allowed: ['bike', 'auto', 'car', 'bus'],
     waitX: x, waitZ: z, name: existing ? LANDMARK_BY_ID.get(existing.landmark)!.name : `${seg.name} Petrol Pump`,
     pumpX, pumpZ, pumpHeading: Math.atan2(-leftOf(seg.dir)[0], -leftOf(seg.dir)[1]) };
