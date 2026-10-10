@@ -96,9 +96,11 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
       const o = map.get(e.pointerId);
       if (!o) return;
       if (o.role === 'joy') {
-        const dx = Math.max(-o.radius, Math.min(o.radius, e.clientX - o.ox));
-        input.setSteering(dx / o.radius);
-        setJoy((old) => old ? { ...old, kx: dx, ky: 0 } : null);
+        let dx = e.clientX - o.ox, dy = e.clientY - o.oy;
+        const len = Math.hypot(dx, dy);
+        if (len > o.radius) { dx *= o.radius / len; dy *= o.radius / len; }
+        input.setSteering(dx / o.radius, -dy / o.radius);
+        setJoy((old) => old ? { ...old, kx: dx, ky: dy } : null);
       } else if (o.role === 'steer') {
         input.pedals.steer = Math.max(-1, Math.min(1, (e.clientX - o.ox) / 70));
       } else if (o.role === 'cam') {
@@ -168,6 +170,8 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
           <div className="joy-knob" />
           <span className="joy-label left">◀</span>
           <span className="joy-label right">▶</span>
+          <span className="joy-label up">▲</span>
+          <span className="joy-label down">▼</span>
         </div>
       )}
       {showTouch && joy && (

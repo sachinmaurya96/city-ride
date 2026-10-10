@@ -6,7 +6,7 @@ import { runtime } from '../game/core/runtime';
 import { pauseManager } from '../game/core/pause';
 import { useGame } from './store';
 import { debug, TEST_HOOKS } from './devHooks';
-import { loadWorldAssets } from '../game/world/worldAssets';
+import { preloadWorld } from './preloadWorld';
 import type { SafeRoadPose } from '../game/vehicles/vehicleController';
 import type { VehicleId } from '../game/data/vehicles';
 import type { resolveQuality } from '../game/render/quality';
@@ -14,7 +14,7 @@ import type { upgradeLevels } from '../game/progression/progression';
 
 // Fetch the world and physics chunk together, only after Play. Garage needs just the renderer.
 const WorldScene = lazy(async () => {
-  const [, scene] = await Promise.all([loadWorldAssets(), import('./WorldScene')]);
+  const scene = await preloadWorld();
   return { default: scene.WorldScene };
 });
 

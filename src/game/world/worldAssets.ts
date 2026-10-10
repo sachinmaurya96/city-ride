@@ -62,13 +62,28 @@ export function prepareWorldPack(scene: THREE.Group, pack: WorldPack): WorldMode
   });
 }
 
+/** Packs the first frame needs; trees and the distant skyline stream in after driving starts. */
+const CORE_PACKS: WorldPack[] = ['buildings', 'roads', 'petrol'];
+const DECOR_PACKS = (Object.keys(WORLD_URLS) as WorldPack[]).filter(pack => !CORE_PACKS.includes(pack));
+const listeners = new Set<() => void>();
+let decorTask: Promise<void> | null = null;
+export function onWorldAssetsChanged(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; }
+
+async function loadPack(pack: WorldPack) {
+  if (worldAssets.has(pack)) return;
+  const { scene } = await loadGlb(WORLD_URLS[pack]);
+  worldAssets.set(pack, prepareWorldPack(scene, pack));
+  scene.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
+  releaseGlb(WORLD_URLS[pack]);
+}
+
+/** Resolves once the core packs are ready. Decoration packs keep loading and notify listeners as they land. */
 export function loadWorldAssets() {
-  task ??= Promise.all((Object.keys(WORLD_URLS) as WorldPack[]).map(async pack => {
-    if (worldAssets.has(pack)) return;
-    const { scene } = await loadGlb(WORLD_URLS[pack]);
-    worldAssets.set(pack, prepareWorldPack(scene, pack));
-    scene.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
-    releaseGlb(WORLD_URLS[pack]);
-  })).then(() => undefined).catch(error => { task = null; throw error; });
+  task ??= Promise.all(CORE_PACKS.map(loadPack)).then(() => undefined).catch(error => { task = null; throw error; });
+  // Decoration starts after the core downloads so it never competes with them for bandwidth.
+  void task.then(() => {
+    decorTask ??= Promise.all(DECOR_PACKS.map(pack => loadPack(pack).then(() => listeners.forEach(l => l()))))
+      .then(() => undefined).catch(() => { decorTask = null; });
+  }, () => {});
   return task;
 }
