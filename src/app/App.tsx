@@ -30,6 +30,8 @@ import { lazyOverlay } from '../ui/lazy';
 import { KeyHint } from '../ui/KeyHint';
 import { SHORTCUTS } from '../game/input/input';
 import { ownLocalCars } from './localCars';
+import { observeViewport, requestGameFullscreen } from './display';
+import { importedVehicleUrl } from '../game/render/vehicleAssets';
 
 const GarageOverlay = lazyOverlay(() => import('../ui/Garage').then((m) => m.GarageOverlay));
 const DailyOverlay = lazyOverlay(() => import('../ui/Daily').then((m) => m.DailyOverlay));
@@ -38,7 +40,12 @@ const SettingsOverlay = lazyOverlay(() => import('../ui/Settings').then((m) => m
 const BusDispatch = lazyOverlay(() => import('../ui/Garage').then((m) => m.BusDispatch));
 const NoticeCard = lazyOverlay(() => import('../ui/Notice').then((m) => m.NoticeCard));
 const GameCanvas = lazyOverlay(() => import('./GameCanvas').then(m => m.GameCanvas));
-const preloadGame = () => { void import('./preloadWorld').then(m => m.preloadWorld()).catch(() => {}); void import('./GameCanvas'); };
+const preloadGame = (vehicleId: VehicleId) => {
+  if (VEHICLES[vehicleId].importedModel) void import('../game/render/importedVehicles')
+    .then(m => m.loadImportedModel(VEHICLES[vehicleId])).catch(() => {});
+  void import('./preloadWorld').then(m => m.preloadWorld()).catch(() => {});
+  void import('./GameCanvas');
+};
 const FuelStation = lazyOverlay(() => import('../ui/FuelStation').then(m => m.FuelStation));
 
 class ErrorBoundary extends Component<{ children: ReactNode; onError: (e: Error) => void }, { failed: boolean }> {
@@ -129,9 +136,7 @@ export function App() {
   const boot = useCallback(async () => {
     const st = useGame.getState();
     const bootStarted = performance.now();
-    // The splash gives the world download a head start: fetch it now, while the cover plays.
-    const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData;
-    if (!saveData) preloadGame();
+    // The opening cover is a showcase; 3D downloads start only on vehicle selection or Play.
     try {
       st.setBoot(0);
       await platform().initialize();
@@ -177,8 +182,10 @@ export function App() {
     sceneReadyRef.current = true;
     setSceneReady(true);
     useGame.getState().setBoot(4);
-    useGame.getState().setApp('PLAYING');
-    platform().gameplayStart();
+    if (useGame.getState().appState === 'LOADING') {
+      useGame.getState().setApp('PLAYING');
+      platform().gameplayStart();
+    }
   }, []);
   const sceneReadyRef = useRef(false);
 
@@ -234,27 +241,12 @@ export function App() {
       if (hidden && rides.mission) rides.checkpoint(true);
       if (hidden && busService.active) busService.checkpoint(true);
     };
-    // Phones/tablets play landscape only: lock on the first tap (lock needs fullscreen + a user gesture).
-    const lockLandscape = () => {
-      if (!matchMedia('(pointer: coarse)').matches) return;
-      const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
-      if (!orientation?.lock) return;
-      const lock = () => orientation.lock!('landscape').catch(() => {});
-      if (document.fullscreenElement || !document.documentElement.requestFullscreen) { void lock(); return; }
-      document.documentElement.requestFullscreen({ navigationUI: 'hide' }).then(lock, lock);
-    };
-    window.addEventListener('pointerup', lockLandscape);
-    const orient = () => useGame.getState().setPortrait(window.innerHeight > window.innerWidth * 1.05 && matchMedia('(pointer: coarse)').matches);
-    orient();
+    const offViewport = observeViewport((width, height) => useGame.getState().setPortrait(height > width * 1.05 && matchMedia('(pointer: coarse)').matches));
     document.addEventListener('visibilitychange', vis);
-    window.addEventListener('resize', orient);
-    window.addEventListener('orientationchange', orient);
     const offPlat = platform().onPause((p) => pauseManager.set('PLATFORM', p));
     return () => {
       document.removeEventListener('visibilitychange', vis);
-      window.removeEventListener('resize', orient);
-      window.removeEventListener('orientationchange', orient);
-      window.removeEventListener('pointerup', lockLandscape);
+      offViewport();
       offPlat();
     };
   }, []);
@@ -310,6 +302,7 @@ export function App() {
 
   // ---------- actions ----------
   const startPlaying = useCallback(() => {
+    if (matchMedia('(pointer: coarse)').matches) void requestGameFullscreen();
     const st = useGame.getState();
     const s = st.save;
     if (s.mission && s.mission.kind === 'ride') {
@@ -323,11 +316,12 @@ export function App() {
     }
     st.respawn();
     // Start downloads now rather than after the renderer has finished initialising.
-    preloadGame();
+    preloadGame(st.testDrive?.vehicleId ?? (isPlayableVehicleId(s.equippedVehicleId) ? s.equippedVehicleId : 'bike_basic'));
     setCanvasRequested(true);
     setWorldRequested(true);
-    if (sceneReadyRef.current) { st.setApp('PLAYING'); platform().gameplayStart(); }
-    else { st.setBoot(3); st.setApp('LOADING'); }
+    sceneReadyRef.current = false;
+    st.setBoot(3);
+    st.setApp('LOADING');
     if (!s.tutorial.controlsSeen) st.openOverlay('controls');
   }, []);
 
@@ -406,6 +400,12 @@ export function App() {
   // ---------- vehicle ----------
   const testDrive = useGame((s) => s.testDrive);
   const vehicleId: VehicleId = testDrive?.vehicleId ?? (isPlayableVehicleId(save.equippedVehicleId) ? save.equippedVehicleId : 'bike_basic');
+  useEffect(() => {
+    if (!worldRequested) return;
+    sceneReadyRef.current = false;
+    const st = useGame.getState();
+    if (st.appState === 'PLAYING') { st.setBoot(3); st.setApp('LOADING'); }
+  }, [vehicleId, worldRequested]);
   const lastVehicle = useRef(vehicleId);
   const wasTestDrive = useRef(false);
   if (lastVehicle.current !== vehicleId) {
@@ -418,7 +418,9 @@ export function App() {
   // Starting a test drive from the main-menu garage goes straight into the city.
   const startedTestDrive = !!testDrive;
   useEffect(() => { if (startedTestDrive && useGame.getState().appState === 'MAIN_MENU') startPlaying(); }, [startedTestDrive, startPlaying]);
-  const upgrades = useMemo(() => upgradeLevels(save, vehicleId), [save, vehicleId]);
+  const levels = upgradeLevels(save, vehicleId);
+  const upgrades = useMemo(() => ({ engine: levels.engine, brakes: levels.brakes, tires: levels.tires, comfort: levels.comfort }),
+    [levels.engine, levels.brakes, levels.tires, levels.comfort]);
   const paint = paintFor(save, vehicleId);
   const showGame = appState === 'PLAYING';
   const showScene = canvasRequested || overlay === 'garage';
@@ -465,7 +467,10 @@ export function App() {
             {!touch && !save.tutorial.firstRideDone && !passengerMoving && <div className="kbd-strip">{t.keyboardHint}</div>}
             {notice && <NoticeCard />}
             {receipt && !overlay && <Receipt />}
-            {overlay === 'pause' && <PauseMenu onResume={() => useGame.getState().openOverlay(null)} onMainMenu={toMenu} />}
+            {overlay === 'pause' && <PauseMenu onResume={() => {
+              if (touch) void requestGameFullscreen();
+              useGame.getState().openOverlay(null);
+            }} onMainMenu={toMenu} />}
             {overlay === 'cancel' && <CancelConfirm onDone={() => useGame.getState().openOverlay(null)} />}
             {overlay === 'map' && <CityMapOverlay />}
             {overlay === 'controls' && <ControlsOverlay onClose={closeControls} />}
@@ -483,7 +488,9 @@ export function App() {
         {overlay === 'conflict' && <ConflictOverlay />}
         {(appState === 'PLAYING' || appState === 'MAIN_MENU') && <SaveBanner />}
         {(appState === 'BOOT' || appState === 'LOADING' || appState === 'RECOVERABLE_ERROR') && (
-          <Splash stage={bootStage} error={bootError} onRetry={() => window.location.reload()} loadingWorld={appState === 'LOADING'} />
+          <Splash stage={bootStage} error={bootError} onRetry={() => window.location.reload()} loadingWorld={appState === 'LOADING'}
+            vehicleName={save.settings.language === 'ru' ? VEHICLES[vehicleId].nameRu : VEHICLES[vehicleId].name}
+            assetUrl={importedVehicleUrl(VEHICLES[vehicleId])} />
         )}
         {portrait && showGame && !overlay && !receipt && <RotateOverlay />}
       </div>

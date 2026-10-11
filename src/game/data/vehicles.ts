@@ -510,9 +510,12 @@ export const VEHICLE_ORDER: VehicleId[] = [
   'supercar',
 ];
 
-/** The showroom: vehicles with a real 3D model, plus the free starter bike. Older procedural ones stay drivable when already owned. */
+const RETIRED_GARAGE_CARS: readonly VehicleId[] = ['car_compact', 'car_coupe', 'mpv_seven', 'supercar'];
+
+/** Retain saved ownership and driving compatibility, while excluding the four retired showroom cars. */
 export function inGarage(id: VehicleId, owned: readonly string[] = []) {
-  return id === 'bike_basic' || !!VEHICLES[id].importedModel || owned.includes(id);
+  return !RETIRED_GARAGE_CARS.includes(id) && !VEHICLES[id].npcOnly
+    && (id === 'bike_basic' || !!VEHICLES[id].importedModel || owned.includes(id));
 }
 
 export function isVehicleId(id: string): id is VehicleId {

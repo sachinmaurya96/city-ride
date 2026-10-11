@@ -1,4 +1,5 @@
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import { reportAssetProgress } from './assetLoading';
 
 const assets = new Map<string, Promise<GLTF>>();
 
@@ -40,14 +41,34 @@ export function loadGlb(url: string, retry = false): Promise<GLTF> {
   if (retry) assets.delete(url);
   const cached = assets.get(url);
   if (cached) return cached;
+  reportAssetProgress(url, 0);
   const task = Promise.all([
     import('three/addons/loaders/GLTFLoader.js'),
     import('three/addons/libs/meshopt_decoder.module.js'),
-    fetch(url).then((response) => {
+    fetch(url).then(async (response) => {
       if (!response.ok) throw new Error(`Model download failed (${response.status})`);
-      return response.arrayBuffer();
+      const reader = response.body?.getReader();
+      if (!reader) return response.arrayBuffer();
+      const total = Number(response.headers.get('content-length'));
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.byteLength;
+        reportAssetProgress(url, total > 0 ? Math.min(.9, received / total * .9) : .1);
+      }
+      const bytes = new Uint8Array(received);
+      let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+      reportAssetProgress(url, .9);
+      return bytes.buffer;
     }),
-  ]).then(([{ GLTFLoader }, { MeshoptDecoder }, buffer]) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(upgradeLegacyMaterials(buffer), new URL('.', url).href)).catch(error => {
+  ]).then(([{ GLTFLoader }, { MeshoptDecoder }, buffer]) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(upgradeLegacyMaterials(buffer), new URL('.', url).href)).then(asset => {
+    reportAssetProgress(url, 1);
+    return asset;
+  }).catch(error => {
     if (assets.get(url) === task) assets.delete(url);
     throw error;
   });

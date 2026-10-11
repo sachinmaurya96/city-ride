@@ -14,6 +14,7 @@ import type { SaveData } from '../storage/schema';
 import { CashLevel } from './Hud';
 import { ControlIcon } from './ControlIcon';
 import { SPLASH_CARS } from './Splash';
+import { FullscreenControl } from './FullscreenControl';
 
 /** Accessible modal: traps focus, Escape closes (when closable), restores focus on close. */
 export function Modal({ children, onClose, label, className = '', testId }: { children: ReactNode; onClose?: () => void; label: string; className?: string; testId?: string }) {
@@ -189,6 +190,7 @@ export function MainMenu({ onPlay }: { onPlay: () => void }) {
         <button className="link" onClick={() => open('credits')}>
           {t.credits}
         </button>
+        <FullscreenControl />
       </div>
     </div>
   );
@@ -202,6 +204,7 @@ export function PauseMenu({ onResume, onMainMenu }: { onResume: () => void; onMa
   return (
     <Modal label={t.paused} onClose={onResume} className="pause" testId="pause-menu">
       <h2>{t.paused}</h2>
+      <FullscreenControl />
       <button className="btn primary" onClick={onResume} data-testid="resume">
         ▶ {t.resume}
       </button>

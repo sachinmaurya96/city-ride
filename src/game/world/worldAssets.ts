@@ -124,28 +124,57 @@ export function prepareWorldPack(scene: THREE.Group, pack: WorldPack): WorldMode
   });
 }
 
-/** Packs the first frame needs; trees and the distant skyline stream in after driving starts. */
+/** Only these packs are needed before driving; decoration is streamed separately. */
 const CORE_PACKS: WorldPack[] = ['buildings', 'roads', 'petrol'];
 const DECOR_PACKS = (Object.keys(WORLD_URLS) as WorldPack[]).filter(pack => !CORE_PACKS.includes(pack));
 const listeners = new Set<() => void>();
-let decorTask: Promise<void> | null = null;
 export function onWorldAssetsChanged(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; }
 
-async function loadPack(pack: WorldPack) {
-  if (worldAssets.has(pack)) return;
-  const { scene } = await loadGlb(WORLD_URLS[pack]);
-  worldAssets.set(pack, prepareWorldPack(scene, pack));
-  scene.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
-  releaseGlb(WORLD_URLS[pack]);
+const pendingPacks = new Map<WorldPack, Promise<void>>();
+function loadPack(pack: WorldPack): Promise<void> {
+  if (worldAssets.has(pack)) return Promise.resolve();
+  const pending = pendingPacks.get(pack);
+  if (pending) return pending;
+  const loading = (async () => {
+    const { scene } = await loadGlb(WORLD_URLS[pack]);
+    worldAssets.set(pack, prepareWorldPack(scene, pack));
+    scene.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
+    releaseGlb(WORLD_URLS[pack]);
+    listeners.forEach(listener => listener());
+  })().finally(() => pendingPacks.delete(pack));
+  pendingPacks.set(pack, loading);
+  return loading;
 }
 
-/** Resolves once the core packs are ready. Decoration packs keep loading and notify listeners as they land. */
+/** One city download alongside the chosen vehicle avoids competing with every scenery pack. */
 export function loadWorldAssets() {
-  task ??= Promise.all(CORE_PACKS.map(loadPack)).then(() => undefined).catch(error => { task = null; throw error; });
-  // Decoration starts after the core downloads so it never competes with them for bandwidth.
-  void task.then(() => {
-    decorTask ??= Promise.all(DECOR_PACKS.map(pack => loadPack(pack).then(() => listeners.forEach(l => l()))))
-      .then(() => undefined).catch(() => { decorTask = null; });
-  }, () => {});
+  task ??= (async () => {
+    for (const pack of CORE_PACKS) {
+      try { await loadPack(pack); }
+      catch { throw new Error(`Unable to load city pack: ${pack}. Please retry.`); }
+    }
+  })().catch(error => { task = null; throw error; });
   return task;
+}
+
+function waitForIdle(signal: AbortSignal): Promise<boolean> {
+  if (signal.aborted) return Promise.resolve(false);
+  return new Promise(resolve => {
+    const done = (ready: boolean) => { signal.removeEventListener('abort', abort); resolve(ready); };
+    const abort = () => { cancel(); done(false); };
+    const cancel = 'requestIdleCallback' in window
+      ? (() => { const id = window.requestIdleCallback(() => done(true), { timeout: 1000 }); return () => window.cancelIdleCallback(id); })()
+      : (() => { const id = setTimeout(() => done(true), 100); return () => clearTimeout(id); })();
+    signal.addEventListener('abort', abort, { once: true });
+  });
+}
+
+/** Background scenery never holds up play. Stop scheduling when paused or switching vehicles. */
+export async function streamWorldAssets(signal: AbortSignal) {
+  for (const pack of DECOR_PACKS) {
+    if (worldAssets.has(pack)) continue;
+    if (!await waitForIdle(signal) || signal.aborted) return;
+    try { await loadPack(pack); }
+    catch { /* Keep driving; unloaded optional packs can retry on the next resume. */ }
+  }
 }

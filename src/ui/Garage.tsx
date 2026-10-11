@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../app/store';
 import { startTestDrive } from '../game/progression/testDrive';
 import { events } from '../game/core/events';
-import { VEHICLES, VEHICLE_ORDER, inGarage, type VehicleId } from '../game/data/vehicles';
+import { VEHICLES, VEHICLE_ORDER, inGarage, isVehicleId, type VehicleId } from '../game/data/vehicles';
 import { deriveHandling } from '../game/vehicles/handling';
 import {
   PAINTS,
@@ -22,6 +22,7 @@ import { Modal } from './Screens';
 import { renderVehiclePreview } from './vehiclePreview';
 import { useImportedModel } from '../game/render/useImportedModel';
 import { loadImportedModel } from '../game/render/importedVehicles';
+import { requestGameFullscreen } from '../app/display';
 
 const KIND_ICON: Record<string, string> = { bike: '🛵', auto: '🛺', car: '🚗', bus: '🚌' };
 /** Real in-game photos for the selector cards (scripts/splash-shots.mjs with THUMB=1); emoji remain the fallback. */
@@ -36,7 +37,8 @@ const CATS: { id: UpgradeCategory; icon: string }[] = [
 
 function Preview({ id, paint }: { id: VehicleId; paint: string }) {
   const t = useGame((s) => s.t);
-  const model = useImportedModel(VEHICLES[id]);
+  const model = useImportedModel(VEHICLES[id], 200);
+  const reducedMotion = useGame(s => s.save.settings.reducedMotion);
   const ref = useRef<HTMLCanvasElement>(null);
   const yaw = useRef(-0.6);
   const drag = useRef<number | null>(null);
@@ -46,9 +48,12 @@ function Preview({ id, paint }: { id: VehicleId; paint: string }) {
     if (c) setOk(renderVehiclePreview(c, id, paint, yaw.current));
   };
   useEffect(() => {
+    if (model && model.status !== 'ready') return;
     draw();
     let raf = 0;
     let last = performance.now();
+    let visible = true;
+    let timer: ReturnType<typeof setInterval> | undefined;
     const spin = (now: number) => {
       if (drag.current === null) {
         yaw.current += (now - last) * 0.00035;
@@ -56,17 +61,26 @@ function Preview({ id, paint }: { id: VehicleId; paint: string }) {
       }
       last = now;
     };
-    // gentle idle rotation (~15 fps worth of work through rAF throttle)
-    const id2 = setInterval(() => {
+    const schedule = () => {
+      clearInterval(timer);
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(spin);
-    }, 80);
+      if (!visible || document.hidden || reducedMotion) return;
+      last = performance.now();
+      timer = setInterval(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(spin); }, 80);
+    };
+    // Rendering/readback stops when the preview is scrolled away or the tab is hidden.
+    const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; schedule(); });
+    if (ref.current) observer.observe(ref.current);
+    document.addEventListener('visibilitychange', schedule);
+    schedule();
     return () => {
-      clearInterval(id2);
+      clearInterval(timer);
       cancelAnimationFrame(raf);
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', schedule);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, paint, model?.status]);
+  }, [id, paint, model?.status, reducedMotion]);
   return (
     <div className="preview-wrap" data-testid="vehicle-preview" data-model-state={model?.status ?? 'ready'}>
       <canvas
@@ -122,14 +136,13 @@ export function GarageOverlay() {
   const toast = useGame((s) => s.toast);
   const open = useGame((s) => s.openOverlay);
   const appState = useGame((s) => s.appState);
-  const [sel, setSel] = useState<VehicleId>(save.equippedVehicleId as VehicleId);
+  const [sel, setSel] = useState<VehicleId>(() => isVehicleId(save.equippedVehicleId) && inGarage(save.equippedVehicleId, save.ownedVehicleIds) ? save.equippedVehicleId : 'bike_basic');
   const [tab, setTab] = useState<'vehicles' | 'upgrades' | 'paint'>('vehicles');
   const [filter, setFilter] = useState<'all' | 'cars' | 'buses'>('all');
   const [confirm, setConfirm] = useState<VehicleId | null>(null);
   const [cat, setCat] = useState<UpgradeCategory>('engine');
   const busy = useRef(false);
   const spec = VEHICLES[sel];
-  const model = useImportedModel(spec);
   const owned = save.ownedVehicleIds.includes(sel);
   const state = vehicleState(save, sel);
   const level = levelForXP(save.totalXP);
@@ -176,6 +189,7 @@ export function GarageOverlay() {
     });
 
   const doTestDrive = () => act(() => {
+    if (matchMedia('(pointer: coarse)').matches) void requestGameFullscreen();
     if (!startTestDrive(sel)) return;
     useGame.getState().openOverlay(null);
   });
@@ -267,7 +281,7 @@ export function GarageOverlay() {
               </div>
               {state === 'equipped' && <button className="btn disabled" disabled>✓ {t.equipped}</button>}
               {spec.importedModel && state === 'owned' && (
-                <button className="btn primary" onClick={doTryCar} disabled={busyJob || model?.status !== 'ready'} data-testid="try-car">
+                <button className="btn primary" onClick={doTryCar} disabled={busyJob} data-testid="try-car">
                   {t.tryCar}
                 </button>
               )}
@@ -277,7 +291,7 @@ export function GarageOverlay() {
                 </button>
               )}
               {state !== 'equipped' && !owned && !spec.npcOnly && (
-                <button className="btn outline" onClick={doTestDrive} disabled={busyJob || !!testDrive || (!!spec.importedModel && model?.status !== 'ready')} data-testid="test-drive">
+                <button className="btn outline" onClick={doTestDrive} disabled={busyJob || !!testDrive} data-testid="test-drive">
                   🔑 {t.testDrive}
                 </button>
               )}

@@ -4,8 +4,9 @@ import bmw from '../assets/splash/bmw_m4_gt3.webp';
 import huracan from '../assets/splash/black_huracan.webp';
 import porsche from '../assets/splash/porsche_718.webp';
 import mclaren from '../assets/splash/mclaren_p1.webp';
+import { useAssetProgress } from '../game/render/assetLoading';
 
-/** Minimum time the boot splash stays up; assets keep loading behind it (see App boot). */
+/** Opening showcase duration only; vehicle loading has no minimum wait. */
 export const SPLASH_MS = 3000;
 export const SPLASH_CARS = [
   { src: bmw, name: 'BMW M4 GT3 EVO', short: 'M4 GT3' },
@@ -17,25 +18,26 @@ const SEGMENTS = 28;
 const STATUS = ['BOOT.SEQUENCE', 'LINK.SAVE_DATA', 'SYNC.PROFILE', 'LOAD.CITY_GRID', 'IGNITION.READY'];
 
 /** Cover splash: supercar slideshow + thumbnail rail + segmented "system" progress bar. */
-export function Splash({ stage, error, onRetry, loadingWorld }: { stage: number; error: string | null; onRetry: () => void; loadingWorld: boolean }) {
+export function Splash({ stage, error, onRetry, loadingWorld, vehicleName, assetUrl }: { stage: number; error: string | null; onRetry: () => void; loadingWorld: boolean; vehicleName?: string; assetUrl?: string }) {
   const t = useGame((s) => s.t);
   const [elapsed, setElapsed] = useState(0);
+  const downloaded = useAssetProgress(loadingWorld ? assetUrl : undefined);
   useEffect(() => {
     const start = performance.now();
-    let raf = 0;
-    const tick = () => { setElapsed(performance.now() - start); raf = requestAnimationFrame(tick); };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    // Slideshow and bar need ten updates/sec, leaving the main thread available for model decoding.
+    const timer = setInterval(() => setElapsed(performance.now() - start), 100);
+    return () => clearInterval(timer);
   }, [loadingWorld]);
   const total = t.loadingStages.length - 1;
-  // Boot: a steady 3 s sweep that only completes once loading has finished. World load: eases toward 97%.
+  // Asset download/decoding advances the same bar; only scene readiness can dismiss it.
   const progress = loadingWorld
-    ? (1 - Math.exp(-elapsed / 3500)) * .97
+    ? downloaded * .97
     : Math.min(elapsed / SPLASH_MS, 1) * (stage >= total ? 1 : .96);
   const pct = Math.round(progress * 100);
   const lit = Math.floor(progress * SEGMENTS);
   const slide = Math.floor(elapsed / (SPLASH_MS / SPLASH_CARS.length)) % SPLASH_CARS.length;
-  const status = loadingWorld ? 'LOAD.CITY_GRID' : STATUS[Math.min(STATUS.length - 1, Math.floor(progress * STATUS.length))];
+  const status = loadingWorld ? 'LOAD.VEHICLE' : STATUS[Math.min(STATUS.length - 1, Math.floor(progress * STATUS.length))];
+  const label = loadingWorld ? `${t.carLoading} ${vehicleName ?? ''}` : t.loadingStages[Math.min(stage, total)];
   return (
     <div className="splash" data-testid="boot" aria-busy={!error}>
       <div className="splash-slides" aria-hidden>
@@ -50,7 +52,7 @@ export function Splash({ stage, error, onRetry, loadingWorld }: { stage: number;
           <span className="w1">CITY</span> <span className="w2">RIDE</span>
           <div className="w3">{t.subtitle}</div>
         </div>
-        <div className="splash-car-name" aria-live="polite">// {SPLASH_CARS[slide].name}</div>
+        <div className="splash-car-name" aria-live="polite">// {loadingWorld ? vehicleName : SPLASH_CARS[slide].name}</div>
       </div>
       {error ? (
         <div className="boot-error">
@@ -67,10 +69,10 @@ export function Splash({ stage, error, onRetry, loadingWorld }: { stage: number;
               </div>
             ))}
           </div>
-          <div className="robo-bar" role="progressbar" aria-label={t.loadingStages[Math.min(stage, total)]} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+          <div className="robo-bar" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
             <div className="robo-head">
               <span className="robo-status">▸ {status}<i className="robo-caret" /></span>
-              <span className="robo-stage">{t.loadingStages[Math.min(stage, total)]}</span>
+              <span className="robo-stage">{label}</span>
               <b className="robo-pct" data-testid="boot-progress">{String(pct).padStart(3, '0')}%</b>
             </div>
             <div className="robo-track">

@@ -59,7 +59,8 @@
 .splash .wordmark { text-align: left; text-shadow: 0 0 24px #36ceff66; }
 .splash .wordmark .w1, .splash .wordmark .w2 { font-size: clamp(30px, 6vw, 64px); }
 .splash-car-name { font: 700 clamp(11px, 1.6vw, 15px) ui-monospace, 'SF Mono', Menlo, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase;
-  color: #9fe6ff; padding: 6px 10px; border: 1px solid var(--glass-edge); background: #03070d80; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); white-space: nowrap; }
+  color: #9fe6ff; padding: 6px 10px; border: 1px solid var(--glass-edge); background: #03070d80; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); white-space: nowrap;
+  min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 
 .splash-bottom { position: relative; display: flex; flex-direction: column; gap: 12px;
   padding: 0 max(20px, var(--safe-r)) max(14px, var(--safe-b)) max(20px, var(--safe-l)); }
@@ -89,6 +90,7 @@
 .robo-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 6px; font-size: 10px; color: #7f97ab; letter-spacing: .06em; }
 .robo-foot span:last-child { font-family: system-ui, sans-serif; letter-spacing: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .splash .boot-error { position: relative; align-self: center; margin-bottom: max(24px, var(--safe-b)); padding: 16px; max-width: 80vw; text-align: center; }
+.splash .boot-error { overflow-wrap: anywhere; max-height: 65%; overflow: auto; }
 
 /* Short landscape phones: tighter, thumbnails stay but shrink. */
 @media (max-height: 420px) {

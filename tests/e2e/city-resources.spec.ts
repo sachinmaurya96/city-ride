@@ -7,7 +7,7 @@ test('supplied city packs and petrol pumps render, with filling only in the off-
   await page.setViewportSize({ width: 1100, height: 700 });
   const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
   await boot(page, { clear: true }); await play(page);
-  const packs = await page.evaluate(() => {
+  const renderedPacks = () => page.evaluate(() => {
     const c = window.__cr, scene = c.debug.extra.scene as THREE.Scene;
     const counts: Record<string, number> = {}, textured: Record<string, number> = {};
     scene.getObjectByName('resource-city')!.traverse(o => {
@@ -17,6 +17,10 @@ test('supplied city packs and petrol pumps render, with filling only in the off-
     });
     return { counts, textured, pumps: c.cityMap.FUEL_STATIONS.length };
   });
+  // Essential packs are ready at entry; optional scenery streams while driving.
+  await expect.poll(async () => Object.keys((await renderedPacks()).counts), { timeout: 90000 })
+    .toEqual(expect.arrayContaining(['buildings', 'skyline', 'forest', 'palms', 'bananas', 'roads', 'petrol']));
+  const packs = await renderedPacks();
   expect(packs.pumps).toBe(40);
   for (const pack of ['buildings', 'skyline', 'forest', 'palms', 'bananas', 'roads', 'petrol']) {
     expect(packs.counts[pack], pack).toBeGreaterThan(0);
