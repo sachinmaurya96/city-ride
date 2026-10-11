@@ -1,0 +1,367 @@
+{
+  "game": "City Ride",
+  "capturedAt": "2026-10-10T22:15:10.427Z",
+  "images": [
+    {
+      "file": "gameplay/city-driving.png",
+      "caption": "BMW i8 in the city with the actual driving interface",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture"
+    },
+    {
+      "file": "gameplay/passenger-gps.png",
+      "caption": "Accepted passenger job with GPS directions and road navigation",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture"
+    },
+    {
+      "file": "supercars/bmw_i8-front.png",
+      "caption": "BMW i8 — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "bmw_i8",
+      "vehicleName": "BMW i8",
+      "view": "front"
+    },
+    {
+      "file": "supercars/bmw_i8-rear.png",
+      "caption": "BMW i8 — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "bmw_i8",
+      "vehicleName": "BMW i8",
+      "view": "rear"
+    },
+    {
+      "file": "gameplay/garage.png",
+      "caption": "Actual garage, car collection and vehicle preview",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture"
+    },
+    {
+      "file": "supercars/bmw_m4_gt3-front.png",
+      "caption": "BMW M4 GT3 EVO — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "bmw_m4_gt3",
+      "vehicleName": "BMW M4 GT3 EVO",
+      "view": "front"
+    },
+    {
+      "file": "supercars/bmw_m4_gt3-rear.png",
+      "caption": "BMW M4 GT3 EVO — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "bmw_m4_gt3",
+      "vehicleName": "BMW M4 GT3 EVO",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/lambo_lp670-front.png",
+      "caption": "Lamborghini LP670 — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "lambo_lp670",
+      "vehicleName": "Lamborghini LP670",
+      "view": "front"
+    },
+    {
+      "file": "supercars/lambo_lp670-rear.png",
+      "caption": "Lamborghini LP670 — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "lambo_lp670",
+      "vehicleName": "Lamborghini LP670",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/black_huracan-front.png",
+      "caption": "Black Lamborghini Huracán — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "black_huracan",
+      "vehicleName": "Black Lamborghini Huracán",
+      "view": "front"
+    },
+    {
+      "file": "supercars/black_huracan-rear.png",
+      "caption": "Black Lamborghini Huracán — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "black_huracan",
+      "vehicleName": "Black Lamborghini Huracán",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/mclaren_p1-front.png",
+      "caption": "McLaren P1 GTR — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "mclaren_p1",
+      "vehicleName": "McLaren P1 GTR",
+      "view": "front"
+    },
+    {
+      "file": "supercars/mclaren_p1-rear.png",
+      "caption": "McLaren P1 GTR — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "mclaren_p1",
+      "vehicleName": "McLaren P1 GTR",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/supercar-front.png",
+      "caption": "Aurora Sport — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "supercar",
+      "vehicleName": "Aurora Sport",
+      "view": "front"
+    },
+    {
+      "file": "supercars/supercar-rear.png",
+      "caption": "Aurora Sport — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "supercar",
+      "vehicleName": "Aurora Sport",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/mustang_rtr-front.png",
+      "caption": "Ford Mustang RTR — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "mustang_rtr",
+      "vehicleName": "Ford Mustang RTR",
+      "view": "front"
+    },
+    {
+      "file": "supercars/mustang_rtr-rear.png",
+      "caption": "Ford Mustang RTR — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "mustang_rtr",
+      "vehicleName": "Ford Mustang RTR",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/porsche_718-front.png",
+      "caption": "Porsche 718 Spyder — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "porsche_718",
+      "vehicleName": "Porsche 718 Spyder",
+      "view": "front"
+    },
+    {
+      "file": "supercars/porsche_718-rear.png",
+      "caption": "Porsche 718 Spyder — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "porsche_718",
+      "vehicleName": "Porsche 718 Spyder",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/supra_a80-front.png",
+      "caption": "Toyota Supra A80 — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "supra_a80",
+      "vehicleName": "Toyota Supra A80",
+      "view": "front"
+    },
+    {
+      "file": "supercars/supra_a80-rear.png",
+      "caption": "Toyota Supra A80 — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "supra_a80",
+      "vehicleName": "Toyota Supra A80",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/mercedes_maybach-front.png",
+      "caption": "Mercedes-Maybach — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "mercedes_maybach",
+      "vehicleName": "Mercedes-Maybach",
+      "view": "front"
+    },
+    {
+      "file": "supercars/mercedes_maybach-rear.png",
+      "caption": "Mercedes-Maybach — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "mercedes_maybach",
+      "vehicleName": "Mercedes-Maybach",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/amg_gt_mansory-front.png",
+      "caption": "Mansory Mercedes-AMG GT S — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "amg_gt_mansory",
+      "vehicleName": "Mansory Mercedes-AMG GT S",
+      "view": "front"
+    },
+    {
+      "file": "supercars/amg_gt_mansory-rear.png",
+      "caption": "Mansory Mercedes-AMG GT S — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "amg_gt_mansory",
+      "vehicleName": "Mansory Mercedes-AMG GT S",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/naran_hyper-front.png",
+      "caption": "Naran Hyper Coupe — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "naran_hyper",
+      "vehicleName": "Naran Hyper Coupe",
+      "view": "front"
+    },
+    {
+      "file": "supercars/naran_hyper-rear.png",
+      "caption": "Naran Hyper Coupe — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "naran_hyper",
+      "vehicleName": "Naran Hyper Coupe",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/aston_one77-front.png",
+      "caption": "Aston Martin One-77 — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "aston_one77",
+      "vehicleName": "Aston Martin One-77",
+      "view": "front"
+    },
+    {
+      "file": "supercars/aston_one77-rear.png",
+      "caption": "Aston Martin One-77 — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "aston_one77",
+      "vehicleName": "Aston Martin One-77",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/audi_r8_gt-front.png",
+      "caption": "Audi R8 GT — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "audi_r8_gt",
+      "vehicleName": "Audi R8 GT",
+      "view": "front"
+    },
+    {
+      "file": "supercars/audi_r8_gt-rear.png",
+      "caption": "Audi R8 GT — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "audi_r8_gt",
+      "vehicleName": "Audi R8 GT",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/bmw_m4_widebody-front.png",
+      "caption": "BMW M4 Widebody — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "bmw_m4_widebody",
+      "vehicleName": "BMW M4 Widebody",
+      "view": "front"
+    },
+    {
+      "file": "supercars/bmw_m4_widebody-rear.png",
+      "caption": "BMW M4 Widebody — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "bmw_m4_widebody",
+      "vehicleName": "BMW M4 Widebody",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/bmw_m3_gtr-front.png",
+      "caption": "BMW M3 GTR (E46) — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "bmw_m3_gtr",
+      "vehicleName": "BMW M3 GTR (E46)",
+      "view": "front"
+    },
+    {
+      "file": "supercars/bmw_m3_gtr-rear.png",
+      "caption": "BMW M3 GTR (E46) — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "bmw_m3_gtr",
+      "vehicleName": "BMW M3 GTR (E46)",
+      "view": "rear"
+    },
+    {
+      "file": "supercars/rolls_ghost-front.png",
+      "caption": "Rolls-Royce Ghost — front three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "rolls_ghost",
+      "vehicleName": "Rolls-Royce Ghost",
+      "view": "front"
+    },
+    {
+      "file": "supercars/rolls_ghost-rear.png",
+      "caption": "Rolls-Royce Ghost — rear three-quarter city view",
+      "width": 1920,
+      "height": 1080,
+      "source": "Actual game capture",
+      "vehicleId": "rolls_ghost",
+      "vehicleName": "Rolls-Royce Ghost",
+      "view": "rear"
+    }
+  ]
+}

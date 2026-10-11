@@ -1,3 +1,11 @@
+## Playgama publishing kit — 11 October 2026
+
+- Added `playgama/PLAYGAMA.md` with the game name, short/full descriptions, how to play, keyboard/touch controls, landscape orientation, features, suggested tags and upload instructions. `playgama/assets/ASSETS.md` links to every cover and car view; the main README links to the kit.
+- Created three distinct cover compositions with the built-in image generation tool, using the game's Lamborghini Huracán and McLaren screenshots as references. Exact upload PNG sizes: 800 × 800, 1080 × 1920 and 1920 × 1080. Prompts and original artwork are preserved for future revisions.
+- Captured 37 actual 1920 × 1080 game screenshots: front and rear views of all 16 imported player cars plus Aurora Sport, and driving, passenger GPS and garage screenshots. Car portraits use the real model finishes and city renderer with the HUD hidden. Every capture was visually checked.
+- Added reproducible capture and validation/packaging scripts. The publishing kit stays outside runtime assets and packages separately from the game build; no gameplay implementation was changed for this kit.
+- Validation: both scripts pass ESLint and syntax checks; all 40 upload images pass PNG/dimension/blank-image validation; local Markdown links resolve; the capture report has zero failures. `playgama/city-ride-publishing-kit.zip` contains the listing, inventory, covers and screenshots (55.3 MB), excluding original cover masters. Nothing was uploaded to Playgama.
+
 ## Parked vehicle crash response — 11 October 2026
 
 - Roadside cars and parked buses now use sleeping dynamic bodies with each model's dimensions and mass. Player/NPC collisions can push and rotate them; damping brings them to rest in the new position, without AI driving or a reset to the original parking spot.

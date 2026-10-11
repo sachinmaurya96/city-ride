@@ -14,6 +14,8 @@ switching vehicles. Both cars retain their original finish, with animated steeri
 Models load only when selected (or when restoring a save that has one equipped).
 See [model credits](docs/asset-audit.md#supplied-bmw-models-9-october-2026) for authors and embedded licenses.
 
+The [Playgama publishing kit](playgama/PLAYGAMA.md) contains listing text, exact-size cover artwork and actual game screenshots. The [asset inventory](playgama/assets/ASSETS.md) links to every upload image. These publishing resources stay outside the game build.
+
 ## Requirements
 
 - Node.js 24 (see `.nvmrc`; Vite 8 needs ≥ 20.19)
