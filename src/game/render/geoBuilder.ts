@@ -121,5 +121,3 @@ export class GeoBuilder {
     return merged;
   }
 }
-
-export const TMP_MATRIX = new THREE.Matrix4();

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { VehicleSpec } from '../data/vehicles';
-import { BIKE_MODELS, CAR_CABINS, EXTRA_CARS, EXTRA_BY_ID, carDoor, driverCabin, type CarCabin } from '../data/importedCatalog';
+import { BIKE_MODELS, CAR_CABINS, EXTRA_CARS, EXTRA_BY_ID, carDoor, doorInner, driverCabin, type CarCabin, type CarDoor } from '../data/importedCatalog';
 import { loadGlb, releaseGlb } from './glbAssets';
 import { cabinLayout, doorPivot } from '../vehicles/cabin';
 
@@ -12,13 +12,16 @@ const urls: Record<string, string> = {
   black_huracan: new URL('../../../assets/optimized/vehicles/black-lambo.glb', import.meta.url).href,
   mclaren_p1: new URL('../../../assets/optimized/vehicles/mclaren.glb', import.meta.url).href,
   mustang_rtr: new URL('../../../assets/optimized/vehicles/mustang.glb', import.meta.url).href,
-  rolls_spectre: new URL('../../../assets/optimized/vehicles/rr-spectr.glb', import.meta.url).href,
   porsche_718: new URL('../../../assets/optimized/vehicles/2020_porsche_718_spyder.glb', import.meta.url).href,
   supra_a80: new URL('../../../assets/optimized/vehicles/toyota_supra_a80_1993.glb', import.meta.url).href,
-  western_star: new URL('../../../assets/optimized/vehicles/western_star_4900.glb', import.meta.url).href,
-  fast_72: new URL('../../../assets/optimized/vehicles/ergoninane-fast-72.glb', import.meta.url).href,
   police_car: new URL('../../../assets/optimized/vehicles/arunangshubanerjee-police-car-2064.glb', import.meta.url).href,
-  classic_sport: new URL('../../../assets/optimized/vehicles/sputnikjfkennedy-car-4473.glb', import.meta.url).href,
+  amg_gt_mansory: new URL('../../../assets/optimized/vehicles/2016_mansory_mercedes-amg_gt_s.glb', import.meta.url).href,
+  naran_hyper: new URL('../../../assets/optimized/vehicles/2020_naran_hyper_coupe.glb', import.meta.url).href,
+  aston_one77: new URL('../../../assets/optimized/vehicles/aston-martin.glb', import.meta.url).href,
+  audi_r8_gt: new URL('../../../assets/optimized/vehicles/audi.glb', import.meta.url).href,
+  bmw_m4_widebody: new URL('../../../assets/optimized/vehicles/bmw_m4_widebody__www.vecarz.com.glb', import.meta.url).href,
+  bmw_m3_gtr: new URL('../../../assets/optimized/vehicles/m3gtr.glb', import.meta.url).href,
+  rolls_ghost: new URL('../../../assets/optimized/vehicles/rolls-royce_ghost.glb', import.meta.url).href,
   ...Object.fromEntries(EXTRA_CARS.filter(car => car.id.startsWith('pack_')).map(car => [car.id, new URL('../../../assets/optimized/vehicles/traffic_racer_npc_vehicles_pack.glb', import.meta.url).href])),
   bmw_i8: new URL('../../../assets/optimized/vehicles/bmw_i8.glb', import.meta.url).href,
   bmw_m4_gt3: new URL('../../../assets/optimized/vehicles/2025_bmw_m4_gt3_evo_g82.glb', import.meta.url).href,
@@ -152,6 +155,79 @@ export function insideOutline(z: number, y: number, outline: readonly (readonly 
   return inside;
 }
 
+/**
+ * Bodies are often one continuous mesh across a door seam, so whole triangles would leave teeth along the cut. Split
+ * every triangle that straddles the traced outline (beyond the trim depth) on the line of the seam it crosses, with
+ * interpolated UVs/normals, so the door and the body part exactly on the seam. Corners take up to three passes.
+ */
+export function splitAtDoorSeams(geometry: THREE.BufferGeometry, door: CarDoor) {
+  const outline = door.outline, zs = outline.map(([z]) => z), ys = outline.map(([, y]) => y);
+  const box = { z0: Math.min(...zs), z1: Math.max(...zs), y0: Math.min(...ys), y1: Math.max(...ys) };
+  let current = geometry;
+  for (let pass = 0; pass < 3; pass++) {
+    const p = current.getAttribute('position'), count = p.count / 3, cuts = new Map<number, number>();
+    for (let t = 0; t < count; t++) {
+      const i = t * 3, z0 = p.getZ(i), z1 = p.getZ(i + 1), z2 = p.getZ(i + 2);
+      if ((z0 < box.z0 && z1 < box.z0 && z2 < box.z0) || (z0 > box.z1 && z1 > box.z1 && z2 > box.z1)) continue;
+      const y0 = p.getY(i), y1 = p.getY(i + 1), y2 = p.getY(i + 2);
+      if ((y0 < box.y0 && y1 < box.y0 && y2 < box.y0) || (y0 > box.y1 && y1 > box.y1 && y2 > box.y1)) continue;
+      if (Math.abs(p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3 <= doorInner(door, (y0 + y1 + y2) / 3) - .05) continue;
+      const y = [y0, y1, y2], z = [z0, z1, z2];
+      const inside = [0, 1, 2].map((k) => insideOutline(z[k], y[k], outline));
+      if (inside[0] === inside[1] && inside[1] === inside[2]) continue;
+      // The seam it crosses: the outline edge that its own edges intersect, nearest its centre.
+      let best = -1, bestDistance = Infinity;
+      const cz = (z[0] + z[1] + z[2]) / 3, cy = (y[0] + y[1] + y[2]) / 3;
+      for (let e = 0; e < outline.length; e++) {
+        const [ez0, ey0] = outline[e], [ez1, ey1] = outline[(e + 1) % outline.length];
+        const crosses = [0, 1, 2].some((k) => {
+          const za = z[k], ya = y[k], zb = z[(k + 1) % 3], yb = y[(k + 1) % 3];
+          const d = (ez1 - ez0) * (yb - ya) - (ey1 - ey0) * (zb - za); if (Math.abs(d) < 1e-12) return false;
+          const u = ((za - ez0) * (yb - ya) - (ya - ey0) * (zb - za)) / d, w = ((za - ez0) * (ey1 - ey0) - (ya - ey0) * (ez1 - ez0)) / d;
+          return u >= 0 && u <= 1 && w >= 0 && w <= 1;
+        });
+        const distance = ((ez0 + ez1) / 2 - cz) ** 2 + ((ey0 + ey1) / 2 - cy) ** 2;
+        if (crosses && distance < bestDistance) { bestDistance = distance; best = e; }
+      }
+      if (best >= 0) cuts.set(t, best);
+    }
+    if (!cuts.size) break;
+    // Each cut triangle becomes three: the lone vertex's triangle and the opposite quad as two triangles.
+    const attributes = Object.entries(current.attributes), out = attributes.map(([, a]) => new Float32Array((count + cuts.size * 2) * 3 * a.itemSize));
+    const written = attributes.map(() => 0), push = (a: number, values: ArrayLike<number>) => { out[a].set(values, written[a]); written[a] += values.length; };
+    const read = (a: number, vertex: number) => { const attribute = attributes[a][1]; return Array.from({ length: attribute.itemSize }, (_, c) => attribute.getComponent(vertex, c)); };
+    for (let t = 0; t < count; t++) {
+      const edge = cuts.get(t);
+      let lone = -1, side: number[] = [];
+      if (edge !== undefined) {
+        const [ez0, ey0] = outline[edge], [ez1, ey1] = outline[(edge + 1) % outline.length];
+        side = [0, 1, 2].map((k) => (ez1 - ez0) * (p.getY(t * 3 + k) - ey0) - (ey1 - ey0) * (p.getZ(t * 3 + k) - ez0));
+        if (side.every((d) => Math.abs(d) > 1e-9)) lone = [0, 1, 2].find((k) => Math.sign(side[k]) !== Math.sign(side[(k + 1) % 3]) && Math.sign(side[k]) !== Math.sign(side[(k + 2) % 3])) ?? -1;
+      }
+      for (let a = 0; a < attributes.length; a++) {
+        if (lone < 0) {
+          const attribute = attributes[a][1];
+          for (let k = 0; k < 3; k++) for (let c = 0; c < attribute.itemSize; c++) out[a][written[a]++] = attribute.getComponent(t * 3 + k, c);
+          continue;
+        }
+        const v = [0, 1, 2].map((k) => read(a, t * 3 + k));
+        const lerp = (i: number, j: number) => { const f = side[i] / (side[i] - side[j]); return v[i].map((value, c) => value + (v[j][c] - value) * f); };
+        const b = (lone + 1) % 3, c = (lone + 2) % 3, ab = lerp(lone, b), ac = lerp(lone, c);
+        for (const values of [v[lone], ab, ac, ab, v[b], v[c], ab, v[c], ac]) push(a, values);
+      }
+    }
+    const result = new THREE.BufferGeometry();
+    attributes.forEach(([name, attribute], a) => {
+      const values = out[a].subarray(0, written[a]);
+      if (name === 'normal') for (let i = 0; i < values.length; i += 3) { const l = Math.hypot(values[i], values[i + 1], values[i + 2]) || 1; values[i] /= l; values[i + 1] /= l; values[i + 2] /= l; }
+      result.setAttribute(name, new THREE.BufferAttribute(values, attribute.itemSize, attribute.normalized));
+    });
+    if (current !== geometry) current.dispose();
+    current = result;
+  }
+  return current;
+}
+
 /** The steering wheel's frame: origin at the rim centre, +Z toward the driver, +Y toward 12 o'clock. */
 export function steeringFrame(wheel: { centre: readonly number[]; normal: readonly number[] }) {
   const z = new THREE.Vector3(...wheel.normal).normalize(), y = new THREE.Vector3(0, 1, 0).addScaledVector(z, -z.y).normalize();
@@ -178,14 +254,12 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
   source.updateWorldMatrix(true, true);
   const extra = EXTRA_BY_ID.get(spec.id);
   const yaw = extra && 'yaw' in extra ? extra.yaw : 0;
-  const orientation = new THREE.Matrix4().makeRotationY(spec.id === 'western_star' ? Math.PI : yaw);
+  const orientation = new THREE.Matrix4().makeRotationY(yaw);
   const raw: { geometry: THREE.BufferGeometry; material: THREE.Material; name: string; wheelName: string; brake: boolean }[] = [];
   const bounds = new THREE.Box3();
   const point = new THREE.Vector3();
   source.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
-    // This truck contains a displaced static duplicate and a skinned copy. Bake only the latter.
-    if (spec.id === 'western_star' && !(o instanceof THREE.SkinnedMesh)) return;
     // The Maybach file ships inside a 10 m showroom box with light-streak planes; it is not part of the car.
     if (spec.id === 'mercedes_maybach' && /frame/i.test((Array.isArray(o.material) ? o.material[0] : o.material).name)) return;
     const original = o.geometry.clone();
@@ -195,9 +269,6 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
         o.getVertexPosition(i, point).applyMatrix4(o.matrixWorld);
         positions.setXYZ(i, point.x, point.y, point.z);
       }
-      original.computeBoundingBox();
-      // Negative-scale right-side parts in the supplied truck were exported 199 times too large.
-      if (spec.id === 'western_star' && original.boundingBox!.getSize(point).length() > 50) original.scale(1 / 199, 1 / 199, 1 / 199);
     } else original.applyMatrix4(o.matrixWorld);
     original.applyMatrix4(orientation);
     const geo = original.index ? original.toNonIndexed() : original;
@@ -206,18 +277,8 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
     geo.computeBoundingBox(); bounds.union(geo.boundingBox!);
     let wheelRoot: THREE.Object3D | null = o;
     while (wheelRoot && !/^(wheel(?:_?00[12])?|Vert(?:_?00[12])?|3DWheel[_ ](?:Front|Rear)[_ ][LR])$|(?:Front|Rear)(?:Left|Right)Wheel|3DWheel_(?:Front|Rear)_[LR]|Combined3DWheel.*(?:Front|Rear)_[LR]/i.test(wheelRoot.name)) wheelRoot = wheelRoot.parent;
-    let wheelName = wheelRoot?.name ?? '';
-    let name = o.name;
-    if (o instanceof THREE.SkinnedMesh && spec.id === 'western_star') {
-      const weights = o.geometry.getAttribute('skinWeight'); const indices = o.geometry.getAttribute('skinIndex');
-      const counts = new Map<number, number>();
-      for (let i = 0; i < indices.count; i++) for (let j = 0; j < 4; j++) {
-        const index = indices.getComponent(i, j); counts.set(index, (counts.get(index) ?? 0) + weights.getComponent(i, j));
-      }
-      const bone = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
-      name = o.skeleton.bones[bone]?.name ?? o.name;
-      if (/Wheel/i.test(name)) wheelName = name;
-    }
+    const wheelName = wheelRoot?.name ?? '';
+    const name = o.name;
     const material = Array.isArray(o.material) ? o.material[0] : o.material;
     raw.push({ geometry: geo, material, name, wheelName, brake: /Brake|Calip|Cali_/i.test(o.name + material.name) || /^Vert/i.test(wheelName) });
   });
@@ -260,10 +321,10 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
   const tireBounds = spec.wheels.visual.map(() => new THREE.Box3());
   const assemblyBounds = spec.wheels.visual.map(() => new THREE.Box3());
   const wheelIndex = (name: string, x: number, z: number) => {
-    const front = !oldBMW && spec.id !== 'western_star' ? z >= 0 : /Front|Wheel_F/i.test(name) || /^(wheel|wheel_?002|Vert|Vert_?002)$/i.test(name);
-    return (front ? 0 : /Wheel_BB/i.test(name) ? 4 : 2) + (x >= 0 ? 0 : 1);
+    const front = !oldBMW ? z >= 0 : /Front|Wheel_F/i.test(name) || /^(wheel|wheel_?002|Vert|Vert_?002)$/i.test(name);
+    return (front ? 0 : 2) + (x >= 0 ? 0 : 1);
   };
-  // Tire-only bounds supply the pivot. Trim, suspension and brake calipers must not move it.
+  // Tire-only bounds supply the pivot. Trim, suspension and brake calipers (even a 'Tire_Brake' material) must not move it.
   for (const p of raw) {
     const a = p.geometry.getAttribute('position');
     for (let i = 0; i < a.count; i++) {
@@ -271,7 +332,7 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
       const axle = Math.abs(z - axleZ[0]) < Math.abs(z - axleZ[1]) ? 0 : 1;
       const index = p.wheelName ? wheelIndex(p.wheelName, x, z) : axle * 2 + (x >= 0 ? 0 : 1);
       if (p.wheelName && !p.brake) assemblyBounds[index]?.expandByPoint(point.set(x, y, z));
-      if (/tire|tyre|rubber|good.year/i.test(p.material.name) && y < spec.wheelRadius * 2.3 && Math.abs(x) > size.x * .3 && Math.abs(z - axleZ[axle]) < spec.wheelRadius * 1.1) tireBounds[index]?.expandByPoint(point.set(x, y, z));
+      if (!p.brake && /tire|tyre|rubber|good.year/i.test(p.material.name) && y < spec.wheelRadius * 2.3 && Math.abs(x) > size.x * .3 && Math.abs(z - axleZ[axle]) < spec.wheelRadius * 1.1) tireBounds[index]?.expandByPoint(point.set(x, y, z));
     }
   }
   const pivots = spec.wheels.visual.map((w, i) => {
@@ -282,6 +343,7 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
     return { center, radius: THREE.MathUtils.clamp(radius, w.radius * .8, w.radius * 1.4) };
   });
   for (const p of raw) {
+    if (measuredDoor && !spec.npcOnly) { const cut = splitAtDoorSeams(p.geometry, measuredDoor); if (cut !== p.geometry) { p.geometry.dispose(); p.geometry = cut; } }
     const a = p.geometry.getAttribute('position');
     const groups = new Map<string, { wheel: number | null; door: number; steer: boolean; triangles: number[] }>();
     for (let i = 0; i < a.count; i += 3) {
@@ -304,7 +366,7 @@ export function prepareImportedModel(source: THREE.Group, spec: VehicleSpec) {
       }
       const explicitDoor = !measuredDoor && /Door_[LR]|door(?:_|$)/i.test(p.name) && !/Indoor/i.test(p.name);
       // Measured cars cut the panel along its traced seams (skin through inner trim); others use a box.
-      const inDoor = measuredDoor ? Math.abs(x) > measuredDoor.inner && insideOutline(z, y, measuredDoor.outline)
+      const inDoor = measuredDoor ? Math.abs(x) > doorInner(measuredDoor, y) && insideOutline(z, y, measuredDoor.outline)
         : z > c.back && z < c.front && y > c.sill && y < spec.height * .94 && Math.abs(x) > size.x * .32;
       const door = !spec.npcOnly && wheel === null && (explicitDoor || inDoor) ? (x > 0 ? 1 : -1) : 0;
       const steer = wheel === null && door === 0 && [0, 1, 2].every((v) => onSteeringWheel(a.getX(i + v), a.getY(i + v), a.getZ(i + v)));

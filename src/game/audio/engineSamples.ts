@@ -48,7 +48,6 @@ export const BIKE2 = {
     { name: 'top', stage: 'peak', from: 13.0, to: 13.85, ref: 245 },
   ],
 } as const;
-export type BikeLayer = typeof BIKE2.layers[number];
 
 /** Recorded firing frequency of bike-sound-2.mp3 at time t (linear between the 50 ms measurements). */
 export function bike2PitchAt(t: number) {

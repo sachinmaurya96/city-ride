@@ -1,7 +1,9 @@
 # Asset audit
 
 The original 8 Oct 2026 files were **reference images only** (AI-style concept renders, 1672×941 PNG, ~1.6–2 MB each).
-Those reference PNGs are **not shipped** in the game. Thirteen GLB files (eight standalone cars, a 17-vehicle pack and four characters) were supplied on 9 Oct 2026 and
+The 14 concept PNGs were removed from the codebase on 11 Oct 2026 during unused-file cleanup;
+they were never imported by the game, tests or build tools. The table below records their historical design purpose.
+Thirteen GLB files (eight standalone cars, a 17-vehicle pack and four characters) were supplied on 9 Oct 2026 and
 are now imported as lazy-loaded runtime assets; their credits and embedded licenses are recorded below.
 
 | File | Purpose | Runtime asset? | Used to guide |
@@ -67,23 +69,20 @@ These models are included for the requested local game preview. No publication o
 
 | File | Embedded author | Embedded license | Bytes |
 | --- | --- | --- | --- |
-| `sputnikjfkennedy-car-4473.glb` | Not embedded | Not embedded | 8,479,780 |
 | `cartethyia_wuthering_waves.glb` | [ilyakardailskiy](https://sketchfab.com/3d-models/cartethyia-wuthering-waves-190c6f977eaf4b038b51e0d20459da7f) | CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/) | 7,936,748 |
-| `western_star_4900.glb` | [Korolv](https://sketchfab.com/3d-models/western-star-4900-ffb6ac796fb94d83b7687761bebf13d3) | SKETCHFAB Standard (https://sketchfab.com/licenses) | 8,968,256 |
 | `toyota_supra_a80_1993.glb` | [Lexyc16](https://sketchfab.com/3d-models/toyota-supra-a80-1993-dd897d7823784bc5893c183c1328e8cb) | CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/) | 3,291,204 |
 | `arunangshubanerjee-police-car-2064.glb` | Not embedded | Not embedded | 4,830,144 |
 | `lynae_from_wuthering_waves.glb` | [keqingkuki](https://sketchfab.com/3d-models/lynae-from-wuthering-waves-e59593637d424294a7361d428d9147bc) | CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/) | 15,329,904 |
 | `male-rover.glb` | [ilyakardailskiy](https://sketchfab.com/3d-models/male-rover1-02-wuthering-waves-9990a963a5da4cceaee55d062a8d5439) | CC-BY-4.0 | 6,473,480 |
 | `female-rover.glb` | [ilyakardailskiy](https://sketchfab.com/3d-models/female-rover1-01-wuthering-waves-094c99a017a442f1bb20b6e948264fe5) | CC-BY-4.0 | 8,310,000 |
-| `ergoninane-fast-72.glb` | Not embedded | Not embedded | 677,696 |
 | `2020_porsche_718_spyder.glb` | [007](https://sketchfab.com/3d-models/2020-porsche-718-spyder-433c9de37b8a46e18fccfa1c90b5ac27) | CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/) | 9,304,984 |
 | `traffic_racer_npc_vehicles_pack.glb` | [Mason](https://sketchfab.com/3d-models/traffic-racer-npc-vehicles-pack-8825234a326d4c219fe79af52608d62d) | CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/) | 2,130,580 |
 
-Source GLBs are unchanged. The Traffic Racer pack and Police Cruiser are used only as batched NPC traffic; their closed geometry stays intact and they cannot be purchased or equipped. Player cars are normalized and split into animated wheel and hinged door groups. Tire bounds determine wheel pivots; brake calipers stay with the steering group and body/suspension fragments stay with the chassis. Physics support points are calibrated to the imported tires. Each visual wheel follows its own support axle rather than the average suspension of the entire car. The Western Star skinned export is baked at rest, its displaced duplicate omitted, and its malformed 199× right-side parts corrected. Legacy specular/gloss materials are converted before loading so original diffuse textures survive.
+Source GLBs are unchanged. The Traffic Racer pack and Police Cruiser are used only as batched NPC traffic; their closed geometry stays intact and they cannot be purchased or equipped. Player cars are normalized and split into animated wheel and hinged door groups. Tire bounds determine wheel pivots; brake calipers stay with the steering group and body/suspension fragments stay with the chassis. Physics support points are calibrated to the imported tires. Each visual wheel follows its own support axle rather than the average suspension of the entire car. Legacy specular/gloss materials are converted before loading so original diffuse textures survive.
 
 Lynae retains her supplied 406-bone skeleton. Cartethyia and both Rover files have no skeleton, so runtime skin weights and an articulated rig are generated around their original textured geometry. Rover rigs match their lowered-arm bind poses; long ponytails stay attached to the head. Male and Female now select Rover by default, including existing saved selections. Cartethyia's hanging sleeves follow the arms, fold into the lap when seated, and lower clothing follows the legs. Walking uses distinct alternating strides, stronger knee bends, flat soles and grounded hip height. None of these files contains animation clips; walking, reaching, crouching and seating are procedural poses, not motion capture. Imported riders use vehicle-specific seating and arm IK for moving steering grips. Legs extend into the car footwell. The seated fit adjusts hip height and width separately, retaining character height while keeping hair, clothes and feet within the cabin. Bounds are measured in actor coordinates so driving, turning and re-rendering cannot cause progressive shrinking. The fit applies to both the driver and lead passenger. Doors open before crossing the sill and close after seating; opening doors have Rapier colliders and throttle/reverse are locked during entry. Drivers can tap a stopped car's door to get out, walk outside with collision sweeps, and return to enter.
 
-Embedded licenses are preserved, including the noncommercial/share-alike models and the Western Star Standard license. Three supplied files have no embedded author/license metadata. This integration does not establish redistribution rights for those files or change the existing release size gate. No release/upload is performed.
+Embedded licenses are preserved, including the noncommercial/share-alike models. The Police Cruiser file has no embedded author/license metadata. This integration does not establish redistribution rights for those files or change the existing release size gate. No release/upload is performed.
 
 ## Recorded audio
 
@@ -112,7 +111,7 @@ HP petrol-pump GLB is placed once per undirected street section (40 stations). I
 provides wall/post collisions, while each marked filling area remains off the road. Station
 frontages are reserved during generation so buildings and street trees leave clear entrances.
 
-The LP670, Black Huracán, McLaren P1 GTR, Mustang RTR and Rolls-Royce Spectre are lazy-loaded
+The LP670, Black Huracán, McLaren P1 GTR and Mustang RTR are lazy-loaded
 player garage cars. Export offsets and units are normalized; the LP670 export's rotated axles
 are straightened. Wheel geometry, physics support points, cabin fit and texture preservation
 are covered by the real-asset audit. Attribution is copied from embedded GLB metadata into
@@ -138,3 +137,34 @@ from 185,309,876 to 62,858,136 (66%). This trades texture resolution/encoding fo
 GPU texture memory; it does not lower triangle counts. Source assets are kept for future quality
 variants. Browser checks load all 30 catalog models, the newer garage previews, city packs and all
 four McLaren driver profiles using the optimized copies.
+
+### October 10 cars and billboard pack
+
+The Rolls-Royce Spectre, Western Star 4900, Fast 72 and Classic Sport were withdrawn at the owner's request; their
+source and runtime GLBs, thumbnails and credits are removed. Saves migrate before validation: Spectre owners receive
+the Ghost (or a refund if they already own one); the other three are refunded what the journal shows was paid, else
+their last listed price. Equipped cars and in-progress rides move to a valid car.
+
+| File | Author / source | Embedded license | Bytes | Runtime bytes |
+| --- | --- | --- | --- | --- |
+| `2016_mansory_mercedes-amg_gt_s.glb` | [Ddiaz Design](https://sketchfab.com/3d-models/2016-mansory-mercedes-amg-gt-s-7c9588bf4838471bb1814a80450c0773) | CC-BY-NC-SA-4.0 | 7,377,956 | 3,255,000 |
+| `2020_naran_hyper_coupe.glb` | [Ddiaz Design](https://sketchfab.com/3d-models/2020-naran-hyper-coupe-70d0d11e85a4451997b4bc5a8b64cf9d) | CC-BY-NC-SA-4.0 | 6,651,004 | 3,012,432 |
+| `aston-martin.glb` | [_Sheep19 — 2011 Aston Martin One-77](https://sketchfab.com/3d-models/2011-aston-martin-one-77-57d0b9062aab4e079fbb8d06bf39baf4) | CC-BY-4.0 | 2,343,492 | 1,083,048 |
+| `audi.glb` | [Ddiaz Design — 2011 Audi R8 GT](https://sketchfab.com/3d-models/2011-audi-r8-gt-82a564b96dde47a78925d9e45b78aaa1) | CC-BY-NC-SA-4.0 | 11,848,772 | 6,303,860 |
+| `bmw_m4_widebody__www.vecarz.com.glb` | [vecarz](https://sketchfab.com/3d-models/bmw-m4-widebody-wwwvecarzcom-a5687befab084efdba9a5c99a9a8ad4c) | CC-BY-NC-SA-4.0 | 22,503,452 | 12,524,608 |
+| `m3gtr.glb` | [kevin (ケビン) — 2001 BMW M3 GTR (E46)](https://sketchfab.com/3d-models/2001-bmw-m3-gtr-e46-nfsmw-7deca432dbda4298893988813528b9c8) | CC-BY-4.0 | 9,173,452 | 4,683,104 |
+| `rolls-royce_ghost.glb` | [Black Snow](https://sketchfab.com/3d-models/rolls-royce-ghost-4a590f4afa094fa8b407a14db77a63a8) | CC-BY-4.0 | 37,357,368 | 17,077,136 |
+| `billboard.glb` | [staticcc — Low-poly Billboard Pack](https://sketchfab.com/3d-models/low-poly-billboard-pack-f5da73b8050a4e7d9fce53b6171ccbc7) | CC-BY-4.0 | 9,239,940 | 502,680 |
+
+Each car is scaled so its measured wheelbase matches the real car (AMG GT 2.63 m, Naran on the BMW M8's 2.83 m —
+no published length —, One-77 2.79 m, R8 2.65 m, M4 2.86 m, E46 M3 2.73 m, Ghost 3.30 m; all within 4 mm). Cabins
+are measured from the geometry: the steering-wheel rim by a ring fit on its connected component, the hip on the
+ray-cast cushion ahead of the backrest, the headliner and footwell by vertical rays, and door seams traced on 300–800
+px/m blueprints. Window glass leaning inward above the beltline is followed by a measured glass line, so frameless
+windows and frames open with the door while headliners, pillars, seats and the M3's roll cage stay put. The Ghost
+is right-hand drive as supplied; the others are left-hand drive and get the usual mirrored cockpit. The AMG's brake
+calipers use a `Tire_Brake` material; brake parts no longer count as tyre when locating wheel hubs.
+
+The billboard pack contains three identical double-faced structures (6.62 × 6.85 × 2.02 m) in one frame mesh; they
+are split by nearest ad panel and placed beyond the Ring Road hedge, square to the road so each traffic direction reads one face. Their ad artwork
+(Pepsi, BMW and a car-dealer poster) is part of the supplied model and shows real brands.

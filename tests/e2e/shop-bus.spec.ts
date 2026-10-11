@@ -3,22 +3,27 @@ import { autopilot, boot, completeRide, fixture, play, state, waitStage } from '
 
 // Plan §21.2 flow 2 (buy auto → equip → group-capable ride → reload) and Phase 6 exit (bus tiers complete routes).
 
-test('buy the Classic Sport, drive it, complete a ride, keep it after reload', async ({ page }) => {
+test('buy the BMW M3 GTR, drive it, complete a ride, keep it after reload', async ({ page }) => {
   await boot(page, { clear: true });
-  await fixture(page, { wallet: 2500, xp: 400, jobs: 3 }); // level 3, enough cash (test fixture)
+  await fixture(page, { wallet: 4500, xp: 400, jobs: 3 }); // level 3, enough cash (test fixture)
   await page.click('[data-testid=menu-garage]');
-  await page.click('[data-testid=vcard-classic_sport]');
+  await page.click('[data-testid=vcard-bmw_m3_gtr]');
   await expect(page.getByTestId('vcard-auto_city')).toHaveCount(0);
   await page.click('[data-testid=buy]');
   await page.click('[data-testid=confirm-yes]');
   // a second click on a stale button cannot buy twice
   await expect(page.locator('[data-testid=buy]')).toHaveCount(0);
   await expect(page.getByTestId('vehicle-preview')).toHaveAttribute('data-model-state', 'ready', { timeout: 60000 });
-  await page.click('[data-testid=try-car]'); // equips and closes the garage
+  // Equips and closes the garage. The garage ignores taps for 250 ms after the purchase (double-tap guard), and a
+  // cached model can be ready sooner than that, so repeat the tap until it lands.
+  await expect(async () => {
+    if (await page.getByTestId('try-car').isVisible()) await page.getByTestId('try-car').click();
+    expect(await page.evaluate(() => window.__cr.store.getState().save.equippedVehicleId)).toBe('bmw_m3_gtr');
+  }).toPass({ intervals: [300, 500, 1000] });
   let s = await page.evaluate(() => (window as unknown as { __cr: { store: { getState(): { save: { wallet: number; ownedVehicleIds: string[]; equippedVehicleId: string } } } } }).__cr.store.getState().save);
   expect(s.wallet).toBe(500);
-  expect(s.ownedVehicleIds).toEqual(['bike_basic', 'classic_sport']);
-  expect(s.equippedVehicleId).toBe('classic_sport');
+  expect(s.ownedVehicleIds).toEqual(['bike_basic', 'bmw_m3_gtr']);
+  expect(s.equippedVehicleId).toBe('bmw_m3_gtr');
   await play(page);
   await completeRide(page);
   const after = await state(page);
@@ -26,8 +31,8 @@ test('buy the Classic Sport, drive it, complete a ride, keep it after reload', a
   await page.click('[data-testid=next-ride]');
   await boot(page);
   s = await page.evaluate(() => (window as unknown as { __cr: { store: { getState(): { save: { wallet: number; ownedVehicleIds: string[]; equippedVehicleId: string } } } } }).__cr.store.getState().save);
-  expect(s.ownedVehicleIds).toEqual(['bike_basic', 'classic_sport']);
-  expect(s.equippedVehicleId).toBe('classic_sport');
+  expect(s.ownedVehicleIds).toEqual(['bike_basic', 'bmw_m3_gtr']);
+  expect(s.equippedVehicleId).toBe('bmw_m3_gtr');
   expect(s.wallet).toBe(after.wallet);
 });
 

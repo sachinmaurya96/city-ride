@@ -17,6 +17,7 @@ import { quality } from '../render/quality';
 import { ImportedCity } from './ImportedCity';
 import { FuelMarkers } from './FuelMarkers';
 import { worldAssets } from './worldAssets';
+import { ParkedVehiclePhysics } from './parkedVehiclePhysics';
 
 const SPHERE_LOW = new THREE.IcosahedronGeometry(1, 0);
 
@@ -165,15 +166,24 @@ const CURB_SEAT = 0.52;
 /** Parked cars: one InstancedMesh per model, refilled with only the cars near the camera. */
 function ParkedVehicles({ parked }: { parked: ParkedVehicle[] }) {
   const { camera } = useThree();
+  const { world, rapier } = useRapier();
+  const physics = useRef<ParkedVehiclePhysics | null>(null);
+  useEffect(() => {
+    const bodies = new ParkedVehiclePhysics(world, rapier, parked);
+    physics.current = bodies;
+    return () => { physics.current = null; bodies.dispose(); };
+  }, [world, rapier, parked]);
   const groups = useMemo(() => {
-    const byModel = new Map<ParkedVehicle['model'], ParkedVehicle[]>();
-    for (const p of parked) {
+    const byModel = new Map<ParkedVehicle['model'], number[]>();
+    for (const [id, p] of parked.entries()) {
       if (!byModel.has(p.model)) byModel.set(p.model, []);
-      byModel.get(p.model)!.push(p);
+      byModel.get(p.model)!.push(id);
     }
     return [...byModel].map(([model, list]) => {
       const geo = buildStaticVehicleGeometry(VEHICLES[model], '#ffffff', false, true);
       const mesh = new THREE.InstancedMesh(geo, MATERIALS.tint, list.length);
+      mesh.name = `parked-${model}`;
+      mesh.userData.vehicleIds = [];
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.frustumCulled = false;
@@ -181,24 +191,29 @@ function ParkedVehicles({ parked }: { parked: ParkedVehicle[] }) {
       return { list, mesh };
     });
   }, [parked]);
+  useEffect(() => () => groups.forEach(({ mesh }) => { mesh.geometry.dispose(); mesh.dispose(); }), [groups]);
   const acc = useRef(1);
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), q: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), c: new THREE.Color(), p: new THREE.Vector3(), one: new THREE.Vector3(1, 1, 1) }), []);
   useFrame((_, dt) => {
     acc.current += dt;
-    if (acc.current < 0.5) return;
+    const moved = physics.current?.sync();
+    if (acc.current < 0.5 && !moved) return;
     acc.current = 0;
     const r = Math.min(200, quality.current.drawDistance * 0.6);
     for (const g of groups) {
       let n = 0;
-      for (const p of g.list) {
+      for (const id of g.list) {
+        const p = physics.current?.states[id]?.pose ?? parked[id];
         if (Math.abs(p.x - camera.position.x) > r || Math.abs(p.z - camera.position.z) > r) continue;
         tmp.q.setFromAxisAngle(tmp.up, p.heading);
         tmp.m.compose(tmp.p.set(p.x, 0, p.z), tmp.q, tmp.one);
         g.mesh.setMatrixAt(n, tmp.m);
         g.mesh.setColorAt(n, tmp.c.set(p.color));
+        g.mesh.userData.vehicleIds[n] = id;
         n++;
       }
       g.mesh.count = n;
+      g.mesh.userData.vehicleIds.length = n;
       g.mesh.instanceMatrix.needsUpdate = true;
       if (g.mesh.instanceColor) g.mesh.instanceColor.needsUpdate = true;
     }

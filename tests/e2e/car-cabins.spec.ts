@@ -3,7 +3,7 @@ import { boot, fixture, play } from './helpers';
 
 test.use({ viewport: { width: 1000, height: 600 } });
 
-const CARS = ['bmw_i8', 'bmw_m4_gt3', 'lambo_lp670', 'black_huracan', 'mclaren_p1', 'mustang_rtr', 'rolls_spectre', 'porsche_718', 'supra_a80', 'western_star', 'fast_72', 'mercedes_maybach', 'classic_sport'] as const;
+const CARS = ['bmw_i8', 'bmw_m4_gt3', 'lambo_lp670', 'black_huracan', 'mclaren_p1', 'mustang_rtr', 'porsche_718', 'supra_a80', 'mercedes_maybach', 'amg_gt_mansory', 'naran_hyper', 'aston_one77', 'audi_r8_gt', 'bmw_m4_widebody', 'bmw_m3_gtr', 'rolls_ghost'] as const;
 const DRIVERS = ['male', 'lynae', 'female', 'cartethyia'] as const;
 
 /** Hands relative to the steering-wheel rim (wheel frame: radial error, axial offset) and the wheel's turn. */

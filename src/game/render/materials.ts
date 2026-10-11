@@ -30,21 +30,3 @@ export const MATERIALS = {
     polygonOffsetUnits: -2,
   }),
 };
-
-const cache = new Map<string, THREE.MeshStandardMaterial>();
-/** Shared solid-color material for the few individually rendered meshes (player vehicle, passengers). */
-export function solid(color: THREE.ColorRepresentation, opts: { rough?: number; emissive?: string; metal?: number } = {}) {
-  const key = `${new THREE.Color(color).getHexString()}|${opts.rough ?? 0.7}|${opts.emissive ?? ''}|${opts.metal ?? 0}`;
-  let m = cache.get(key);
-  if (!m) {
-    m = new THREE.MeshStandardMaterial({
-      color,
-      roughness: opts.rough ?? 0.7,
-      metalness: opts.metal ?? 0,
-      emissive: opts.emissive ? new THREE.Color(opts.emissive) : undefined,
-      emissiveIntensity: opts.emissive ? 0.6 : 0,
-    });
-    cache.set(key, m);
-  }
-  return m;
-}

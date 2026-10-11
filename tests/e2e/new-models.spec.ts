@@ -37,7 +37,7 @@ test('all new vehicles load with original materials and usable wheel/door parts'
     return results;
   });
   // 31 cars (13 in the garage, 18 traffic-only) and the two imported superbikes.
-  expect(results).toHaveLength(33);
+  expect(results).toHaveLength(36);
   for (const car of results) {
     expect(car.triangles, car.id).toBeGreaterThan(100);
     if (car.bike) expect(car.wheels).toHaveLength(2);
@@ -48,7 +48,7 @@ test('all new vehicles load with original materials and usable wheel/door parts'
     expect(car.dimensions.every((n) => Number.isFinite(n) && n > .5 && n < 12), car.id).toBe(true);
   }
   await test.info().attach('all-models.json', { body: JSON.stringify(results, null, 2), contentType: 'application/json' });
-  for (const id of ['lambo_lp670', 'black_huracan', 'mclaren_p1', 'mustang_rtr', 'rolls_spectre']) {
+  for (const id of ['amg_gt_mansory', 'naran_hyper', 'aston_one77', 'audi_r8_gt', 'bmw_m4_widebody', 'bmw_m3_gtr', 'rolls_ghost']) {
     await page.evaluate(() => window.__cr.store.getState().openOverlay('garage'));
     await page.getByTestId(`vcard-${id}`).click();
     await expect(page.getByTestId('vehicle-preview')).toHaveAttribute('data-model-state', 'ready');

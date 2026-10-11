@@ -28,13 +28,6 @@ export const ASSET_CREDITS = [
     "licenseUrl": "https://creativecommons.org/licenses/by/4.0/"
   },
   {
-    "title": "Western_Star_4900",
-    "author": "Korolv",
-    "source": "https://sketchfab.com/3d-models/western-star-4900-ffb6ac796fb94d83b7687761bebf13d3",
-    "license": "SKETCHFAB Standard",
-    "licenseUrl": "https://sketchfab.com/licenses"
-  },
-  {
     "title": "Toyota Supra (A80) 1993",
     "author": "Lexyc16",
     "source": "https://sketchfab.com/3d-models/toyota-supra-a80-1993-dd897d7823784bc5893c183c1328e8cb",
@@ -188,9 +181,58 @@ ASSET_CREDITS.push(...[
     "licenseUrl": "http://creativecommons.org/licenses/by-nc-sa/4.0/"
   },
   {
-    "title": "2026 Rolls-Royce Spectre",
-    "author": "tonielpro520",
-    "source": "https://sketchfab.com/3d-models/2026-rolls-royce-spectre-99fcb692e396433b96ead8b0b0ebc71f",
+    "title": "2016 Mansory Mercedes-AMG GT S",
+    "author": "Ddiaz Design",
+    "source": "https://sketchfab.com/3d-models/2016-mansory-mercedes-amg-gt-s-7c9588bf4838471bb1814a80450c0773",
+    "license": "CC-BY-NC-SA-4.0",
+    "licenseUrl": "http://creativecommons.org/licenses/by-nc-sa/4.0/"
+  },
+  {
+    "title": "2020 Naran Hyper Coupe",
+    "author": "Ddiaz Design",
+    "source": "https://sketchfab.com/3d-models/2020-naran-hyper-coupe-70d0d11e85a4451997b4bc5a8b64cf9d",
+    "license": "CC-BY-NC-SA-4.0",
+    "licenseUrl": "http://creativecommons.org/licenses/by-nc-sa/4.0/"
+  },
+  {
+    "title": "2011 Aston Martin One-77",
+    "author": "_Sheep19",
+    "source": "https://sketchfab.com/3d-models/2011-aston-martin-one-77-57d0b9062aab4e079fbb8d06bf39baf4",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+  },
+  {
+    "title": "2011 Audi R8 GT",
+    "author": "Ddiaz Design",
+    "source": "https://sketchfab.com/3d-models/2011-audi-r8-gt-82a564b96dde47a78925d9e45b78aaa1",
+    "license": "CC-BY-NC-SA-4.0",
+    "licenseUrl": "http://creativecommons.org/licenses/by-nc-sa/4.0/"
+  },
+  {
+    "title": "BMW M4 Widebody | www.vecarz.com",
+    "author": "vecarz",
+    "source": "https://sketchfab.com/3d-models/bmw-m4-widebody-wwwvecarzcom-a5687befab084efdba9a5c99a9a8ad4c",
+    "license": "CC-BY-NC-SA-4.0",
+    "licenseUrl": "http://creativecommons.org/licenses/by-nc-sa/4.0/"
+  },
+  {
+    "title": "2001 | BMW M3 GTR (E46) | NFSMW",
+    "author": "kevin (ケビン)",
+    "source": "https://sketchfab.com/3d-models/2001-bmw-m3-gtr-e46-nfsmw-7deca432dbda4298893988813528b9c8",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+  },
+  {
+    "title": "Rolls-Royce Ghost",
+    "author": "Black Snow",
+    "source": "https://sketchfab.com/3d-models/rolls-royce-ghost-4a590f4afa094fa8b407a14db77a63a8",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
+  },
+  {
+    "title": "Low-poly Billboard Pack",
+    "author": "staticcc",
+    "source": "https://sketchfab.com/3d-models/low-poly-billboard-pack-f5da73b8050a4e7d9fce53b6171ccbc7",
     "license": "CC-BY-4.0",
     "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
   }

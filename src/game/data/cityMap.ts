@@ -99,7 +99,6 @@ export const STOP_LINE_GAP = CROSSWALK_GAP + CROSSWALK_WIDTH + 1; // from juncti
 
 export type Dir = 'E' | 'W' | 'N' | 'S';
 export const DIR_VEC: Record<Dir, [number, number]> = { E: [1, 0], W: [-1, 0], N: [0, -1], S: [0, 1] };
-export const OPPOSITE: Record<Dir, Dir> = { E: 'W', W: 'E', N: 'S', S: 'N' };
 /** Driver's left (left-hand traffic keeps to the left). left = (dz, -dx). */
 export function leftOf(d: Dir): [number, number] {
   const [dx, dz] = DIR_VEC[d];
@@ -456,10 +455,6 @@ export const FUEL_STATIONS: FuelStation[] = SEGMENTS.filter(s => s.dir === 'E' |
     pumpX, pumpZ, pumpHeading: Math.atan2(-leftOf(seg.dir)[0], -leftOf(seg.dir)[1]) };
   BAY_BY_ID.set(bay.id, bay); return bay;
 });
-
-export function baysFor(landmark: LandmarkId, kind: VehicleKind) {
-  return BAYS.filter((b) => b.landmark === landmark && b.allowed.includes(kind));
-}
 
 /** Garage spawn: in the curb travel lane outside the garage, facing along traffic. */
 export function garageSpawn() {

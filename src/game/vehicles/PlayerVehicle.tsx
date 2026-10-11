@@ -379,8 +379,9 @@ export function PlayerVehicle({ vehicleId, paint, upgrades, rain, spawn, anchor,
           const membership = e.other.collider.collisionGroups() >>> 16;
           if (membership & G_GROUND) return; // curb edges are not crashes
           violations.pendingContact = { traffic: (membership & G_TRAFFIC) !== 0 };
-          const data = e.other.collider.parent()?.userData as { trafficId?: number } | undefined;
-          if (data?.trafficId !== undefined) { traffic.impact(data.trafficId); vehicle.current?.onNpcImpact(); }
+          const data = e.other.collider.parent()?.userData as { trafficId?: number; parkedId?: number } | undefined;
+          if (data?.trafficId !== undefined) traffic.impact(data.trafficId);
+          if (data?.trafficId !== undefined || data?.parkedId !== undefined) vehicle.current?.onNpcImpact();
         }}
       />
       {spec.kind === 'car' && [1, -1].map((side, i) => <CuboidCollider key={side} ref={(c) => { doorColliders.current[i] = c; }} args={[.05, cabin.doorHeight / 2, cabin.doorLength / 2]} position={[side * cabin.doorX, cabin.sill + cabin.doorHeight / 2 - restH, cabin.seatZ]} mass={0} friction={.5} restitution={0} collisionGroups={PLAYER_GROUPS} />)}

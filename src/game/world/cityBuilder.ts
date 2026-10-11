@@ -501,7 +501,6 @@ function buildBlock(block: Block, ctx: BuildCtx): CityChunk {
         const [wx, wz] = toWorld(p.x, p.z);
         if (p.kind === 'bus') {
           ctx.parked.push({ model: pick(rng, ['bus_small', 'bus_medium', 'bus_long'] as const), x: wx, z: wz, heading: yaw + Math.PI / 2, color: p.color ?? '#16a597' });
-          ctx.staticBoxes.push({ x: wx, y: 1.6, z: wz, hx: 1.3, hy: 1.6, hz: 6, ry: yaw + Math.PI / 2 });
         } else if (p.kind === 'luggage') {
           b.add('rbox', wx, CURB_HEIGHT + 0.4, wz, 0.6, 0.8, 0.35, pick(rng, ['#e2685c', '#4f8fd6', '#f2c14e', '#7fb069']), yaw);
         }
@@ -773,7 +772,6 @@ function buildMarkings(ctx: BuildCtx): THREE.BufferGeometry {
       const [x, z] = segmentPoint(seg, s, off + 0.1);
       const model = pick(rng, ['car_compact', 'car_compact', 'car_coupe', 'mpv_seven', 'auto_city'] as const);
       ctx.parked.push({ model, x, z, heading: Math.atan2(DIR_VEC[seg.dir][0], DIR_VEC[seg.dir][1]), color: pick(rng, CAR_COLORS) });
-      ctx.staticBoxes.push({ x, y: 0.8, z, hx: model === 'auto_city' ? 0.7 : 0.9, hy: 0.8, hz: model === 'mpv_seven' ? 2.35 : 2.0, ry: Math.atan2(DIR_VEC[seg.dir][0], DIR_VEC[seg.dir][1]) });
       s += 6;
     }
   }
@@ -781,6 +779,9 @@ function buildMarkings(ctx: BuildCtx): THREE.BufferGeometry {
 }
 
 // ---------- outer frame and scenery ----------
+
+/** One structure of the supplied billboard pack, in metres (measured from the model, export units are cm). */
+export const BILLBOARD_SIZE = { width: 6.62, height: 6.85, depth: 2.02 };
 
 function buildOuter(ctx: BuildCtx, platformBoxes: BoxCollider[]): CityChunk {
   const merged = new GeoBuilder();
@@ -827,13 +828,27 @@ function buildOuter(ctx: BuildCtx, platformBoxes: BoxCollider[]): CityChunk {
   ] as [number, number, number, number][]) {
     ctx.staticBoxes.push({ x, y: 2, z, hx, hy: 2, hz, ry: 0 });
   }
+  // Double-faced roadside billboards just past the hedge, between the outbound roads, each side cycling the three
+  // ads. Back-to-back faces stand square to the road, so each direction of traffic reads one ad.
+  // (Added after the trees: tree species follow the placement index, so the existing scenery stays the same.)
+  const billboards: WorldPlacement[] = [];
+  for (let side = 0; side < 4; side++) for (const [k, t] of [-360, -120, 120, 360].entries()) {
+    const d = fence + 6, [x, z] = side === 0 ? [t, -d] : side === 1 ? [t, d] : side === 2 ? [-d, t] : [d, t];
+    const facing = [0, Math.PI, Math.PI / 2, -Math.PI / 2][side];
+    billboards.push({ pack: 'billboards', variant: side * 4 + k, x, y: h, z, ry: facing + Math.PI / 2, ...BILLBOARD_SIZE });
+  }
+  const boards = billboards.map(b => [b.x, b.z]);
   for (let i = 0; i < 260; i++) {
     const side = Math.floor(rng() * 4);
     const t = range(rng, -outer + 10, outer - 10);
-    const d = range(rng, fence + 6, outer - 6);
+    let d = range(rng, fence + 6, outer - 6);
+    // Keep trees out of the billboards (moved, not skipped, so the rest of the scenery stays where it was).
+    const near = (dd: number) => boards.some(([bx, bz]) => Math.hypot((side < 2 ? t : side === 2 ? -dd : dd) - bx, (side === 0 ? -dd : side === 1 ? dd : t) - bz) < 9);
+    if (near(d)) d += 18;
     const [x, z] = side === 0 ? [t, -d] : side === 1 ? [t, d] : side === 2 ? [-d, t] : [d, t];
     parkTree(b, x, z, rng, range(rng, 1.1, 1.8), ctx);
   }
+  ctx.worldPlacements.push(...billboards);
   // distant hills
   for (let i = 0; i < 28; i++) {
     const a = (i / 28) * Math.PI * 2 + range(rng, -0.05, 0.05);
@@ -870,7 +885,7 @@ export function buildCity(): CityBuild {
       w: 9, h: 1.2, bg: '#ed693c', fg: '#ffffff' });
   }
   const markings = buildMarkings(ctx);
-  ctx.stats.colliders = ctx.staticBoxes.length + platformBoxes.length + platformHulls.length;
+  ctx.stats.colliders = ctx.staticBoxes.length + platformBoxes.length + platformHulls.length + ctx.parked.length;
   return { worldPlacements: ctx.worldPlacements, chunks, markings, platformHulls, platformBoxes, staticBoxes: ctx.staticBoxes, cameraBalls: ctx.cameraBalls, signs: ctx.signs, parked: ctx.parked, boards: ctx.boards, streetNames: [...STREET_NAMES_Z, ...STREET_NAMES_X], patrons: ctx.patrons, stats: ctx.stats };
 }
 

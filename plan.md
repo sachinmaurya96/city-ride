@@ -111,7 +111,7 @@ The owner will place this `plan.md` at the project root and add an `assets/` fol
 
 | Path | Content | Ship in the game? |
 | --- | --- | --- |
-| `assets/references/` | City, HUD, vehicle, garage and mood images | No |
+| `assets/references/` (historical; removed 11 Oct 2026) | Concept image purposes are retained in `docs/asset-audit.md` | No |
 | `assets/models-source/` | Original GLB, Blend or source geometry | No; export optimized runtime copies |
 | `assets/audio-source/` | Original sound files | No; export trimmed runtime copies |
 | `assets/licenses/` | License files and source URLs | Include relevant notices in release documentation |

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { VEHICLE_ORDER, isVehicleId, isPlayableVehicleId, type VehicleId } from '../game/data/vehicles';
+import { isVehicleId, isPlayableVehicleId, type VehicleId } from '../game/data/vehicles';
 import type { QualityLevel } from '../game/render/quality';
 
 export const SCHEMA_VERSION = 1;
@@ -248,9 +248,39 @@ export function createDefaultSave(now: number, dayKey: string, settings: GameSet
   };
 }
 
+/** Showroom cars withdrawn from the game: Spectre owners get its successor, the others are refunded. */
+export const RETIRED_VEHICLES: Readonly<Record<string, { replacement?: VehicleId; price: number }>> = {
+  rolls_spectre: { replacement: 'rolls_ghost', price: 9900 }, western_star: { price: 4000 }, fast_72: { price: 3000 }, classic_sport: { price: 2000 },
+};
+
+type RawSave = { ownedVehicleIds?: unknown; equippedVehicleId?: unknown; wallet?: unknown; mission?: { vehicleId?: unknown } | null; transactionHistory?: unknown };
+/** Swap or refund retired cars before validation, so an old save (even mid-ride in one) still loads. Idempotent. */
+function retireVehicles(r: RawSave, now = Date.now()) {
+  if (!Array.isArray(r.ownedVehicleIds)) return;
+  const history = Array.isArray(r.transactionHistory) ? r.transactionHistory as Record<string, unknown>[] : null;
+  const owned = r.ownedVehicleIds.filter((id) => !Object.hasOwn(RETIRED_VEHICLES, id as string));
+  for (const id of r.ownedVehicleIds.filter((id) => Object.hasOwn(RETIRED_VEHICLES, id as string)) as string[]) {
+    const { replacement, price } = RETIRED_VEHICLES[id];
+    if (replacement && !owned.includes(replacement)) { owned.push(replacement); continue; }
+    // Refund what was actually paid when the purchase is still in the journal, otherwise the last listed price.
+    const paid = history?.find((t) => t.key === `buy:${id}` && typeof t.cash === 'number');
+    const refund = paid ? Math.abs(paid.cash as number) : price;
+    if (typeof r.wallet === 'number') r.wallet += refund;
+    history?.push({ key: `refund:${id}`, kind: 'vehicle', cash: refund, xp: 0, at: now });
+  }
+  r.ownedVehicleIds = owned;
+  const swap = (id: unknown) => {
+    const retired = typeof id === 'string' && Object.hasOwn(RETIRED_VEHICLES, id) ? RETIRED_VEHICLES[id] : null;
+    return !retired ? id : retired.replacement && owned.includes(retired.replacement) ? retired.replacement : 'bike_basic';
+  };
+  r.equippedVehicleId = swap(r.equippedVehicleId);
+  if (r.mission && typeof r.mission === 'object') r.mission.vehicleId = swap(r.mission.vehicleId);
+}
+
 /** Explicit migrations from older schema versions (none yet; v1 is the first release schema). */
 export function migrate(raw: unknown): unknown {
   if (!raw || typeof raw !== 'object') return raw;
+  retireVehicles(raw as RawSave);
   const r = raw as { schemaVersion?: number };
   if (r.schemaVersion === SCHEMA_VERSION) return raw;
   return raw; // unknown future/older version → validation decides
@@ -271,5 +301,3 @@ export function validateSave(raw: unknown): { ok: true; data: SaveData } | { ok:
   for (const id of Object.keys(data.upgradesByVehicle)) if (!isVehicleId(id)) delete data.upgradesByVehicle[id];
   return { ok: true, data };
 }
-
-export const ALL_VEHICLES = VEHICLE_ORDER;

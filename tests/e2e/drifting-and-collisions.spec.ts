@@ -103,3 +103,51 @@ test('a real head-on collision pushes an NPC backward and pauses its driving wit
   await page.screenshot({ path: 'test-results/npc-collision-response.png' });
   expect(errors).toEqual([]);
 });
+
+test('crashing into a roadside parked car moves its visible instance and leaves it in the new position', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', e => errors.push(e.message));
+  await boot(page, { clear: true }); await fixture(page, { owned: ['bmw_i8'], equipped: 'bmw_i8', wallet: 1000 }); await play(page);
+  await expect.poll(() => page.evaluate(() => window.__cr.vehicleEntry.mode), { timeout: 60000 }).toBe('seated');
+  await expect.poll(() => page.evaluate(() => ((window.__cr.debug.extra.scene as THREE.Scene).getObjectByName('parked-car_compact') as THREE.InstancedMesh)?.count ?? 0)).toBeGreaterThan(0);
+  const collision = await page.evaluate(() => {
+    const c = window.__cr, T = c.debug.extra.THREE as typeof THREE;
+    const mesh = (c.debug.extra.scene as THREE.Scene).getObjectByName('parked-car_compact') as THREE.InstancedMesh;
+    const matrix = new T.Matrix4();
+    for (let i = 0; i < mesh.count; i++) {
+      mesh.getMatrixAt(i, matrix);
+      const x = matrix.elements[12], z = matrix.elements[14], fx = matrix.elements[8], fz = matrix.elements[10];
+      // Choose a mid-segment curb-strip car with room to approach from behind.
+      const seg = c.cityMap.SEGMENTS.find(s => {
+        const [dx, dz] = c.cityMap.DIR_VEC[s.dir], along = (x - s.sx) * dx + (z - s.sz) * dz;
+        return dx * fx + dz * fz > .99 && along > 30 && along < s.length - 30 && Math.abs((x - s.sx) * dz - (z - s.sz) * dx) < 22;
+      });
+      if (!seg) continue;
+      c.runtime.requestRecovery({ x: x - fx * 8, z: z - fz * 8, heading: Math.atan2(fx, fz) });
+      return { id: mesh.userData.vehicleIds[i] as number, x, z, fx, fz, wallet: c.store.getState().save.wallet };
+    }
+    throw new Error('No roadside parked car with a clear approach was visible');
+  });
+  await expect.poll(() => page.evaluate(() => window.__cr.runtime.pendingRecovery)).toBeNull();
+  await expect.poll(() => page.evaluate(() => window.__cr.runtime.telemetry.grounded)).toBe(true);
+  await page.evaluate(({ fx, fz }) => window.__cr.runtime.vehicle!.body.setLinvel({ x: fx * 15, y: 0, z: fz * 15 }, true), collision);
+  const displacement = () => page.evaluate(({ id, x, z, fx, fz }) => {
+    const c = window.__cr, T = c.debug.extra.THREE as typeof THREE;
+    const mesh = (c.debug.extra.scene as THREE.Scene).getObjectByName('parked-car_compact') as THREE.InstancedMesh;
+    const index = (mesh.userData.vehicleIds as number[]).indexOf(id);
+    if (index < 0) throw new Error('The crashed parked car disappeared');
+    const matrix = new T.Matrix4(); mesh.getMatrixAt(index, matrix);
+    return (matrix.elements[12] - x) * fx + (matrix.elements[14] - z) * fz;
+  }, collision);
+  await expect.poll(displacement, { intervals: [50] }).toBeGreaterThan(.4);
+  await expect.poll(() => page.evaluate(() => window.__cr.runtime.vehicle!.horizontalSpeed()), { timeout: 30000 }).toBeLessThan(.1);
+  // The struck car coasts after the player's brakes have stopped the player.
+  const coastStart = await page.evaluate(() => window.__cr.runtime.simTime);
+  await expect.poll(() => page.evaluate(() => window.__cr.runtime.simTime), { timeout: 60000 }).toBeGreaterThan(coastStart + 3);
+  const settled = await displacement();
+  const start = await page.evaluate(() => window.__cr.runtime.simTime);
+  await expect.poll(() => page.evaluate(() => window.__cr.runtime.simTime), { timeout: 60000 }).toBeGreaterThan(start + 3);
+  expect(await displacement()).toBeCloseTo(settled, 1);
+  expect(await page.evaluate(() => window.__cr.store.getState().save.wallet)).toBe(collision.wallet);
+  await page.screenshot({ path: 'test-results/parked-car-collision-response.png' });
+  expect(errors).toEqual([]);
+});

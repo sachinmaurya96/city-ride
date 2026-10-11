@@ -1,5 +1,19 @@
 [
   {
+    "name": "2016_mansory_mercedes-amg_gt_s",
+    "kind": "vehicles",
+    "originalBytes": 7377956,
+    "runtimeBytes": 3255000,
+    "compressedViews": 4
+  },
+  {
+    "name": "2020_naran_hyper_coupe",
+    "kind": "vehicles",
+    "originalBytes": 6651004,
+    "runtimeBytes": 3012432,
+    "compressedViews": 4
+  },
+  {
     "name": "2020_porsche_718_spyder",
     "kind": "vehicles",
     "originalBytes": 9304984,
@@ -21,11 +35,32 @@
     "compressedViews": 6
   },
   {
+    "name": "aston-martin",
+    "kind": "vehicles",
+    "originalBytes": 2343492,
+    "runtimeBytes": 1083048,
+    "compressedViews": 3
+  },
+  {
+    "name": "audi",
+    "kind": "vehicles",
+    "originalBytes": 11848772,
+    "runtimeBytes": 6303860,
+    "compressedViews": 5
+  },
+  {
     "name": "banana-tree-pack",
     "kind": "world",
     "originalBytes": 1041824,
     "runtimeBytes": 568644,
     "compressedViews": 3
+  },
+  {
+    "name": "billboard",
+    "kind": "world",
+    "originalBytes": 9239940,
+    "runtimeBytes": 502680,
+    "compressedViews": 4
   },
   {
     "name": "black-lambo",
@@ -40,6 +75,13 @@
     "originalBytes": 2747524,
     "runtimeBytes": 1768296,
     "compressedViews": 3
+  },
+  {
+    "name": "bmw_m4_widebody__www.vecarz.com",
+    "kind": "vehicles",
+    "originalBytes": 22503452,
+    "runtimeBytes": 12524608,
+    "compressedViews": 4
   },
   {
     "name": "cartethyia_wuthering_waves",
@@ -61,13 +103,6 @@
     "originalBytes": 9349276,
     "runtimeBytes": 5175668,
     "compressedViews": 2
-  },
-  {
-    "name": "ergoninane-fast-72",
-    "kind": "vehicles",
-    "originalBytes": 677696,
-    "runtimeBytes": 427444,
-    "compressedViews": 18
   },
   {
     "name": "female-rover",
@@ -103,6 +138,13 @@
     "originalBytes": 15329904,
     "runtimeBytes": 4517244,
     "compressedViews": 6
+  },
+  {
+    "name": "m3gtr",
+    "kind": "vehicles",
+    "originalBytes": 9173452,
+    "runtimeBytes": 4683104,
+    "compressedViews": 3
   },
   {
     "name": "maercedes",
@@ -161,18 +203,11 @@
     "compressedViews": 3
   },
   {
-    "name": "rr-spectr",
+    "name": "rolls-royce_ghost",
     "kind": "vehicles",
-    "originalBytes": 16927324,
-    "runtimeBytes": 10044900,
-    "compressedViews": 3
-  },
-  {
-    "name": "sputnikjfkennedy-car-4473",
-    "kind": "vehicles",
-    "originalBytes": 8479780,
-    "runtimeBytes": 5868952,
-    "compressedViews": 589
+    "originalBytes": 37357368,
+    "runtimeBytes": 17077136,
+    "compressedViews": 4
   },
   {
     "name": "toyota_supra_a80_1993",
@@ -187,12 +222,5 @@
     "originalBytes": 2130580,
     "runtimeBytes": 875980,
     "compressedViews": 3
-  },
-  {
-    "name": "western_star_4900",
-    "kind": "vehicles",
-    "originalBytes": 8968256,
-    "runtimeBytes": 2933052,
-    "compressedViews": 9
   }
 ]

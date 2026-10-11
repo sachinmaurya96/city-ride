@@ -1,3 +1,40 @@
+## Playgama publishing kit — 11 October 2026
+
+- Added `playgama/PLAYGAMA.md` with the game name, short/full descriptions, how to play, keyboard/touch controls, landscape orientation, features, suggested tags and upload instructions. `playgama/assets/ASSETS.md` links to every cover and car view; the main README links to the kit.
+- Created three distinct cover compositions with the built-in image generation tool, using the game's Lamborghini Huracán and McLaren screenshots as references. Exact upload PNG sizes: 800 × 800, 1080 × 1920 and 1920 × 1080. Prompts and original artwork are preserved for future revisions.
+- Captured 37 actual 1920 × 1080 game screenshots: front and rear views of all 16 imported player cars plus Aurora Sport, and driving, passenger GPS and garage screenshots. Car portraits use the real model finishes and city renderer with the HUD hidden. Every capture was visually checked.
+- Added reproducible capture and validation/packaging scripts. The publishing kit stays outside runtime assets and packages separately from the game build; no gameplay implementation was changed for this kit.
+- Validation: both scripts pass ESLint and syntax checks; all 40 upload images pass PNG/dimension/blank-image validation; local Markdown links resolve; the capture report has zero failures. `playgama/city-ride-publishing-kit.zip` contains the listing, inventory, covers and screenshots (55.3 MB), excluding original cover masters. Nothing was uploaded to Playgama.
+
+## Parked vehicle crash response — 11 October 2026
+
+- Roadside cars and parked buses now use sleeping dynamic bodies with each model's dimensions and mass. Player/NPC collisions can push and rotate them; damping brings them to rest in the new position, without AI driving or a reset to the original parking spot.
+- Removed their duplicate fixed colliders. Instanced visuals follow moving physics poses every frame while retaining distance culling and throttled updates at rest. Cached city placements remain unchanged, and physics bodies and instance resources are cleaned up on unmount.
+- Parked vehicle contacts use the existing traffic crash response. Validation: production build, TypeScript, ESLint and whitespace checks pass; all 272 unit tests pass, including eight new parked-vehicle physics cases. Browser regressions confirm both NPC and roadside-car impacts move their visible vehicles without deducting money, and the parked car stays in its new position after coasting to rest.
+
+## Localhost car ownership — 11 October 2026
+
+- The development server automatically marks every playable car as owned on localhost, IPv4 loopback and IPv6 loopback after loading a fresh or existing save. Wallet, XP and the equipped vehicle remain unchanged; NPC-only vehicles are excluded and reloads do not duplicate ownership.
+- The grant is gated by Vite's development flag and loopback hostname. Production builds and LAN hosts keep normal ownership; verified the localhost grant is absent from the compiled production JavaScript.
+- Validation: TypeScript/production build, ESLint and whitespace checks pass; all 264 tests across 25 files pass, including local/public hostname boundaries, existing saves, idempotency and equipping every granted car.
+
+## Unused assets and code cleanup — 11 October 2026
+
+- Removed 14 historical concept PNGs from `assets/references` (24,544,213 bytes); they had no game, test or build-tool references. Their design purposes remain recorded in the asset audit.
+- Removed 28 unused declarations (289 source lines), including the obsolete procedural building renderer and its private helpers, the unused BootScreen, material-cache helper, fine/heat tables and unused convenience functions/constants. Source and test references were checked with TypeScript's language service before removal.
+- Preserved all current car, billboard, city and character models, sounds, splash art and garage thumbnails, including thumbnails loaded through Vite's folder glob. Original GLBs remain available to reproduce optimized assets and run geometry checks. Development scripts and tests remain available.
+- Validation: TypeScript and the production build pass, ESLint and whitespace checks pass, and all 255 tests across 24 files pass. Compared against a snapshot taken before cleanup: all 249 retained non-import declarations in the 14 touched source files are identical, and all 67 compiled non-JavaScript/HTML files are byte-for-byte unchanged. Compiled JavaScript changes reflect removed unused initializations and resulting chunk hashes.
+
+## Seven new cars, billboards and retired models — 10 October 2026
+
+- Added the Mansory Mercedes-AMG GT S, Naran Hyper Coupe, Aston Martin One-77, Audi R8 GT, BMW M4 Widebody, BMW M3 GTR (E46) and Rolls-Royce Ghost to the showroom (₹4,000–9,900), with garage thumbnails, credits and engine voices (new V10, V12 and hushed luxury-V12 profiles).
+- Measured every car from its geometry: length anchored on the real wheelbase (all within 4 mm), steering-wheel rims by ring fit, hip points on the ray-cast cushions, headliner and footwell heights, and door seams traced on blueprints. A new per-door glass line keeps frameless windows and frames with the opening door. The Ghost is right-hand drive as supplied; the six left-hand-drive cockpits are mirrored as before.
+- Fixed wheel hubs on models whose brake calipers use a `Tire_Brake` material (the AMG's wheels would otherwise spin off-centre).
+- Removed the Rolls-Royce Spectre, Western Star, Fast 72 and Classic Sport (catalog, models, thumbnails, credits, special cases). Saves migrate before validation: Spectre → Ghost, the others refunded (paid amount from the journal, else listed price); equipped cars and active rides move to a valid car.
+- Split the supplied billboard pack into its three double-faced structures and placed 16 beyond the Ring Road hedge between the outbound roads, square to the road so each traffic direction reads one face; perimeter trees are moved clear without changing any other scenery.
+- Door cuts on every measured car now split triangles that straddle a traced seam exactly on the seam line (surface area preserved to 1e-5), removing the triangle "teeth" along sills and jambs.
+- Validation: typecheck, lint, production build and 255 unit/integration tests pass (real-geometry wheel, door, seat, hand/head/foot fit for all four characters in every car; save migration; billboard split/placement). Browser checks pass for all 16 imported player cars' door/seat/steering flow, all 36 models loading, garage previews, buying the M3 GTR and completing a ride after reload, the BMW pair, the touch garage, city packs/pumps and the billboards; screenshots inspected. Production build is 110 MB (300 MB budget). Engine voices are tuned profiles of the existing recordings and were not listened to; physical-device performance with the 766k-triangle Ghost is unmeasured.
+
 ## Playgama release budget correction — 10 October 2026
 
 - With the owner's authorization, replaced the original 5 MB project gate with Playgama's documented 300,000,000-byte (300 MB) limit for both unpacked runtime files and the release ZIP. Updated the README, plan and performance notes to distinguish the current budget from historical 5 MB results.

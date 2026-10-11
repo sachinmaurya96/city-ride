@@ -42,7 +42,6 @@ export function seatedCharacterFit(spec: VehicleSpec, bounds: THREE.Box3, hipHei
   const minHip = c.floorY + .02 + belowHip * scale, maxHip = c.roofY - .04 - aboveHip * scale;
   return { scale, widthScale, hipY: THREE.MathUtils.clamp(c.hipY, minHip, Math.max(minHip, maxHip)) };
 }
-export function seatedCharacterScale(spec: VehicleSpec, bounds: THREE.Box3, hipHeight: number) { return seatedCharacterFit(spec, bounds, hipHeight).scale; }
 /** Hinge of the door on `side` (+1 left / -1 right), where its group pivots. */
 export function doorPivot(spec: VehicleSpec, side: number) {
   const c = cabinLayout(spec);

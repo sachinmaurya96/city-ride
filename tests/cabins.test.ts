@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { readAsset } from './assets';
 import { VEHICLES, VEHICLE_ORDER } from '../src/game/data/vehicles';
-import { CAR_CABINS, EXTRA_BY_ID, carDoor, driverCabin } from '../src/game/data/importedCatalog';
+import { CAR_CABINS, EXTRA_BY_ID, carDoor, doorInner, driverCabin } from '../src/game/data/importedCatalog';
 import { calibratedVehicleSpec, insideOutline, prepareImportedModel } from '../src/game/render/importedVehicles';
 import { animateAvatar, avatarArm, createAvatar, prepareCharacter, reachAvatarArm, reachAvatarLeg, type CharacterId } from '../src/game/render/importedCharacters';
 import { characterBounds } from '../src/game/render/characterBounds';
@@ -95,6 +95,15 @@ describe('measured cabins: right-hand drive, seats, steering wheels', () => {
   }
 });
 
+function outlineDistance(z: number, y: number, outline: readonly (readonly [number, number])[]) {
+  let best = Infinity;
+  outline.forEach(([z0, y0], i) => {
+    const [z1, y1] = outline[(i + 1) % outline.length], dz = z1 - z0, dy = y1 - y0;
+    const t = THREE.MathUtils.clamp(((z - z0) * dz + (y - y0) * dy) / (dz * dz + dy * dy), 0, 1);
+    best = Math.min(best, Math.hypot(z - z0 - dz * t, y - y0 - dy * t));
+  });
+  return best;
+}
 describe('measured doors', () => {
   it('cut along the traced seams and open the way each car does', async () => {
     for (const id of CARS) {
@@ -112,8 +121,9 @@ describe('measured doors', () => {
           const p = o.geometry.getAttribute('position');
           for (let i = 0; i < p.count; i += 3) {
             a.fromBufferAttribute(p, i).add(b.fromBufferAttribute(p, i + 1)).add(d.fromBufferAttribute(p, i + 2)).divideScalar(3).applyMatrix4(o.matrixWorld);
-            expect(a.x * side, id).toBeGreaterThan(door.inner - 1e-6);
-            expect(insideOutline(a.z, a.y, door.outline), `${id} ${a.z},${a.y}`).toBe(true);
+            expect(a.x * side, id).toBeGreaterThan(doorInner(door, a.y) - 1e-6);
+            // (Seam-split slivers can lie on the outline itself.)
+            expect(insideOutline(a.z, a.y, door.outline) || outlineDistance(a.z, a.y, door.outline) < .002, `${id} ${a.z},${a.y}`).toBe(true);
           }
         });
         // Opened, the panel's middle moves out (swinging doors) or up (scissor, dihedral, gullwing).

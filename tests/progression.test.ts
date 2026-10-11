@@ -74,6 +74,32 @@ describe('fares, XP and ratings', () => {
     expect(loaded.data.settings.speedLimiter).toBe(false);
     expect(loaded.data.mission).toMatchObject({ id: save.mission.id, vehicleId: 'bmw_i8', elapsed: 25, satisfaction: 90 });
   });
+  it('swaps a retired Spectre for the Ghost and refunds the other retired cars, even mid-ride in one', () => {
+    const save = fresh() as SaveData & { ownedVehicleIds: string[] };
+    save.wallet = 100;
+    save.ownedVehicleIds.push('rolls_spectre', 'western_star', 'fast_72', 'classic_sport');
+    save.equippedVehicleId = 'fast_72' as never;
+    save.transactionHistory.push({ key: 'buy:fast_72', kind: 'vehicle', cash: -2500, xp: 0, at: DAY });
+    save.mission = { id: 'retired-ride', kind: 'ride', seed: 3, state: 'TO_PICKUP', vehicleId: 'fast_72' as never,
+      passengerName: 'Diya', avatar: 0, partySize: 1, rideType: 'standard', pickupBayId: 'homes_west_bay2', dropBayId: 'central_park_bay1',
+      quote: summary('retired-ride').quote, elapsed: 5, satisfaction: 100, finesPaid: 0, incidents: 0, recovered: false, harshEvents: 0, safePose: null, bus: null };
+    const loaded = validateSave(JSON.parse(JSON.stringify(save)));
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    expect(loaded.data.ownedVehicleIds).toEqual(['bike_basic', 'rolls_ghost']);
+    // Fast 72: the ₹2,500 actually paid; Western Star and Classic Sport: their last listed prices.
+    expect(loaded.data.wallet).toBe(100 + 2500 + 4000 + 2000);
+    expect(loaded.data.transactionHistory.filter((t) => t.key.startsWith('refund:')).map((t) => t.cash)).toEqual([4000, 2500, 2000]);
+    expect(loaded.data.equippedVehicleId).toBe('bike_basic');
+    expect(loaded.data.mission).toMatchObject({ id: 'retired-ride', vehicleId: 'bike_basic', elapsed: 5 });
+    // Loading again changes nothing; a Spectre owner who already has the Ghost is refunded instead.
+    const again = validateSave(JSON.parse(JSON.stringify(loaded.data)));
+    expect(again.ok && again.data.wallet).toBe(loaded.data.wallet);
+    const both = fresh() as SaveData & { ownedVehicleIds: string[] };
+    both.ownedVehicleIds.push('rolls_ghost', 'rolls_spectre'); both.equippedVehicleId = 'rolls_spectre' as never;
+    const swapped = validateSave(JSON.parse(JSON.stringify(both)));
+    expect(swapped.ok && swapped.data).toMatchObject({ ownedVehicleIds: ['bike_basic', 'rolls_ghost'], equippedVehicleId: 'rolls_ghost', wallet: both.wallet + 9900 });
+  });
   it('quotes the plan formula and caps combined multipliers', () => {
     expect(quoteRide({ routeMeters: 600, vehicleId: 'bike_basic', rideType: 'standard', rain: false, estSeconds: 1 }).baseFare).toBe(350);
     expect(quoteRide({ routeMeters: 600, vehicleId: 'car_compact', rideType: 'standard', rain: false, estSeconds: 1 }).baseFare).toBe(700);
@@ -269,6 +295,6 @@ describe('garage showroom', () => {
     }
   });
   it('suggests the cheapest showroom car not yet owned as the next goal', () => {
-    expect(nextVehicleGoal(fresh())).toMatchObject({ id: 'classic_sport', price: 2000 });
+    expect(nextVehicleGoal(fresh())).toMatchObject({ id: 'bmw_m3_gtr', price: 4000 });
   });
 });
