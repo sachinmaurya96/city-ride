@@ -1,10 +1,9 @@
 import { Canvas, useThree } from '@react-three/fiber';
-import { lazy, Suspense, useEffect, type RefObject } from 'react';
+import { lazy, memo, Suspense, useEffect, type RefObject } from 'react';
 import * as THREE from 'three';
 import { Environment } from '../game/render/Environment';
 import { runtime } from '../game/core/runtime';
 import { pauseManager } from '../game/core/pause';
-import { useGame } from './store';
 import { debug, TEST_HOOKS } from './devHooks';
 import { preloadWorld } from './preloadWorld';
 import type { SafeRoadPose } from '../game/vehicles/vehicleController';
@@ -55,10 +54,9 @@ export interface GameCanvasProps {
   autoRecenter: boolean;
 }
 
-export function GameCanvas(props: GameCanvasProps) {
-  const appState = useGame(s => s.appState);
+export const GameCanvas = memo(function GameCanvas(props: GameCanvasProps) {
   return (
-    <Canvas frameloop={appState === 'LOADING' || (props.playing && !props.paused) ? 'always' : 'demand'}
+    <Canvas frameloop={props.playing && !props.paused ? 'always' : 'demand'}
       shadows dpr={props.dpr}
       camera={{ fov: 60, near: .3, far: 1800, position: [props.spawn.x, 8, props.spawn.z - 12] }}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
@@ -68,4 +66,4 @@ export function GameCanvas(props: GameCanvasProps) {
       <Suspense fallback={null}>{props.world && <WorldScene {...props} />}</Suspense>
     </Canvas>
   );
-}
+});

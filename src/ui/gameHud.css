@@ -7,16 +7,15 @@
   --hud-top: calc(var(--hud-edge) + var(--safe-t));
   --hud-bottom: calc(var(--hud-edge) + var(--safe-b));
   --hud-rail: clamp(160px, 29vw, 210px);
-  --joy-size: clamp(72px, 22dvh, 96px);
-  --steer-size: clamp(96px, 30dvh, 132px);
+  --joy-size: clamp(72px, calc(22 * var(--viewport-unit, 1dvh)), 96px);
+  --steer-size: clamp(96px, calc(30 * var(--viewport-unit, 1dvh)), 132px);
   --drive-width: var(--joy-size);
   --drive-height: var(--joy-size);
-  --map-size: clamp(72px, 24dvh, 104px);
+  --map-size: clamp(72px, calc(24 * var(--viewport-unit, 1dvh)), 104px);
   --control-size: 44px;
-  height: 100dvh;
 }
 .app[data-controls="pedals"] { --drive-width: var(--steer-size); --drive-height: 56px; }
-.app.touch-mode { --joy-size: clamp(112px, 30dvh, 160px); }
+.app.touch-mode { --joy-size: clamp(112px, calc(30 * var(--viewport-unit, 1dvh)), 160px); }
 .gesture-layer { position: absolute; inset: 0; touch-action: none; }
 
 /* Left: a short stack of context, above the driving controls. */
@@ -122,6 +121,7 @@
 .touch-mode .power-brake { right: calc(var(--hud-right) + 90px); width: 70px; height: 72px; flex-direction: column; flex-wrap: nowrap; gap: 3px; padding: 5px; font-size: calc(9px * var(--ui-scale)); }
 .touch-mode .power-brake svg { width: 22px; height: 22px; }
 .touch-mode .util-buttons { bottom: calc(var(--hud-bottom) + 116px); }
+.touch-mode .util-buttons:has(.door-control) { grid-template-columns: repeat(var(--vehicle-button-columns, 2), var(--control-size)); }
 .touch-mode .util.recover { right: calc(100% + 78px); bottom: -116px; }
 .touch-mode .look-hint { display: none; }
 .touch-mode .drift-badge { bottom: calc(var(--hud-bottom) + 116px); right: calc(var(--hud-right) + 102px); }
@@ -209,7 +209,7 @@
 .modal-head h2 { min-width: 0; }
 .map-modal canvas { max-width: 100%; }
 .map-modal { width: min(680px, 100%); }
-.map-viewport { width: 100%; height: clamp(100px, calc(100dvh - var(--safe-t) - var(--safe-b) - 126px), 640px); display: grid; place-items: center; }
+.map-viewport { width: 100%; height: clamp(100px, calc(var(--viewport-height, 100dvh) - var(--safe-t) - var(--safe-b) - 126px), 640px); display: grid; place-items: center; }
 .legend { gap: 8px; flex-wrap: wrap; font-size: calc(11px * var(--ui-scale)); }
 .menu-card { width: min(370px, calc(100% - var(--safe-l) - var(--safe-r) - 16px)); max-height: calc(100% - var(--safe-t) - var(--safe-b) - 16px); padding: 16px; border-radius: 18px; }
 .settings-body { grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); }
@@ -259,12 +259,14 @@
   .menu-card { width: min(580px, calc(100% - var(--safe-l) - var(--safe-r) - 16px)); display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; row-gap: 4px; align-items: center; padding: 12px 16px; }
   .menu-card > .wordmark, .menu-card > .cash-level, .menu-card > .menu-vehicle, .menu-card > .btn, .menu-card > .link { grid-column: 1; }
   .menu-card > .menu-grid { grid-column: 2; grid-row: 1 / 6; align-self: center; }
+  .menu-card > .fullscreen-control { grid-column: 1 / -1; }
   .menu-card .wordmark { font-size: 1.7em; }
   .menu-card .btn { min-height: 38px; font-size: calc(12px * var(--ui-scale)); padding: 6px 8px; margin-top: 4px; }
   .menu-card > .btn { min-height: 42px; }
   .menu-card .menu-vehicle { font-size: calc(11px * var(--ui-scale)); }
   .pause { width: min(470px, 100%); display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .pause h2 { grid-column: 1 / -1; }
+  .pause .fullscreen-control { grid-column: 1 / -1; }
   .pause .btn { min-height: 36px; margin: 0; padding: 5px 7px; font-size: calc(12px * var(--ui-scale)); }
   .modal h2 { font-size: calc(16px * var(--ui-scale)); }
 }
@@ -301,9 +303,14 @@
 }
 
 /* ---------- test drive ---------- */
-.test-drive-banner { position: absolute; top: max(10px, var(--safe-t)); left: 50%; transform: translateX(-50%); z-index: 6;
+.test-drive-banner { position: absolute; top: var(--hud-top); left: calc(var(--hud-left) + var(--hud-rail) + 10px); right: calc(var(--hud-right) + var(--map-size) + var(--control-size) * 2 + var(--hud-gap) * 2 + 10px); z-index: 6;
   display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 14px; border-radius: 999px;
-  background: #0d1a26e6; border: 1px solid #f4b544; color: #fff; font-size: calc(13px * var(--ui-scale)); white-space: nowrap; max-width: calc(100% - 260px); }
-.test-drive-banner span { overflow: hidden; text-overflow: ellipsis; }
+  background: #0d1a26e6; border: 1px solid #f4b544; color: #fff; font-size: calc(13px * var(--ui-scale)); white-space: nowrap; min-width: 0; }
+.test-drive-banner span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; }
 .test-drive-banner b { color: #f4b544; font-variant-numeric: tabular-nums; }
 .test-drive-banner .btn { width: auto; flex: none; min-height: 32px; padding: 4px 14px; }
+@media (max-width: 740px) {
+  .test-drive-banner { left: calc(var(--hud-left) + var(--hud-rail) + 4px); right: calc(var(--hud-right) + var(--map-size) + var(--control-size) * 2 + var(--hud-gap) * 2 + 4px); gap: 4px; padding: 4px; border-radius: 10px; flex-wrap: wrap; justify-content: center; }
+  .test-drive-banner > span { display: none; }
+  .test-drive-banner .btn { max-width: 100%; min-width: 0; padding: 4px 6px; font-size: calc(10px * var(--ui-scale)); white-space: normal; }
+}

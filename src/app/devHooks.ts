@@ -111,7 +111,9 @@ export async function installDevHooks() {
     import('../game/data/vehicles'),
   ]);
   const [{ enforcement }, { police }, { violations }, { fuel }, { rideVisual }, cityMap, { audio }] = await Promise.all([import('../game/rules/enforcementState'), import('../game/rules/police'), import('../game/rules/violations'), import('../game/vehicles/fuel'), import('../game/missions/rides'), import('../game/data/cityMap'), import('../game/audio/audio')]);
-  const { loadImportedModel } = await import('../game/render/importedVehicles');
+  // Keep development/test startup representative: the diagnostic loader is lazy too.
+  const loadImportedModel: typeof import('../game/render/importedVehicles').loadImportedModel = (...args) =>
+    import('../game/render/importedVehicles').then(m => m.loadImportedModel(...args));
   const { events } = await import('../game/core/events');
   const { quoteRide } = await import('../game/progression/progression');
   const autopilot = makeAutopilot(

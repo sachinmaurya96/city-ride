@@ -11,7 +11,14 @@ Supplied city, car and character GLBs use smaller runtime copies; the originals 
 Open **Garage → BMW i8 / BMW M4 GT3 EVO** to rotate a preview. **Try car · free** equips the car
 without spending cash; then press Play from the main menu to drive. Finish or cancel an active job before
 switching vehicles. Both cars retain their original finish, with animated steering, wheels and suspension.
-Models load only when selected (or when restoring a save that has one equipped).
+The opening splash is a showcase: it downloads no 3D models, world or physics code.
+Models load only when selected in the garage or when Play starts that specific vehicle.
+The same progress bar tracks the selected car or bike until its actual model is ready, with no
+minimum vehicle-loading delay. First Play also prepares the essential buildings, roads and petrol station;
+extra scenery streams one pack at a time while driving. Downloaded models and the city are reused.
+Failed essential downloads show Retry; optional scenery never blocks play. Player vehicles never use a temporary substitute model.
+Metro Compact, City Coupe, Family Seven and Aurora Sport are excluded from the garage, including
+profiles that already own them. Existing ownership, upgrades and saved rides are retained.
 See [model credits](docs/asset-audit.md#supplied-bmw-models-9-october-2026) for authors and embedded licenses.
 
 The [Playgama publishing kit](playgama/PLAYGAMA.md) contains listing text, exact-size cover artwork and actual game screenshots. The [asset inventory](playgama/assets/ASSETS.md) links to every upload image. These publishing resources stay outside the game build.
@@ -85,6 +92,11 @@ verge carries 16 double-faced billboards from the supplied billboard pack.
 Navigation and ride offers stay in a compact left stack; speed and fuel sit beside the touch joystick.
 Tap the ride type to expand offer details or “Driving tip” for tutorial help. The HUD adapts to short
 landscape screens, browser bars and safe-area insets. Menus work in portrait; driving uses landscape.
+
+**Full screen** is available in the main menu and pause menu. Touch devices also request it on Play
+and Resume, independently of orientation-lock support. On iPhone/iPad browsers without native fullscreen,
+open the game directly in Safari, choose **Share → Add to Home Screen**, then launch the game from its icon.
+The manifest and Apple web-app metadata support this mode at both root and nested hosting paths.
 
 **Settings → Graphics** provides Low, Medium, High and Ultra presets, image sharpness, shadows and
 viewing distance. Phones and tablets start on Medium rather than automatically using Low. For a

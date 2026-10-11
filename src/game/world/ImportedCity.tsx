@@ -1,5 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GRID, INTERSECTIONS, MAP_HALF, ROAD_SPEC, SEGMENTS, STOP_LINE_GAP, roadHalfWidth } from '../data/cityMap';
 import { quality } from '../render/quality';
@@ -37,13 +37,26 @@ export function roadPlacements(): WorldPlacement[] {
 
 /** Original pack geometry/materials are shared by instances, with nearby trees and distant buildings culled. */
 export function ImportedCity({ city }: { city: CityBuild }) {
-  const { camera } = useThree();
-  const [assetsVersion, setAssetsVersion] = useState(0);
+  const [, setAssetsVersion] = useState(0);
   useEffect(() => onWorldAssetsChanged(() => setAssetsVersion(v => v + 1)), []);
-  const batches = useMemo(() => {
+  const byPack = useMemo(() => {
     const placements = [...city.worldPlacements, ...roadPlacements()];
     for (const side of [-1, 1]) for (const axis of ['x', 'z']) placements.push({ pack: 'skyline', variant: 0,
       x: axis === 'x' ? side * 660 : 0, y: 0, z: axis === 'z' ? side * 660 : 0, ry: axis === 'z' ? 0 : Math.PI / 2, width: 480, depth: 115, height: 85 });
+    const grouped = new Map<WorldPack, WorldPlacement[]>();
+    for (const p of placements) {
+      const list = grouped.get(p.pack) ?? []; list.push(p); grouped.set(p.pack, list);
+    }
+    return grouped;
+  }, [city]);
+  // Each arriving pack mounts its own batches. Existing city meshes and GPU buffers stay intact.
+  return <group name="resource-city">{[...byPack].map(([pack, placements]) => worldAssets.has(pack)
+    ? <CityPackInstances key={pack} placements={placements} /> : null)}</group>;
+}
+
+const CityPackInstances = memo(function CityPackInstances({ placements }: { placements: WorldPlacement[] }) {
+  const { camera } = useThree();
+  const batches = useMemo(() => {
     const grouped = new Map<string, WorldPlacement[]>();
     for (const p of placements) {
       const models = worldAssets.get(p.pack); if (!models?.length) continue;
@@ -59,9 +72,7 @@ export function ImportedCity({ city }: { city: CityBuild }) {
         return { mesh, list, pack };
       });
     });
-    // assetsVersion: worldAssets is a mutable map, so rebuild when a streamed pack lands.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, assetsVersion]);
+  }, [placements]);
   const acc = useRef(1);
   const previousView = useRef({ x: Infinity, z: Infinity, yaw: Infinity, preset: quality.current });
   // New batches start empty; force a culling pass on the next frame.
@@ -96,5 +107,5 @@ export function ImportedCity({ city }: { city: CityBuild }) {
     }
   });
   useEffect(() => () => batches.forEach(({ mesh }) => mesh.dispose()), [batches]);
-  return <group name="resource-city">{batches.map(({ mesh }) => <primitive key={mesh.uuid} object={mesh} dispose={null} />)}</group>;
-}
+  return <>{batches.map(({ mesh }) => <primitive key={mesh.uuid} object={mesh} dispose={null} />)}</>;
+});

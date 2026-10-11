@@ -10,6 +10,25 @@ evidence. No physical Android/iOS device or GPU-accelerated desktop browser meas
 
 ## Startup and asset audit — 10 October 2026
 
+Update on 11 October: the opening three-second splash is a showcase only. No vehicle GLB, city pack,
+physics/world chunk is fetched during boot, and the WebGL renderer is created only on demand.
+Play starts the selected model immediately
+alongside essential city preparation (buildings, roads and petrol station, one world download at a time).
+The cover tracks this vehicle's transfer/decoding progress and disappears as soon as its actual model and
+the essential scene are ready; vehicle loading adds no artificial minimum wait. Cached models and the
+mounted city are reused. Optional skyline, trees and billboards stream sequentially in idle time after
+driving begins; pausing or switching vehicles stops scheduling more packs. Failed optional scenery can
+retry on resume and never blocks play.
+
+The hidden map uses demand rendering during loading, saving continuous GPU work while models download.
+The cover updates at 10 Hz instead of causing React renders every animation frame. Garage previews
+debounce quick selection changes, stop their render/readback loop offscreen or in a hidden tab, and
+respect reduced motion. Drive/Try actions work while a preview is downloading; the game then handles
+model readiness under the cover. Memoized canvas/scene components and stable upgrade props prevent
+unrelated save changes and the test-drive countdown from rerendering the 3D tree. Streaming city packs
+mount independent batches, retaining existing meshes and GPU instance buffers instead of rebuilding
+the entire imported city each time.
+
 The size figures in this section describe the initial 25-model audit snapshot. Later supplied models
 and the facade correction are listed in the current generated `assets/optimized/report.json`.
 Building color/emissive atlases now retain 2048-pixel detail; the other maps retain the smaller limit.
@@ -38,9 +57,10 @@ Failed GLB download promises are evicted so retry can fetch again. Imported city
 frustum and distance culling, reusable scratch objects and bounded 5 Hz updates, with earlier updates
 when the camera moves or turns substantially.
 
-The cold-start browser audit records menu readiness and resource transfers. Before the change it took
-4,862 ms locally; the final optimized run took 61 ms. This is a local relative measurement, not a phone
-or network benchmark. No GLB or physics/world chunk is transferred before the menu appears. First
+The cold-start browser audit records menu readiness and resource transfers. The original 10 October
+audit took 4,862 ms before optimization and 61 ms afterward, before the three-second showcase was restored.
+Current boot includes that showcase; vehicle loading does not repeat its timer. These are local relative
+measurements, not phone or network benchmarks. No GLB or physics/world chunk is transferred before the menu appears. First
 Play still has to fetch and prepare the city; the startup change does not eliminate that work.
 
 The current standalone production inventory is approximately 70.4 MB unpacked / 55.2 MB ZIP,

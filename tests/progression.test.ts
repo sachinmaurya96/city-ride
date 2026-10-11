@@ -285,13 +285,16 @@ describe('starter economy', () => {
 });
 
 describe('garage showroom', () => {
-  it('lists only vehicles with a real 3D model plus the starter bike, keeping already-owned older ones', () => {
+  it('lists real models and keeps older owned utility vehicles, excluding retired cars even when owned', () => {
     const listed = VEHICLE_ORDER.filter((id) => inGarage(id));
     expect(listed).toContain('bike_basic');
     for (const id of listed) if (id !== 'bike_basic') expect(VEHICLES[id].importedModel, id).toBeTruthy();
-    for (const id of ['auto_city', 'car_compact', 'car_coupe', 'mpv_seven', 'bus_small', 'bus_medium', 'bus_long', 'supercar'] as const) {
+    for (const id of ['auto_city', 'bus_small', 'bus_medium', 'bus_long'] as const) {
       expect(inGarage(id), id).toBe(false);
       expect(inGarage(id, ['bike_basic', id]), id).toBe(true);
+    }
+    for (const id of ['car_compact', 'car_coupe', 'mpv_seven', 'supercar'] as const) {
+      expect(inGarage(id, ['bike_basic', id]), id).toBe(false);
     }
   });
   it('suggests the cheapest showroom car not yet owned as the next goal', () => {

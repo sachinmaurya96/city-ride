@@ -9,6 +9,10 @@ export default defineConfig({
   expect: { timeout: 15000 },
   workers: 1,
   reporter: [['list']],
+  projects: [
+    { name: 'chromium', use: { browserName: 'chromium' } },
+    { name: 'webkit', testMatch: ['**/device-compatibility.spec.ts', '**/visible-viewport.spec.ts'], use: { browserName: 'webkit', launchOptions: { args: [] } } },
+  ],
   use: {
     baseURL: process.env.E2E_URL ?? `http://localhost:${PORT}/`,
     viewport: { width: 667, height: 375 },

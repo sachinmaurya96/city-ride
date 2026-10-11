@@ -9,6 +9,11 @@ function overlaps(a: Box, b: Box) {
 }
 
 async function checkHud(page: Page, width: number, height: number, preset: 'joystick' | 'pedals', touch = true) {
+  // Safari delivers visible-viewport changes after the window resize event.
+  await expect.poll(async () => {
+    const box = (await page.locator('.app').boundingBox())!;
+    return [Math.round(box.width), Math.round(box.height)];
+  }).toEqual([width, height]);
   const map = (await page.getByTestId('minimap').boundingBox())!;
   expect(map.y).toBeLessThanOrEqual(15);
   expect(width - map.x - map.width).toBeLessThanOrEqual(15);
@@ -77,7 +82,7 @@ test.describe('responsive touch UI', () => {
     await page.getByTestId('accept').tap();
     await page.evaluate(() => {
       const mission = window.__cr.rides.mission!;
-      window.__cr.rides.restore({ ...mission, state: 'TO_DROPOFF', quote: { ...mission.quote, deadlineSeconds: 90 }, elapsed: 0 });
+      window.__cr.rides.restore({ ...mission, state: 'TO_DROPOFF', quote: { ...mission.quote, deadlineSeconds: 900 }, elapsed: 0 });
     });
     await expect(page.getByTestId('deadline')).toBeVisible();
     await page.evaluate(() => { Object.defineProperty(window.__cr.runtime, 'canRecover', { configurable: true, get: () => true, set: () => {} }); });
@@ -113,6 +118,8 @@ test.describe('responsive touch UI', () => {
     await page.setViewportSize({ width: 800, height: 300 });
     await page.evaluate(() => { window.__cr.fuel.tank.percent = 100; window.__cr.store.getState().updateSettings({ controls: 'joystick', language: 'en', uiScale: 1 }); });
     await expect(page.locator('.app')).toHaveAttribute('data-controls', 'joystick');
+    await checkHud(page, 800, 300, 'joystick');
+    await expect.poll(() => page.evaluate(() => window.__cr.input.enabled)).toBe(true);
     const home = (await page.locator('.joy-home').boundingBox())!;
     const center = { x: home.x + home.width / 2, y: home.y + home.height / 2, id: 1 };
     const touch = await page.context().newCDPSession(page);

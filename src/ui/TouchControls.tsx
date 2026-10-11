@@ -37,7 +37,7 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
   const [hint, setHint] = useState(true);
   const t = useGame((s) => s.t);
   const muted = useGame((s) => s.save.settings.muted);
-  const vehicleId = useGame((s) => s.save.equippedVehicleId);
+  const vehicleId = useGame((s) => s.testDrive?.vehicleId ?? s.save.equippedVehicleId);
   const [driverMode, setDriverMode] = useState(vehicleEntry.mode);
   const [doorBusy, setDoorBusy] = useState(vehicleEntry.active);
   const [drifting, setDrifting] = useState(false);
@@ -72,12 +72,13 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
     };
     const down = (e: PointerEvent) => {
       if (e.target !== el || !input.enabled) return;
-      const w = window.innerWidth;
+      const bounds = el.getBoundingClientRect();
+      const x = e.clientX - bounds.left, y = e.clientY - bounds.top;
       const isMouse = e.pointerType === 'mouse';
       let role: 'joy' | 'cam' | 'steer' | 'door' = 'cam';
       if (!isMouse) {
-        if (preset === 'joystick' && e.clientX < w * 0.42 && e.clientY > window.innerHeight * 0.3) role = 'joy';
-        if (preset === 'pedals' && e.clientX < w * 0.4 && e.clientY > window.innerHeight * 0.45) role = 'steer';
+        if (preset === 'joystick' && x < bounds.width * 0.42 && y > bounds.height * 0.3) role = 'joy';
+        if (preset === 'pedals' && x < bounds.width * 0.4 && y > bounds.height * 0.45) role = 'steer';
       } else if (e.button !== 0) return;
       if (input.sceneTap?.(e.clientX, e.clientY, false)) role = 'door';
       if ((role === 'joy' || role === 'steer') && [...map.values()].some(o => o.role === role)) return;
@@ -88,7 +89,7 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
       map.set(e.pointerId, { role, ox: e.clientX, oy: e.clientY, lx: e.clientX, ly: e.clientY, radius, started: performance.now() });
       if (role === 'joy') {
         input.joystick.active = true;
-        setJoy({ bx: home ? home.x + home.width / 2 : e.clientX, by: home ? home.y + home.height / 2 : e.clientY, kx: 0, ky: 0 });
+        setJoy({ bx: (home ? home.x + home.width / 2 : e.clientX) - bounds.left, by: (home ? home.y + home.height / 2 : e.clientY) - bounds.top, kx: 0, ky: 0 });
       } else if (role === 'cam') {
         input.camera.dragging = true;
         input.camera.lastInteraction = performance.now();
