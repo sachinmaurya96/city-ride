@@ -32,6 +32,7 @@ export class AudioEngine {
   private lastChime = new Map<string, number>();
   private raf = 0;
   private resuming = false;
+  private resumeAttempt = 0;
   private mobileBridge: HTMLAudioElement | null = null;
   rain = false;
 
@@ -56,6 +57,8 @@ export class AudioEngine {
     const c = this.ctx;
     c.onstatechange = () => {
       if (c.state === 'running' && !this.allowed()) this.applyVolumes();
+      // The browser/OS suspended audio mid-game (call, headphones, Bluetooth switch): bring it back.
+      else if (c.state !== 'running' && c.state !== 'closed' && this.allowed()) this.resumeContext();
     };
     this.master = c.createGain();
     this.master.gain.value = 0;
@@ -153,11 +156,15 @@ export class AudioEngine {
 
   private resumeContext(gesture = false) {
     const c = this.ctx;
-    if (!c || c.state === 'closed' || this.resuming || (!gesture && !this.allowed())) return;
+    // A resume can stay pending through a Safari interruption; a gesture must still retry it,
+    // or the game stays silent until reload.
+    if (!c || c.state === 'closed' || (this.resuming && !gesture) || (!gesture && !this.allowed())) return;
     // Safari reports "interrupted" after phone calls, screen locks and tab switches.
     if ((c.state as string) === 'running' && !gesture) return;
     this.resuming = true;
+    const attempt = ++this.resumeAttempt;
     void c.resume().catch(() => {}).finally(() => {
+      if (attempt !== this.resumeAttempt) return;
       this.resuming = false;
       if (this.ctx === c && c.state === 'running' && !this.allowed()) this.applyVolumes();
     });

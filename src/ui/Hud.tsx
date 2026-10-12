@@ -70,7 +70,7 @@ function Instruction() {
           : n.ins === 'arriving'
             ? t.arriving
             : fmt(t.continueFor, { d: meters(n.d) });
-  const arrow = n.ins === 'left' ? '↰' : n.ins === 'right' ? '↱' : n.ins === 'stop' || n.ins === 'arriving' ? '⛳' : '↑';
+  const arrow = n.ins === 'left' ? '↰' : n.ins === 'right' ? '↱' : n.ins === 'stop' || n.ins === 'arriving' ? <ControlIcon name="flag" /> : '↑';
   const hasDistance = n.ins !== 'stop' && n.ins !== 'arriving';
   const action = hasDistance ? head.replace(meters(n.d), '').trim() : head;
   const sub =
@@ -90,7 +90,7 @@ function Instruction() {
       <div className="ins-copy">
         <div className="ins-main" title={head}><span>{action}</span>{hasDistance && <b>{meters(n.d)}</b>}</div>
         <div className="ins-sub">
-          <span className="ins-target" title={sub}>{n.target === 'fuel' ? '⛽' : n.target === 'pickup' ? '📍' : n.target === 'bus' ? '🚏' : '🏁'} {destination}</span>
+          <span className="ins-target" title={sub}><ControlIcon name={n.target === 'fuel' ? 'fuel' : n.target === 'pickup' ? 'pin' : n.target === 'bus' ? 'bus' : 'flag'} /> {destination}</span>
           <b>{meters(n.rem)}</b>
         </div>
       </div>
@@ -119,8 +119,8 @@ export function Minimap() {
         {
           route: route.active ? route.route : null,
           routeFrom: route.along,
-          routeColor: route.target === 'pickup' ? '#d5eaff' : route.target === 'bus' ? '#2b8fd6' : '#36ceff',
-          target: route.active && route.targetBay ? { x: route.targetBay.x, z: route.targetBay.z, color: route.target === 'pickup' ? '#d5eaff' : route.target === 'bus' ? '#2b8fd6' : '#36ceff', icon: route.target === 'fuel' ? '⛽' : route.target === 'pickup' ? '👤' : route.target === 'bus' ? '🚏' : '⚑' } : null,
+          routeColor: '#f5d232',
+          target: route.active && route.targetBay ? { x: route.targetBay.x, z: route.targetBay.z, color: '#f5d232', icon: route.target === 'fuel' ? '⛽' : route.target === 'pickup' ? '👤' : route.target === 'bus' ? '🚏' : '⚑' } : null,
           player: p,
           labels: false,
         },
@@ -138,9 +138,33 @@ export function Minimap() {
 
 export function SpeedPill() {
   const t = useGame((s) => s.t);
-  const kmh = usePoll(() => Math.round(runtime.telemetry.speedKmh), 100);
+  const { kmh, reversing, top } = usePoll(() => ({
+    kmh: Math.round(runtime.telemetry.speedKmh),
+    reversing: runtime.telemetry.reversing,
+    top: Math.ceil((runtime.vehicle?.spec.topSpeedKmh ?? 120) / 60) * 60,
+  }), 100, shallow);
+  const dialPoint = (radius: number, angle: number) => {
+    const radians = angle * Math.PI / 180;
+    return { x: 50 + radius * Math.cos(radians), y: 48 + radius * Math.sin(radians) };
+  };
+  const start = dialPoint(40, 140), end = dialPoint(40, 400);
+  const dialArc = `M ${start.x} ${start.y} A 40 40 0 1 1 ${end.x} ${end.y}`;
   return (
-    <div className="speed-pill" data-testid="speed">
+    <div className="speed-pill" data-testid="speed" aria-label={`${kmh} ${t.speedUnit}`}>
+      <svg className="speed-dial" viewBox="0 0 100 88" aria-hidden="true">
+        <path className="dial-track" d={dialArc} pathLength="100" />
+        <path className="dial-live" d={dialArc} pathLength="100" strokeDasharray={`${Math.min(1, kmh / top) * 100} 100`} />
+        {Array.from({ length: 25 }, (_, i) => {
+          const angle = 140 + i * 260 / 24;
+          const outer = dialPoint(40, angle), inner = dialPoint(i % 4 === 0 ? 34 : 37, angle);
+          return <line key={i} className={`dial-tick ${i >= 21 ? 'redline' : ''}`} x1={outer.x} y1={outer.y} x2={inner.x} y2={inner.y} />;
+        })}
+        {Array.from({ length: 7 }, (_, i) => {
+          const point = dialPoint(28, 140 + i * 260 / 6);
+          return <text key={i} x={point.x} y={point.y} dominantBaseline="central" textAnchor="middle">{Math.round(top * i / 6)}</text>;
+        })}
+      </svg>
+      <span className="speed-gear" aria-hidden="true">{reversing ? 'R' : 'D'}</span>
       <span className="num">{kmh}</span>
       <span className="unit">{t.speedUnit}</span>
     </div>
@@ -153,7 +177,7 @@ function FuelGauge() {
   const low = f.percent <= FUEL.lowPercent;
   return (
     <div className={`fuel-gauge ${low ? 'low' : ''} ${f.percent === 0 ? 'empty' : ''} ${f.refilling ? 'refilling' : ''}`} data-testid="fuel-gauge">
-      <div className="fuel-label"><span>⛽ {f.percent === 0 ? t.fuelEmpty : low ? t.fuelLow : t.fuel}</span><b>{f.percent}%</b></div>
+      <div className="fuel-label"><span><ControlIcon name="fuel" /> {f.percent === 0 ? t.fuelEmpty : low ? t.fuelLow : t.fuel}</span><b>{f.percent}%</b></div>
       <div className="fuel-track" role="progressbar" aria-label={t.fuel} aria-valuemin={0} aria-valuemax={100} aria-valuenow={f.percent}><i style={{ width: `${f.percent}%` }} /></div>
       {f.refilling ? <small>{t.refueling}</small> : f.inBay ? <small>{t.stopToRefuel}</small> : low && f.name ? <small>{f.name} · {meters(f.distance)}</small> : null}
       {f.percent === 0 && !f.inBay && <button onClick={() => fuel.navigateToPump()} data-testid="navigate-fuel">{t.navigateToFuel}<KeyHint k={SHORTCUTS.fuel} /></button>}
@@ -174,11 +198,10 @@ function StopProgress() {
   return (
     <div className="stop-card" data-testid="stop-card">
       <svg width="46" height="46" viewBox="0 0 46 46" aria-hidden>
-        <circle cx="23" cy="23" r="19" stroke="#1b2b3e" strokeWidth="5" fill="none" />
-        <circle cx="23" cy="23" r="19" stroke="#d5eaff" strokeWidth="5" fill="none" strokeDasharray={`${pct * 119.4} 119.4`} transform="rotate(-90 23 23)" strokeLinecap="round" />
-        <text x="23" y="28" textAnchor="middle" fontSize="16">
-          👤
-        </text>
+        <circle cx="23" cy="23" r="19" stroke="var(--line)" strokeWidth="5" fill="none" />
+        <circle cx="23" cy="23" r="19" stroke="var(--accent)" strokeWidth="5" fill="none" strokeDasharray={`${pct * 119.4} 119.4`} transform="rotate(-90 23 23)" strokeLinecap="round" />
+        <circle cx="23" cy="19" r="4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M16 31v-3a7 7 0 0 1 14 0v3" fill="none" stroke="currentColor" strokeWidth="1.8" />
       </svg>
       <div>
         <div className="stop-main">{busStopped ? t.boardingPassengers : stage === 'BOARDING' ? t.boarding : stage === 'ALIGHTING' ? t.alighting : nav.target === 'pickup' ? t.pickingUp : t.droppingOff}</div>
@@ -200,7 +223,7 @@ function BusPanel() {
   if (stage !== 'BUS' || !bus) return null;
   return (
     <details className="bus-panel" data-testid="bus-panel">
-      <summary><span>🚌 {bus.stopNames[Math.min(bus.nextStop, bus.stopNames.length - 1)]}</span><b>{bus.onboard}/{bus.capacity}</b></summary>
+      <summary><span><ControlIcon name="bus" /> {bus.stopNames[Math.min(bus.nextStop, bus.stopNames.length - 1)]}</span><b>{bus.onboard}/{bus.capacity}</b></summary>
       {bus.stopNames.map((n, i) => (
         <div key={i} className={`bs ${i < bus.nextStop ? 'done' : i === bus.nextStop ? 'cur' : ''}`}>
           <i>{i < bus.nextStop ? '✓' : ''}</i>
@@ -208,7 +231,7 @@ function BusPanel() {
         </div>
       ))}
       <div className="occ" data-testid="occupancy">
-        👥 {t.occupancy}: <b>{bus.onboard} / {bus.capacity}</b>
+        <ControlIcon name="passengers" /> {t.occupancy}: <b>{bus.onboard} / {bus.capacity}</b>
       </div>
     </details>
   );
@@ -223,7 +246,7 @@ function DispatchButton() {
   if (VEHICLES[vehicle as keyof typeof VEHICLES]?.kind !== 'bus' || stage === 'BUS' || receipts) return null;
   return (
     <button className="offer-mini" onClick={() => open('bus')} data-testid="dispatch-btn">
-      🚌 {t.busDispatch}
+      <ControlIcon name="bus" /> {t.busDispatch}
     </button>
   );
 }
@@ -250,7 +273,7 @@ function RideChip() {
             <span className="dim">{'★'.repeat(5 - stars)}</span>
             {left >= 0 && (
               <span className={`deadline ${left === 0 ? 'late' : ''}`} title={t.timeLeft} data-testid="deadline">
-                {' '}⏱ {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}
+                {' '}<ControlIcon name="clock" /> {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}
               </span>
             )}
           </div>
@@ -272,7 +295,7 @@ export function OfferCard() {
   if (collapsed) {
     return (
       <button className="offer-mini" onClick={() => setCollapsed(false)} data-testid="offer-mini">
-        🔔 {t.newRide} · {money(offer.baseFare)}
+        <ControlIcon name="bell" /> {t.newRide} · {money(offer.baseFare)}
       </button>
     );
   }
@@ -300,14 +323,14 @@ export function OfferCard() {
           </div>
         </div>
         <div className="chips">
-          <span>👥 {offer.partySize} {offer.partySize > 1 ? t.passengers : t.passenger}</span>
-          <span>📍 {meters(offer.routeMeters)}</span>
-          <span>⏱ {t.estTime} {Math.max(1, Math.round(offer.estSeconds / 60))} min</span>
-          {offer.rain && <span>🌧 +12%</span>}
-          {offer.rideType === 'vip' && <span>⭐ {t.comfort} ★★★★+</span>}
+          <span><ControlIcon name="passengers" /> {offer.partySize} {offer.partySize > 1 ? t.passengers : t.passenger}</span>
+          <span><ControlIcon name="pin" /> {meters(offer.routeMeters)}</span>
+          <span><ControlIcon name="clock" /> {t.estTime} {Math.max(1, Math.round(offer.estSeconds / 60))} min</span>
+          {offer.rain && <span><ControlIcon name="rain" /> +12%</span>}
+          {offer.rideType === 'vip' && <span><ControlIcon name="star" /> {t.comfort} ★★★★+</span>}
           {offer.deadlineSeconds !== null && (
             <span>
-              ⏱ {t.timeLeft} {Math.ceil(offer.deadlineSeconds / 60)} min
+              <ControlIcon name="clock" /> {t.timeLeft} {Math.ceil(offer.deadlineSeconds / 60)} min
             </span>
           )}
         </div>

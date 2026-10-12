@@ -13,7 +13,7 @@ import { pendingConflict } from '../storage/persistence';
 import type { SaveData } from '../storage/schema';
 import { CashLevel } from './Hud';
 import { ControlIcon } from './ControlIcon';
-import { SPLASH_CARS } from './Splash';
+import menuCover from '../assets/splash/mclaren_p1.webp';
 import { FullscreenControl } from './FullscreenControl';
 
 /** Accessible modal: traps focus, Escape closes (when closable), restores focus on close. */
@@ -109,7 +109,7 @@ export function Receipt() {
         </div>
       </div>
       <div className="xp-chip">
-        ⭐ +{receipt.xp} XP · {t.level} {lp.level}
+        <ControlIcon name="star" /> +{receipt.xp} XP · {t.level} {lp.level}
         {receipt.passengers > 0 && (
           <span className="muted">
             {' '}· {save.lifetime.jobs} {t.successfulRides}
@@ -162,35 +162,35 @@ export function MainMenu({ onPlay }: { onPlay: () => void }) {
   const started = save.lifetime.jobs > 0 || !!save.mission || save.tutorial.firstRideDone;
   const vehicle = VEHICLES[save.equippedVehicleId as keyof typeof VEHICLES];
   return (
-    <div className="main-menu" data-testid="main-menu" style={{ '--menu-cover': `url(${SPLASH_CARS[0].src})` } as React.CSSProperties}>
+    <div className="main-menu" data-testid="main-menu" style={{ '--menu-cover': `url(${menuCover})` } as React.CSSProperties}>
       <div className="menu-card">
+        <div className="racing-mark" aria-hidden><i /><i /><i /></div>
         <div className="wordmark">
           <span className="w1">CITY</span> <span className="w2">RIDE</span>
           <div className="w3">{t.subtitle}</div>
         </div>
-        <CashLevel />
-        <div className="menu-vehicle">{vehicle?.name}</div>
-        <button className="btn primary big" onClick={onPlay} data-testid="play">
-          {started ? t.continue : t.play}
+        <div className="menu-profile"><CashLevel /><div className="menu-vehicle">{save.settings.language === 'ru' ? vehicle?.nameRu : vehicle?.name}</div></div>
+        <button className="btn primary big menu-play" onClick={onPlay} data-testid="play">
+          <ControlIcon name="accelerate" /><span>{started ? t.continue : t.play}</span><span className="menu-arrow" aria-hidden>›</span>
         </button>
         <div className="menu-grid">
           <button className="btn tile" onClick={() => open('garage')} data-testid="menu-garage">
-            <ControlIcon name="garage" /> {t.garage}
+            <ControlIcon name="garage" /><span>{t.garage}</span><span className="menu-arrow" aria-hidden>›</span>
           </button>
           <button className="btn tile" onClick={() => open('daily')} data-testid="menu-daily">
-            <ControlIcon name="tasks" /> {t.dailyTasks}
+            <ControlIcon name="tasks" /><span>{t.dailyTasks}</span><span className="menu-arrow" aria-hidden>›</span>
           </button>
           <button className="btn tile" onClick={() => open('stats')} data-testid="menu-stats">
-            <ControlIcon name="stats" /> {t.statistics}
+            <ControlIcon name="stats" /><span>{t.statistics}</span><span className="menu-arrow" aria-hidden>›</span>
           </button>
           <button className="btn tile" onClick={() => open('settings')} data-testid="menu-settings">
-            <ControlIcon name="settings" /> {t.settings}
+            <ControlIcon name="settings" /><span>{t.settings}</span><span className="menu-arrow" aria-hidden>›</span>
           </button>
         </div>
-        <button className="link" onClick={() => open('credits')}>
-          {t.credits}
-        </button>
-        <FullscreenControl />
+        <div className="menu-utilities">
+          <button className="link" onClick={() => open('credits')}>{t.credits}</button>
+          <FullscreenControl />
+        </div>
       </div>
     </div>
   );
@@ -204,9 +204,8 @@ export function PauseMenu({ onResume, onMainMenu }: { onResume: () => void; onMa
   return (
     <Modal label={t.paused} onClose={onResume} className="pause" testId="pause-menu">
       <h2>{t.paused}</h2>
-      <FullscreenControl />
       <button className="btn primary" onClick={onResume} data-testid="resume">
-        ▶ {t.resume}
+        <ControlIcon name="accelerate" /> {t.resume}
       </button>
       <button className="btn" onClick={() => open('map', 'pause')}>
         <ControlIcon name="map" /> {t.cityMap}
@@ -221,7 +220,7 @@ export function PauseMenu({ onResume, onMainMenu }: { onResume: () => void; onMa
         <ControlIcon name="settings" /> {t.settings}
       </button>
       <button className="btn" onClick={() => open('controls', 'pause')}>
-        🎮 {t.controls}
+        <ControlIcon name="controller" /> {t.controls}
       </button>
       {hasJob && (
         <button className="btn danger-outline" onClick={() => open('cancel', 'pause')} data-testid="cancel-job">
@@ -231,6 +230,7 @@ export function PauseMenu({ onResume, onMainMenu }: { onResume: () => void; onMa
       <button className="btn ghost" onClick={onMainMenu} data-testid="to-menu">
         {t.mainMenu}
       </button>
+      <FullscreenControl />
     </Modal>
   );
 }
@@ -288,8 +288,8 @@ export function CityMapOverlay() {
         {
           route: route.active ? route.route : null,
           routeFrom: route.along,
-          routeColor: route.target === 'pickup' ? '#d5eaff' : '#36ceff',
-          target: route.active && route.targetBay ? { x: route.targetBay.x, z: route.targetBay.z, color: route.target === 'pickup' ? '#d5eaff' : '#36ceff', icon: route.target === 'fuel' ? '⛽' : route.target === 'pickup' ? '👤' : '⚑' } : null,
+          routeColor: '#f5d232',
+          target: route.active && route.targetBay ? { x: route.targetBay.x, z: route.targetBay.z, color: route.target === 'pickup' ? '#f5d232' : '#b8d793', icon: route.target === 'fuel' ? '⛽' : route.target === 'pickup' ? '👤' : '⚑' } : null,
           player: runtime.pose,
           labels: true,
         },
@@ -303,7 +303,7 @@ export function CityMapOverlay() {
   return (
     <Modal label={t.cityMap} onClose={close} className="map-modal" testId="city-map">
       <div className="modal-head">
-        <h2>🗺️ {t.cityMap}</h2>
+        <h2><ControlIcon name="map" /> {t.cityMap}</h2>
         <button className="icon-btn" onClick={close} aria-label={t.close}>
           ✕
         </button>
@@ -311,13 +311,13 @@ export function CityMapOverlay() {
       <div className="map-viewport" ref={viewport}><canvas ref={ref} /></div>
       <div className="legend">
         <span>
-          <i style={{ background: '#36ceff' }} /> You
+          <i style={{ background: '#f5f4ed' }} /> You
         </span>
         <span>
-          <i style={{ background: '#d5eaff' }} /> {t.pickup}
+          <i style={{ background: '#f5d232' }} /> {t.pickup}
         </span>
         <span>
-          <i style={{ background: '#36ceff' }} /> {t.dropoff}
+          <i style={{ background: '#b8d793' }} /> {t.dropoff}
         </span>
       </div>
     </Modal>
@@ -343,11 +343,11 @@ export function ControlsOverlay({ onClose }: { onClose: () => void }) {
         </div>
         <div className="ctl-right">
           <h3>{t.rightLook}</h3>
-          <div className="ctl-drag">👆 ⟲</div>
+          <div className="ctl-drag"><ControlIcon name="camera" /> ⟲</div>
           <small>{t.accelerate} · {t.brakeReverse}<br />{t.dragToLook}</small>
         </div>
       </div>
-      <p className="kbd-hint">⌨️ {t.keyboardHint}</p>
+      <p className="kbd-hint">{t.keyboardHint}</p>
       <p className="kbd-hint">{t.powerBrake}: {t.powerBrakeHint}. {t.doorHint}.</p>
       <button className="btn primary" onClick={onClose} data-testid="controls-ok">
         {t.gotIt}
@@ -360,7 +360,7 @@ export function RotateOverlay() {
   const t = useGame((s) => s.t);
   return (
     <div className="rotate" role="alertdialog" aria-label={t.rotateTitle}>
-      <div className="phone">📱</div>
+      <div className="phone"><ControlIcon name="phone" /></div>
       <h2>{t.rotateTitle}</h2>
       <p>{t.rotateBody}</p>
     </div>
@@ -404,7 +404,7 @@ export function WelcomeBonus() {
   };
   return (
     <Modal label={t.welcomeTitle} onClose={claim} className="small welcome-bonus" testId="welcome-bonus">
-      <div className="welcome-coin" aria-hidden>🎁</div>
+      <div className="welcome-coin" aria-hidden><ControlIcon name="trophy" /></div>
       <h2>{t.welcomeTitle}</h2>
       <p className="welcome-amount">{money(WELCOME_BONUS)}</p>
       <p>{t.welcomeBody}</p>

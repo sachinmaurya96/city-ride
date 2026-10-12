@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentProps } from 'react';
 import { useGame } from '../app/store';
 import { events } from '../game/core/events';
 import { averageRating, claimDaily, levelForXP, nextResetMs } from '../game/progression/progression';
 import { fmt, meters, money } from '../i18n/strings';
 import { Modal } from './Screens';
+import { ControlIcon } from './ControlIcon';
+import './panelsTheme.css';
 
 function useCountdown(target: number) {
   const [now, setNow] = useState(Date.now());
@@ -18,7 +20,7 @@ function useCountdown(target: number) {
   return `${h}:${m}:${sec}`;
 }
 
-const ICONS: Record<string, string> = { jobs3: '🚕', clean2: '🛡️', earn1000: '🪙', dest2: '🧭', family1: '👨‍👩‍👧', airport1: '✈️', bus1: '🚌' };
+const ICONS: Record<string, ComponentProps<typeof ControlIcon>['name']> = { jobs3: 'garage', clean2: 'shield', earn1000: 'wallet', dest2: 'map', family1: 'passengers', airport1: 'map', bus1: 'bus' };
 
 export function DailyOverlay() {
   const t = useGame((s) => s.t);
@@ -39,31 +41,37 @@ export function DailyOverlay() {
   return (
     <Modal label={t.todaysChallenges} onClose={close} className="daily" testId="daily">
       <div className="modal-head">
-        <h2>{t.todaysChallenges}</h2>
-        <div className="reset">
-          ⏰ {t.resetsIn} <b>{countdown}</b>
-          <small>{fmt(t.nextReset, { time: resetLocal })}</small>
-        </div>
+        <h2><ControlIcon name="tasks" /> {t.todaysChallenges}</h2>
         <button className="icon-btn" onClick={close} aria-label={t.close}>
           ✕
         </button>
       </div>
+      <div className="reset daily-reset">
+        <span><ControlIcon name="recover" /> {t.resetsIn} <b>{countdown}</b></span>
+        <small>{fmt(t.nextReset, { time: resetLocal })}</small>
+      </div>
       <div className="task-cards">
-        {save.daily.tasks.map((task) => {
+        {save.daily.tasks.map((task, index) => {
           const [name, desc] = t.tasks[task.template] ?? [task.template, ''];
           const ready = task.progress >= task.target && !task.claimed;
           const isMoney = task.template === 'earn1000';
+          const progress = isMoney ? `${money(task.progress)} / ${money(task.target)}` : `${task.progress} / ${task.target}`;
           return (
-            <div key={task.id} className={`task ${task.claimed ? 'done' : ''}`} data-testid={`task-${task.template}`}>
-              <div className="task-ico">{ICONS[task.template] ?? '⭐'}</div>
+            <div key={task.id} className={`task ${task.claimed ? 'done' : ready ? 'ready' : ''}`} data-testid={`task-${task.template}`}>
+              <div className="task-heading">
+                <div className="task-ico"><ControlIcon name={ICONS[task.template] ?? 'tasks'} /></div>
+                <span className="task-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+              </div>
               <h3>{name}</h3>
               <p>{desc}</p>
-              <div className="bar">
-                <i style={{ width: `${(task.progress / task.target) * 100}%` }} />
+              <div className="task-progress">
+                <div className="prog">{progress}</div>
+                <div className="bar" role="progressbar" aria-label={name} aria-valuemin={0} aria-valuemax={task.target} aria-valuenow={Math.min(task.target, task.progress)} aria-valuetext={progress}>
+                  <i style={{ width: `${Math.min(100, (task.progress / task.target) * 100)}%` }} />
+                </div>
               </div>
-              <div className="prog">{isMoney ? `${money(task.progress)} / ${money(task.target)}` : `${task.progress} / ${task.target}`}</div>
               <div className="reward">
-                🪙 {money(task.rewardCash)} + <span className="xp">{task.rewardXP} XP</span>
+                <ControlIcon name="wallet" /> {money(task.rewardCash)} <span className="xp">+ {task.rewardXP} XP</span>
               </div>
               <button className={`btn ${ready ? 'primary' : 'disabled'}`} disabled={!ready} onClick={() => claim(task.id)} data-testid={`claim-${task.template}`}>
                 {task.claimed ? t.claimed : ready ? t.claimReward : t.inProgress}
@@ -74,9 +82,9 @@ export function DailyOverlay() {
       </div>
       <div className="lifetime-strip">
         <b>{t.lifetime.toUpperCase()}</b>
-        <span>🚗 {save.lifetime.jobs} {t.successfulRides}</span>
-        <span>👥 {save.lifetime.passengers} {t.passengers}</span>
-        <span>⭐ {t.level} {levelForXP(save.totalXP)}</span>
+        <span><ControlIcon name="garage" /> {save.lifetime.jobs} {t.successfulRides}</span>
+        <span><ControlIcon name="passengers" /> {save.lifetime.passengers} {t.passengers}</span>
+        <span><ControlIcon name="stats" /> {t.level} {levelForXP(save.totalXP)}</span>
       </div>
       <button className="btn primary" onClick={close}>
         {t.continueDriving} ›
@@ -115,16 +123,16 @@ export function StatsOverlay() {
   return (
     <Modal label={t.statistics} onClose={close} className="stats" testId="stats">
       <div className="modal-head">
-        <h2>📊 {t.statistics}</h2>
+        <h2><ControlIcon name="stats" /> {t.statistics}</h2>
         <button className="icon-btn" onClick={close} aria-label={t.close}>
           ✕
         </button>
       </div>
-      <div className="seg">
-        <button className={tab === 'today' ? 'on' : ''} onClick={() => setTab('today')}>
+      <div className="seg" role="group" aria-label={t.statistics}>
+        <button className={tab === 'today' ? 'on' : ''} aria-pressed={tab === 'today'} onClick={() => setTab('today')}>
           {t.today}
         </button>
-        <button className={tab === 'lifetime' ? 'on' : ''} onClick={() => setTab('lifetime')} data-testid="stats-lifetime">
+        <button className={tab === 'lifetime' ? 'on' : ''} aria-pressed={tab === 'lifetime'} onClick={() => setTab('lifetime')} data-testid="stats-lifetime">
           {t.lifetime}
         </button>
       </div>

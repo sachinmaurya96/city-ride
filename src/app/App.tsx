@@ -28,6 +28,7 @@ import type { SafeRoadPose } from '../game/vehicles/vehicleController';
 import { fmt } from '../i18n/strings';
 import { lazyOverlay } from '../ui/lazy';
 import { KeyHint } from '../ui/KeyHint';
+import { ControlIcon } from '../ui/ControlIcon';
 import { SHORTCUTS } from '../game/input/input';
 import { ownLocalCars } from './localCars';
 import { observeViewport, requestGameFullscreen } from './display';
@@ -427,7 +428,7 @@ export function App() {
   useEffect(() => { if (overlay === 'garage') setCanvasRequested(true); }, [overlay]);
 
   return (
-    <div className={`app ${touch ? 'touch-mode' : 'desktop-mode'}`} data-controls={settings.controls}>
+    <div className={`app ${touch ? 'touch-mode' : 'desktop-mode'}`} data-controls={settings.controls} data-reduced-motion={settings.reducedMotion}>
       {showScene && (
         <div className="canvas-wrap">
           <ErrorBoundary
@@ -459,7 +460,7 @@ export function App() {
             <Hud onPause={() => useGame.getState().openOverlay('pause')} tutorial={<TutorialHint />} />
             {testDrive && (
               <div className="test-drive-banner" data-testid="test-drive-banner" role="status">
-                <span title={t.testDriveActive}>🔑 {VEHICLES[testDrive.vehicleId].name}</span>
+                <span title={t.testDriveActive}><ControlIcon name="garage" /> {VEHICLES[testDrive.vehicleId].name}</span>
                 <b data-testid="test-drive-time">{Math.floor(testDrive.secondsLeft / 60)}:{String(testDrive.secondsLeft % 60).padStart(2, '0')}</b>
                 <button className="btn small" onClick={endTestDrive} data-testid="end-test-drive">{t.testDriveEnd}<KeyHint k={SHORTCUTS.endTestDrive} /></button>
               </div>

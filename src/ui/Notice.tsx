@@ -1,6 +1,7 @@
 import { useGame } from '../app/store';
 import { fmt, money } from '../i18n/strings';
 import { Modal } from './Screens';
+import { ControlIcon } from './ControlIcon';
 
 /** Traffic notice / police capture card (plan §14.2). Warnings auto-dismiss; fines need Continue. */
 export function NoticeCard() {
@@ -11,14 +12,14 @@ export function NoticeCard() {
   if (n.warning) {
     return (
       <div className="warn-banner" role="status" data-testid="warning">
-        ⚠️ <b>{t.warning}:</b> {t.violations[n.offense] ?? n.offense} — {t.violationTips[n.offense] ?? ''}
+        <ControlIcon name="alert" /> <b>{t.warning}:</b> {t.violations[n.offense] ?? n.offense} — {t.violationTips[n.offense] ?? ''}
       </div>
     );
   }
   const close = () => setNotice(null);
   return (
     <Modal label={t.trafficNotice} onClose={close} className="notice" testId="notice">
-      <div className="badge">🛡️</div>
+      <div className="badge"><ControlIcon name="shield" /></div>
       <h2>{n.capture ? t.captured : t.trafficNotice}</h2>
       <div className="muted">{t.reason}</div>
       <div className="reason">{t.violations[n.offense] ?? t.pursuit}</div>

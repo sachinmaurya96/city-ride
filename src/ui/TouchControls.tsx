@@ -268,7 +268,7 @@ export function TouchControls({ preset, showTouch, canRecover, reversing, onCame
       {reversing && <div className="reverse-badge" title={labels.reverse} aria-label={labels.reverse}>R</div>}
       {showTouch && hint && (
         <div className="look-hint" aria-hidden>
-          <div>👆 ↔</div>
+          <div><ControlIcon name="camera" /> ↔</div>
           {labels.dragToLook}
         </div>
       )}

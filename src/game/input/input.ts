@@ -43,6 +43,7 @@ class InputManager {
   /** Alternative preset: separate steering slider and pedals. */
   pedals = { steer: 0, gas: 0, brake: 0 };
   brakeButton = false;
+  /** Steering amount for every control source; 1 preserves the full default turning range. */
   steerSensitivity = 1;
   /** When false (e.g. menus open) drive input is zero. */
   enabled = true;
@@ -155,8 +156,10 @@ class InputManager {
     const kbThrottle = k.has('KeyW') || k.has('ArrowUp') ? 1 : 0;
     const kbBrake = k.has('KeyS') || k.has('ArrowDown') ? 1 : 0;
     const touchSteer = this.joystick.x + this.pedals.steer;
-    const steer = kbSteer + touchSteer * this.steerSensitivity;
-    out.steer = Math.max(-1, Math.min(1, steer));
+    // Apply the same turning range to keys and touch. Clamp the combined intent first
+    // so holding a key and the joystick together cannot bypass a gentler setting.
+    const steer = Math.max(-1, Math.min(1, kbSteer + touchSteer));
+    out.steer = Math.max(-1, Math.min(1, steer * this.steerSensitivity));
     out.throttle = Math.max(kbThrottle, this.pedals.gas);
     out.brake = Math.max(kbBrake, this.pedals.brake);
     out.speedLimit = undefined;

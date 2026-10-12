@@ -101,4 +101,28 @@ describe('mobile audio lifecycle', () => {
     engine.applyVolumes(); await flush();
     expect(Context.latest.resume).toHaveBeenCalledTimes(1);
   });
+  it('a tap still resumes audio while an earlier resume is stuck pending', async () => {
+    const engine = new AudioEngine(); engine.applySettings(defaultSettings('low', 'en'));
+    detach = engine.attach(); engine.unlock(); await flush();
+    Context.latest.state = 'interrupted';
+    Context.latest.resume.mockImplementationOnce(() => new Promise(() => {}));
+    window.dispatchEvent(new Event('focus')); await flush();
+    expect(engine.status.state).toBe('interrupted');
+    document.dispatchEvent(new Event('pointerdown')); await flush();
+    expect(engine.status).toMatchObject({ state: 'running', allowed: true });
+    expect(engine.status.master).toBeGreaterThan(0);
+  });
+  it('resumes when the browser suspends audio mid-game, but not while paused', async () => {
+    const engine = new AudioEngine(); engine.applySettings(defaultSettings('low', 'en'));
+    detach = engine.attach(); engine.unlock(); await flush();
+    Context.latest.resume.mockClear();
+    Context.latest.state = 'suspended'; Context.latest.onstatechange?.(); await flush();
+    expect(Context.latest.resume).toHaveBeenCalledTimes(1);
+    expect(engine.status.state).toBe('running');
+    pauseManager.add('USER_MENU'); await flush();
+    Context.latest.resume.mockClear();
+    Context.latest.onstatechange?.(); await flush();
+    expect(Context.latest.resume).not.toHaveBeenCalled();
+    expect(engine.status.state).toBe('suspended');
+  });
 });

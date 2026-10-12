@@ -4,6 +4,7 @@ import { fuel, fuelBill, FUEL } from '../game/vehicles/fuel';
 import { VEHICLES } from '../game/data/vehicles';
 import { fmt, money } from '../i18n/strings';
 import { Modal } from './Screens';
+import { ControlIcon } from './ControlIcon';
 
 export function FuelStation() {
   const t = useGame(s => s.t), [error, setError] = useState(false);
@@ -12,7 +13,7 @@ export function FuelStation() {
   const prompt = fuel.prompt; if (!prompt) return null;
   const kind = VEHICLES[prompt.vehicleId].kind;
   return <Modal label={t.fuelStation} onClose={() => fuel.dismiss()} className="fuel-station" testId="fuel-station">
-    <h2>⛽ {fuel.stationName()}</h2>
+    <h2><ControlIcon name="fuel" /> {fuel.stationName()}</h2>
     <p>{fmt(t.freeFuel, { price: money(bill.price) })}</p>
     <p>{fmt(t.currentTank, { percent: Math.round(fuel.percent), capacity: FUEL.capacityLiters[kind] })}</p>
     <p className="fuel-quote" data-testid="fuel-quote">{t.fullTank} · 100% · {money(bill.price)}</p>
