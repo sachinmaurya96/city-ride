@@ -3,6 +3,7 @@ import { isVehicleId, isPlayableVehicleId, type VehicleId } from '../game/data/v
 import type { QualityLevel } from '../game/render/quality';
 
 export const SCHEMA_VERSION = 1;
+export const STEERING_SENSITIVITY_RANGE = { min: 0.25, max: 1.6, step: 0.05 } as const;
 
 /** Non-negative integer counter: clamps impossible values instead of rejecting the whole save. */
 const counter = z.preprocess((v) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.floor(v)) : v), z.number().int().nonnegative());
@@ -40,7 +41,7 @@ export const SettingsSchema = z.object({
   renderResolution: z.enum(['auto', 'standard', 'sharp', 'native']).default('auto'),
   shadows: z.enum(['auto', 'off', 'on']).default('auto'),
   viewDistance: z.enum(['auto', 'near', 'far', 'max']).default('auto'),
-  steerSensitivity: z.preprocess((v) => (typeof v === 'number' ? Math.min(1.6, Math.max(0.5, v)) : v), z.number()),
+  steerSensitivity: z.preprocess((v) => (typeof v === 'number' ? Math.min(STEERING_SENSITIVITY_RANGE.max, Math.max(STEERING_SENSITIVITY_RANGE.min, v)) : v), z.number()).default(1),
   controls: z.enum(['joystick', 'pedals']),
   autoRecenter: z.boolean(),
   language: z.enum(['en', 'ru']),

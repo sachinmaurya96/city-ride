@@ -23,17 +23,27 @@ import { renderVehiclePreview } from './vehiclePreview';
 import { useImportedModel } from '../game/render/useImportedModel';
 import { loadImportedModel } from '../game/render/importedVehicles';
 import { requestGameFullscreen } from '../app/display';
+import { ControlIcon } from './ControlIcon';
+import './garageTheme.css';
 
-const KIND_ICON: Record<string, string> = { bike: '🛵', auto: '🛺', car: '🚗', bus: '🚌' };
-/** Real in-game photos for the selector cards (scripts/splash-shots.mjs with THUMB=1); emoji remain the fallback. */
+/** Real in-game photos for the selector cards (scripts/splash-shots.mjs with THUMB=1). */
 const THUMBS = Object.fromEntries(Object.entries(import.meta.glob<string>('../assets/thumbs/*.webp', { eager: true, import: 'default' }))
   .map(([path, url]) => [path.split('/').pop()!.replace('.webp', ''), url]));
-const CATS: { id: UpgradeCategory; icon: string }[] = [
-  { id: 'engine', icon: '⚙️' },
-  { id: 'brakes', icon: '🛑' },
-  { id: 'tires', icon: '🛞' },
-  { id: 'comfort', icon: '💺' },
-];
+const CATS: UpgradeCategory[] = ['engine', 'brakes', 'tires', 'comfort'];
+
+function VehicleGlyph({ kind }: { kind: string }) {
+  return (
+    <svg viewBox="0 0 64 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {kind === 'bike' ? <>
+        <circle cx="14" cy="23" r="7" /><circle cx="50" cy="23" r="7" />
+        <path d="m14 23 12-14 10 14H14Zm12-14h13l11 14M39 9l-2-6h-6M23 7h8" />
+      </> : <>
+        <path d={kind === 'bus' ? 'M6 23V5h50v18H6Zm3-10h44M18 5v8M30 5v8M42 5v8' : kind === 'auto' ? 'M9 23v-9l7-8h23l9 13h8v4H9Zm7-17v9h27M29 6v9' : 'M5 23V15l11-3 9-8h19l9 11 6 3v5H5Zm12-11h34M28 4l-4 8M42 4l4 8'} />
+        <circle cx="17" cy="24" r="5" /><circle cx="47" cy="24" r="5" />
+      </>}
+    </svg>
+  );
+}
 
 function Preview({ id, paint }: { id: VehicleId; paint: string }) {
   const t = useGame((s) => s.t);
@@ -45,7 +55,7 @@ function Preview({ id, paint }: { id: VehicleId; paint: string }) {
   const [ok, setOk] = useState(true);
   const draw = () => {
     const c = ref.current;
-    if (c) setOk(renderVehiclePreview(c, id, paint, yaw.current));
+    if (c) setOk(renderVehiclePreview(c, id, paint, yaw.current, '#181a1d'));
   };
   useEffect(() => {
     if (model && model.status !== 'ready') return;
@@ -85,8 +95,8 @@ function Preview({ id, paint }: { id: VehicleId; paint: string }) {
     <div className="preview-wrap" data-testid="vehicle-preview" data-model-state={model?.status ?? 'ready'}>
       <canvas
         ref={ref}
-        width={560}
-        height={340}
+        width={640}
+        height={300}
         className="preview"
         style={{ visibility: model && model.status !== 'ready' ? 'hidden' : 'visible' }}
         aria-label={VEHICLES[id].name}
@@ -110,7 +120,7 @@ function Preview({ id, paint }: { id: VehicleId; paint: string }) {
             <button className="btn outline" onClick={() => void loadImportedModel(VEHICLES[id], true).catch(() => {})}>{t.retryCar}</button>
           </>}
         </div>
-      ) : !ok && <div className="preview-fallback">{KIND_ICON[VEHICLES[id].kind]}</div>}
+      ) : !ok && <div className="preview-fallback"><VehicleGlyph kind={VEHICLES[id].kind} /></div>}
     </div>
   );
 }
@@ -241,37 +251,45 @@ export function GarageOverlay() {
           <span className="w1">CITY</span> <span className="w2">RIDE</span> <span className="w4">| {t.garage.toUpperCase()}</span>
         </div>
         <div className="wallet-pill" data-testid="garage-wallet">
-          🪙 {money(save.wallet)}
+          <ControlIcon name="wallet" /> <span>{money(save.wallet)}</span>
         </div>
         <button className="icon-btn danger" onClick={close} aria-label={t.close} data-testid="garage-close">
           ✕
         </button>
       </div>
+      <div className="tabs garage-tabs" aria-label={t.garage}>
+        <button className={tab === 'vehicles' ? 'on' : ''} onClick={() => setTab('vehicles')} aria-pressed={tab === 'vehicles'}>
+          {t.vehicles}
+        </button>
+        <button className={tab === 'upgrades' ? 'on' : ''} onClick={() => setTab('upgrades')} disabled={!owned} data-testid="tab-upgrades" aria-pressed={tab === 'upgrades'}>
+          {t.upgrades}
+        </button>
+        <button className={tab === 'paint' ? 'on' : ''} onClick={() => setTab('paint')} disabled={!owned || !!spec.importedModel} data-testid="tab-paint" aria-pressed={tab === 'paint'}>
+          {t.paint}
+        </button>
+      </div>
       <div className="garage-body">
         <div className="garage-left">
+          <div className="garage-vehicle-heading">
+            <div className="garage-kicker"><span>{t.vehicles}</span><span>{String(showroom.indexOf(sel) + 1).padStart(2, '0')} / {String(showroom.length).padStart(2, '0')}</span></div>
+            <h2 className="vname">{save.settings.language === 'ru' ? spec.nameRu : spec.name}</h2>
+          </div>
           <Preview id={sel} paint={paint} />
+          <div className="garage-vehicle-meta">
+            <div><small>{t.speed}</small><b>{spec.topSpeedKmh}<span> km/h</span></b></div>
+            <div className="garage-capacity"><span>{fmt(t.seats, { seats: spec.totalSeats, pass: spec.passengerSeats })}</span>{spec.importedModel && <small>{t.originalFinish}</small>}</div>
+          </div>
         </div>
         <div className="garage-panel">
-          <div className="tabs">
-            <button className={tab === 'vehicles' ? 'on' : ''} onClick={() => setTab('vehicles')}>
-              🚗 {t.vehicles}
-            </button>
-            <button className={tab === 'upgrades' ? 'on' : ''} onClick={() => setTab('upgrades')} disabled={!owned} data-testid="tab-upgrades">
-              🔧 {t.upgrades}
-            </button>
-            <button className={tab === 'paint' ? 'on' : ''} onClick={() => setTab('paint')} disabled={!owned || !!spec.importedModel} data-testid="tab-paint">
-              🖌️ {t.paint}
-            </button>
-          </div>
-          <h2 className="vname">{save.settings.language === 'ru' ? spec.nameRu : spec.name}</h2>
-          <div className="muted">{fmt(t.seats, { seats: spec.totalSeats, pass: spec.passengerSeats })}</div>
-          {spec.importedModel && <small className="muted">{t.originalFinish}</small>}
+          <div className="garage-panel-heading"><ControlIcon name={tab === 'vehicles' ? 'stats' : tab === 'upgrades' ? 'settings' : 'garage'} /><h3>{tab === 'vehicles' ? t.vehicles : tab === 'upgrades' ? t.upgrades : t.paint}</h3></div>
           {tab === 'vehicles' && (
             <>
-              <StatBar label={t.speed} value={spec.display.speed} />
-              <StatBar label={t.handling} value={spec.display.handling} />
-              <StatBar label={t.brakes} value={spec.display.brakes} />
-              <StatBar label={t.comfort} value={spec.display.comfort} />
+              <div className="garage-stats">
+                <StatBar label={t.speed} value={spec.display.speed} />
+                <StatBar label={t.handling} value={spec.display.handling} />
+                <StatBar label={t.brakes} value={spec.display.brakes} />
+                <StatBar label={t.comfort} value={spec.display.comfort} />
+              </div>
               <div className="jobs">
                 {t.jobsFor}: {spec.jobs.map((j) => t.rideTypes[j] ?? j).join(' · ')}
               </div>
@@ -279,55 +297,57 @@ export function GarageOverlay() {
                 <small>{t.priceLabel}</small>
                 <b>{spec.price === 0 ? t.free : money(spec.price)}</b>
               </div>
-              {state === 'equipped' && <button className="btn disabled" disabled>✓ {t.equipped}</button>}
-              {spec.importedModel && state === 'owned' && (
-                <button className="btn primary" onClick={doTryCar} disabled={busyJob} data-testid="try-car">
-                  {t.tryCar}
-                </button>
-              )}
-              {state === 'owned' && !spec.importedModel && (
-                <button className="btn primary" onClick={() => doEquip(sel)} disabled={busyJob} data-testid="equip">
-                  {t.equip}
-                </button>
-              )}
-              {state !== 'equipped' && !owned && !spec.npcOnly && (
-                <button className="btn outline" onClick={doTestDrive} disabled={busyJob || !!testDrive} data-testid="test-drive">
-                  🔑 {t.testDrive}
-                </button>
-              )}
-              {state === 'locked' && (
-                <button className="btn disabled" disabled data-testid="locked">
-                  🔒 {fmt(t.reachLevel, { level: spec.unlockLevel })}
-                </button>
-              )}
-              {state === 'affordable' && (
-                <button className="btn primary" onClick={() => setConfirm(sel)} data-testid="buy">
-                  {fmt(t.buy, { price: money(spec.price) })}
-                </button>
-              )}
-              {state === 'unaffordable' && (
-                <button className="btn disabled" disabled data-testid="unaffordable">
-                  {fmt(t.buy, { price: money(spec.price) })} · {t.notEnough}
-                </button>
-              )}
-              {busyJob && owned && state !== 'equipped' && <small className="muted">{t.garageOnlyIdle}</small>}
-              {spec.kind === 'bus' && state === 'equipped' && appState === 'PLAYING' && (
-                <button className="btn outline" onClick={() => open('bus')} data-testid="open-dispatch">
-                  🚌 {t.busDispatch}
-                </button>
-              )}
+              <div className="garage-actions">
+                {state === 'equipped' && <button className="btn disabled" disabled>✓ {t.equipped}</button>}
+                {spec.importedModel && state === 'owned' && (
+                  <button className="btn primary" onClick={doTryCar} disabled={busyJob} data-testid="try-car">
+                    {spec.kind === 'bike' ? t.tryBike : spec.kind === 'car' ? t.tryCar : t.tryVehicle}
+                  </button>
+                )}
+                {state === 'owned' && !spec.importedModel && (
+                  <button className="btn primary" onClick={() => doEquip(sel)} disabled={busyJob} data-testid="equip">
+                    {t.equip}
+                  </button>
+                )}
+                {state !== 'equipped' && !owned && !spec.npcOnly && (
+                  <button className="btn outline" onClick={doTestDrive} disabled={busyJob || !!testDrive} data-testid="test-drive">
+                    {t.testDrive}
+                  </button>
+                )}
+                {state === 'locked' && (
+                  <button className="btn disabled" disabled data-testid="locked">
+                    {fmt(t.reachLevel, { level: spec.unlockLevel })}
+                  </button>
+                )}
+                {state === 'affordable' && (
+                  <button className="btn primary" onClick={() => setConfirm(sel)} data-testid="buy">
+                    {fmt(t.buy, { price: money(spec.price) })}
+                  </button>
+                )}
+                {state === 'unaffordable' && (
+                  <button className="btn disabled" disabled data-testid="unaffordable">
+                    {fmt(t.buy, { price: money(spec.price) })} · {t.notEnough}
+                  </button>
+                )}
+                {busyJob && owned && state !== 'equipped' && <small className="muted">{t.garageOnlyIdle}</small>}
+                {spec.kind === 'bus' && state === 'equipped' && appState === 'PLAYING' && (
+                  <button className="btn outline" onClick={() => open('bus')} data-testid="open-dispatch">
+                    {t.busDispatch}
+                  </button>
+                )}
+              </div>
             </>
           )}
           {tab === 'upgrades' && owned && (
             <>
               <div className="upg-list">
-                {CATS.map((c) => {
-                  const lvl = ups[c.id];
+                {CATS.map((category, index) => {
+                  const lvl = ups[category];
                   const cost = lvl < 3 ? upgradeCost(sel, lvl + 1) : 0;
                   return (
-                    <button key={c.id} className={`upg ${cat === c.id ? 'on' : ''}`} onClick={() => setCat(c.id)} data-testid={`upg-${c.id}`}>
-                      <span>
-                        {c.icon} {t[c.id]}
+                    <button key={category} className={`upg ${cat === category ? 'on' : ''}`} onClick={() => setCat(category)} data-testid={`upg-${category}`} aria-pressed={cat === category}>
+                      <span className="upg-label">
+                        <small aria-hidden="true">0{index + 1}</small> {t[category]}
                       </span>
                       <span className="muted">{fmt(t.tier, { t: lvl })}</span>
                       <b className="cost">{lvl >= 3 ? t.maxTier : money(cost)}</b>
@@ -360,6 +380,7 @@ export function GarageOverlay() {
                   style={{ background: p.color }}
                   onClick={() => doPaint(p.color)}
                   aria-label={`${p.color} ${money(p.price)}`}
+                  aria-pressed={paint === p.color}
                   disabled={paint !== p.color && save.wallet < p.price}
                 >
                   <span>{paint === p.color ? '✓' : money(p.price)}</span>
@@ -370,12 +391,15 @@ export function GarageOverlay() {
         </div>
       </div>
       <div className="garage-strip">
-        <div className="seg small">
-          {(hasBuses ? (['all', 'cars', 'buses'] as const) : (['all', 'cars'] as const)).map((f) => (
-            <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)}>
-              {f === 'all' ? t.filterAll : f === 'cars' ? t.filterCars : t.filterBuses}
-            </button>
-          ))}
+        <div className="garage-strip-head">
+          <div className="seg small">
+            {(hasBuses ? (['all', 'cars', 'buses'] as const) : (['all', 'cars'] as const)).map((f) => (
+              <button key={f} className={filter === f ? 'on' : ''} onClick={() => setFilter(f)} aria-pressed={filter === f}>
+                {f === 'all' ? t.filterAll : f === 'cars' ? t.filterCars : t.filterBuses}
+              </button>
+            ))}
+          </div>
+          <span className="muted lvl-note">{t.level} <b>{level}</b></span>
         </div>
         <div className="cards">
           {list.map((id) => {
@@ -392,25 +416,23 @@ export function GarageOverlay() {
                   e.currentTarget.closest('.garage')?.scrollTo({ top: 0 });
                 }}
                 data-testid={`vcard-${id}`}
+                aria-pressed={sel === id}
               >
                 {THUMBS[id] ? (
                   <img className="vthumb" src={THUMBS[id]} alt="" loading="lazy" draggable={false} />
                 ) : (
                   <span className="vico" style={{ color: paintFor(save, id) }}>
-                    {KIND_ICON[v.kind]}
+                    <VehicleGlyph kind={v.kind} />
                   </span>
                 )}
                 <span className="vn">{save.settings.language === 'ru' ? v.nameRu : v.name}</span>
                 <span className={`chip ${st}`}>
-                  {st === 'equipped' ? t.equipped : st === 'owned' ? t.owned : st === 'locked' ? `🔒 ${t.level} ${v.unlockLevel}` : v.price === 0 ? t.free : money(v.price)}
+                  {st === 'equipped' ? t.equipped : st === 'owned' ? t.owned : st === 'locked' ? `${t.level} ${v.unlockLevel}` : v.price === 0 ? t.free : money(v.price)}
                 </span>
               </button>
             );
           })}
         </div>
-        <span className="muted lvl-note">
-          {t.level} {level}
-        </span>
       </div>
       {confirm && (
         <div className="confirm-pop" role="alertdialog" data-testid="confirm-buy">
@@ -440,7 +462,7 @@ export function BusDispatch() {
   return (
     <Modal label={t.busDispatch} onClose={close} className="bus-dispatch" testId="bus-dispatch">
       <div className="modal-head">
-        <h2>🚌 {t.busDispatch}</h2>
+        <h2><ControlIcon name="bus" /> {t.busDispatch}</h2>
         <button className="icon-btn" onClick={close} aria-label={t.close}>
           ✕
         </button>

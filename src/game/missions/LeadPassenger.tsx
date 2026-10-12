@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { useGame } from '../../app/store';
 import { CharacterActor } from '../render/CharacterActor';
 import { runtime } from '../core/runtime';
-import { VEHICLES } from '../data/vehicles';
+import { VEHICLES, type VehicleKind } from '../data/vehicles';
 import { CURB_HEIGHT } from '../data/cityMap';
 import { cabinLayout, seatedCharacterFit } from '../vehicles/cabin';
 import { entryPosition, lerpAngle, turnToward } from '../vehicles/entry';
@@ -25,14 +25,15 @@ function mixedCharacter(seed: number, name: string): CharacterId {
   return lastMixed.id;
 }
 
-export function LeadPassenger({ seat, look }: { seat: React.RefObject<THREE.Group | null>; look: Look }) {
+export function LeadPassenger({ seat, look, vehicleKind }: { seat: React.RefObject<THREE.Group | null>; look: Look; vehicleKind: VehicleKind }) {
   const choice = useGame((s) => s.save.settings.passengerCharacter);
   const seed = useGame(() => rideVisual.seed);
   const name = useGame(() => rideVisual.passengerName);
   const active = useGame((s) => !!s.save.mission);
   const id = (active || !!rideVisual.alightBay) && choice !== 'original' ? choice === 'mixed' ? mixedCharacter(seed, name) : choice : null;
-  const points = useMemo(() => ({ start: new THREE.Vector3(), door: new THREE.Vector3(), seat: new THREE.Vector3(), feet: new THREE.Vector3(), previous: new THREE.Vector3(), init: false, heading: 0, hip: new THREE.Vector3(), sim: 0 }), []);
-  return <CharacterActor id={id} look={look} name="ride-passenger-lead" frame={(actor, dt) => {
+  const points = useMemo(() => ({ start: new THREE.Vector3(), door: new THREE.Vector3(), seat: new THREE.Vector3(), feet: new THREE.Vector3(), previous: new THREE.Vector3(), init: false, heading: 0, hip: new THREE.Vector3(), rotation: new THREE.Quaternion(), sim: 0 }), []);
+  const pose = vehicleKind === 'bike' ? 'pillion' : 'car';
+  return <CharacterActor id={id} look={look} name="ride-passenger-lead" pose={pose} frame={(actor, dt) => {
     const spec = runtime.vehicle?.spec ?? VEHICLES[runtime.vehicleId];
     const originalBike = choice === 'original' && spec.kind !== 'car';
     const v = rideVisual;
@@ -74,7 +75,17 @@ export function LeadPassenger({ seat, look }: { seat: React.RefObject<THREE.Grou
     const turnDt = Math.min(.1, Math.max(0, runtime.simTime - points.sim)); points.sim = runtime.simTime;
     points.heading = phase.inside > .99 ? runtime.pose.heading : points.init ? turnToward(points.heading, want, turnDt) : want;
     points.init = true;
-    actor.object.rotation.y = lerpAngle(points.heading, runtime.pose.heading, phase.inside);
+    actor.object.rotation.set(0, lerpAngle(points.heading, runtime.pose.heading, phase.inside), 0);
+    // Mount onto the whole bike transform, including its pitch and cornering lean. Rotate the
+    // feet-origin offset around the seat so the pelvis remains on the pillion, rather than drifting sideways.
+    if (spec.kind === 'bike') {
+      seat.current.getWorldQuaternion(points.rotation);
+      actor.object.quaternion.slerp(points.rotation, THREE.MathUtils.smoothstep(phase.inside, .6, 1));
+      const hipHeight = actor.hipHeight * scale * phase.inside;
+      points.hip.set(0, hipHeight, 0).applyQuaternion(actor.object.quaternion);
+      actor.object.position.y += hipHeight;
+      actor.object.position.sub(points.hip);
+    }
     actor.object.visible = departing < 10 && (runtime.cameraMode !== 'eye' || !onboard);
     actor.object.userData.phase = onboard ? 'seated' : exit ? 'exiting' : v.boardProgress >= 0 ? 'entering' : 'waiting';
     actor.object.userData.inside = phase.inside;

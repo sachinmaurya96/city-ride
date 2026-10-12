@@ -28,7 +28,7 @@ export function drawMap(ctx: CanvasRenderingContext2D, v: MapView, o: MapDrawOpt
   const { width: w, height: h } = v;
   ctx.save();
   ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = '#08121e';
+  ctx.fillStyle = '#111316';
   ctx.fillRect(0, 0, w, h);
   ctx.translate(w / 2, h / 2);
   // heading-up: rotate so the player's forward points up (-y canvas)
@@ -36,14 +36,14 @@ export function drawMap(ctx: CanvasRenderingContext2D, v: MapView, o: MapDrawOpt
   ctx.scale(v.scale, v.scale);
   ctx.translate(-v.cx, -v.cz);
   // road surface
-  ctx.fillStyle = '#31475b';
+  ctx.fillStyle = '#44464a';
   ctx.fillRect(-520, -520, 1040, 1040);
   // blocks
   for (const b of BLOCKS) {
-    ctx.fillStyle = '#162434';
+    ctx.fillStyle = '#27292e';
     roundRect(ctx, b.minX, b.minZ, b.maxX - b.minX, b.maxZ - b.minZ, CORNER_RADIUS);
     ctx.fill();
-    ctx.fillStyle = '#0c1725';
+    ctx.fillStyle = '#191b1f';
     roundRect(ctx, b.minX + 5, b.minZ + 5, b.maxX - b.minX - 10, b.maxZ - b.minZ - 10, CORNER_RADIUS - 4);
     ctx.fill();
   }
@@ -65,7 +65,7 @@ export function drawMap(ctx: CanvasRenderingContext2D, v: MapView, o: MapDrawOpt
   ctx.setLineDash([]);
   // landmarks
   for (const l of LANDMARKS) {
-    ctx.fillStyle = '#7894aa';
+    ctx.fillStyle = '#989a9d';
     ctx.beginPath();
     ctx.arc(l.x, l.z, 9 / Math.max(0.35, v.scale) * 0.6, 0, Math.PI * 2);
     ctx.fill();
@@ -123,7 +123,7 @@ export function drawMap(ctx: CanvasRenderingContext2D, v: MapView, o: MapDrawOpt
   }
   ctx.font = '700 11px system-ui, sans-serif';
   for (const l of labels) {
-    ctx.fillStyle = 'rgba(8,18,30,0.94)';
+    ctx.fillStyle = 'rgba(17,19,22,0.94)';
     roundRect(ctx, l.x - l.w / 2, l.y, l.w, 18, 9);
     ctx.fill();
     ctx.fillStyle = '#f3f8ff';
@@ -165,8 +165,8 @@ export function drawMap(ctx: CanvasRenderingContext2D, v: MapView, o: MapDrawOpt
   ctx.translate(px, py);
   // world heading 0 = +Z (south = down on a north-up map)
   ctx.rotate(v.rotation - o.player.heading + Math.PI);
-  ctx.fillStyle = '#36ceff';
-  ctx.strokeStyle = '#fff';
+  ctx.fillStyle = '#f5f4ed';
+  ctx.strokeStyle = '#191b1f';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(0, -10);

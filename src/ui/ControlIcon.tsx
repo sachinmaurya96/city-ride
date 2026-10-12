@@ -1,4 +1,4 @@
-type IconName = 'horn' | 'brake' | 'camera' | 'recover' | 'pause' | 'sound' | 'muted' | 'door' | 'accelerate' | 'reverse' | 'wallet' | 'garage' | 'settings' | 'stats' | 'tasks' | 'map';
+type IconName = 'horn' | 'brake' | 'camera' | 'recover' | 'pause' | 'sound' | 'muted' | 'door' | 'accelerate' | 'reverse' | 'wallet' | 'garage' | 'settings' | 'stats' | 'tasks' | 'map' | 'controller' | 'fuel' | 'fullscreen' | 'trophy' | 'bus' | 'passengers' | 'clock' | 'bell' | 'flag' | 'pin' | 'rain' | 'star' | 'lock' | 'shield' | 'alert' | 'phone';
 
 /** Small, consistent controls that remain legible without large emoji artwork. */
 export function ControlIcon({ name }: { name: IconName }) {
@@ -19,6 +19,22 @@ export function ControlIcon({ name }: { name: IconName }) {
       {name === 'stats' && <path d="M4 21V11h4v10M10 21V4h4v17M16 21V8h4v13M2 21h20" />}
       {name === 'tasks' && <path d="M8 4h12v17H4V4h4V2h8v4H8V4Zm0 7 2 2 4-4M8 17h8" />}
       {name === 'map' && <path d="m3 5 6-3 6 3 6-3v17l-6 3-6-3-6 3V5Zm6-3v17M15 5v17" />}
+      {name === 'controller' && <><path d="M7 7h10l4 11h-5l-2-3h-4l-2 3H3L7 7Z" /><path d="M8 10v4M6 12h4M16 11h.01M18 13h.01" /></>}
+      {name === 'fuel' && <><path d="M3 21V3h11v18M2 21h13M6 6h5v5H6zM14 12h2v6a2 2 0 0 0 4 0V8l-3-3M19 7h2v4h-2" /></>}
+      {name === 'fullscreen' && <path d="M3 9V3h6M15 3h6v6M21 15v6h-6M9 21H3v-6M8 8l-5-5M16 8l5-5M16 16l5 5M8 16l-5 5" />}
+      {name === 'trophy' && <><path d="M7 3h10v7a5 5 0 0 1-10 0V3ZM7 5H3v3a4 4 0 0 0 4 4M17 5h4v3a4 4 0 0 1-4 4M12 15v4M8 21h8M9 19h6" /></>}
+      {name === 'bus' && <><rect x="4" y="3" width="16" height="16" rx="2" /><path d="M4 11h16M12 3v8M7 15h1M16 15h1M7 19v2M17 19v2" /></>}
+      {name === 'passengers' && <><circle cx="9" cy="7" r="3" /><path d="M3 20v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6M18 13a5 5 0 0 1 3 5v2" /></>}
+      {name === 'clock' && <><circle cx="12" cy="12" r="9" /><path d="M12 6v6l4 2" /></>}
+      {name === 'bell' && <path d="M6 9a6 6 0 0 1 12 0v5l3 3H3l3-3V9ZM10 21h4M12 3V1" />}
+      {name === 'flag' && <><path d="M4 22V3M4 3h16v12H4" /><path d="M4 3h5v4H4zM14 3h6v4h-6zM9 7h5v4H9zM4 11h5v4H4zM14 11h6v4h-6z" fill="currentColor" stroke="none" /></>}
+      {name === 'pin' && <><path d="M19 9c0 5-7 12-7 12S5 14 5 9a7 7 0 1 1 14 0Z" /><circle cx="12" cy="9" r="2" /></>}
+      {name === 'rain' && <><path d="M6 14a4 4 0 1 1 0-8 6 6 0 0 1 11-1 4.5 4.5 0 1 1 1 9" /><path d="m7 17-1 3M12 17l-1 3M17 17l-1 3" /></>}
+      {name === 'star' && <path d="m12 2 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1 3-6Z" />}
+      {name === 'lock' && <><rect x="5" y="10" width="14" height="11" rx="1" /><path d="M8 10V6a4 4 0 0 1 8 0v4M12 14v3" /></>}
+      {name === 'shield' && <path d="m12 2 8 3v6c0 5-8 11-8 11S4 16 4 11V5l8-3ZM8 11l3 3 5-6" />}
+      {name === 'alert' && <><path d="m12 3 10 18H2L12 3ZM12 9v5M12 17h.01" /></>}
+      {name === 'phone' && <><rect x="6" y="2" width="12" height="20" rx="2" /><path d="M10 5h4M11 19h2" /></>}
     </svg>
   );
 }

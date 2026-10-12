@@ -4,6 +4,7 @@ import { BAY_BY_ID, LANDMARK_BY_ID } from '../game/data/cityMap';
 import { VEHICLES, type VehicleId } from '../game/data/vehicles';
 import { BUS_ROUTES, busService, previewRoute, routeEligible } from '../game/missions/bus';
 import { fmt, meters, money } from '../i18n/strings';
+import { ControlIcon } from './ControlIcon';
 
 /** Route cards: eligibility checked before showing Start; quote and occupancy plan fixed per card. */
 export function BusDispatchPanel() {
@@ -37,10 +38,10 @@ export function BusDispatchPanel() {
           {pv ? (
             <>
               <div className="chips">
-                <span>🚏 {r.stops.length} {t.stops}</span>
-                <span>👥 {pv.planned} {t.plannedRiders}</span>
-                <span>📍 {meters(pv.meters)}</span>
-                <span>⏱ ≈{pv.estMinutes} min</span>
+                <span><ControlIcon name="bus" /> {r.stops.length} {t.stops}</span>
+                <span><ControlIcon name="passengers" /> {pv.planned} {t.plannedRiders}</span>
+                <span><ControlIcon name="pin" /> {meters(pv.meters)}</span>
+                <span><ControlIcon name="clock" /> ≈{pv.estMinutes} min</span>
               </div>
               <div className="fare-row">
                 <span>{t.fare}</span>
@@ -59,7 +60,7 @@ export function BusDispatchPanel() {
             </>
           ) : (
             <button className="btn disabled" disabled>
-              🔒 {fmt(t.needsTier, { vehicle: VEHICLES[r.minVehicle].name })}
+              <ControlIcon name="lock" /> {fmt(t.needsTier, { vehicle: VEHICLES[r.minVehicle].name })}
             </button>
           )}
         </div>

@@ -250,7 +250,7 @@ export function animateAvatar(avatar: Avatar, dt: number, moved: number, sit: nu
     turnInAvatar(avatar, 'hips', Y_AXIS, yaw * stand); turnInAvatar(avatar, 'hips', Z_AXIS, roll * stand);
   }
   // Car occupants recline with the seat back (the driver leans in only as far as the wheel needs: extraLean).
-  const lean = crouch * .65 + (bike ? .42 : pose === 'car' ? -.3 : .1) * sit + (dynamics ? THREE.MathUtils.clamp(-dynamics.longAccel * .022, -.12, .14) : 0)
+  const lean = crouch * .65 + (pose === 'pillion' ? .28 : bike ? .42 : pose === 'car' ? -.3 : .1) * sit + (dynamics ? THREE.MathUtils.clamp(-dynamics.longAccel * .022, -.12, .14) : 0)
     + (control ? control.drive * (bike ? .07 : .04) * sit : 0) + (dynamics?.extraLean ?? 0) * sit + (.05 * w + Math.sin(avatar.time * 1.7) * .012 * (1 - w)) * stand;
   // Riders fold from the hips: pitch the pelvis forward too, otherwise only the chest leans and the
   // shoulders stay too high for low clip-on bars (leg IK re-plants the feet afterwards).

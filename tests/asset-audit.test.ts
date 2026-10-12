@@ -170,7 +170,7 @@ describe('actual supplied asset geometry', () => {
       expect(seatedAgain.min.distanceTo(originalBounds.min)).toBeLessThan(1e-4);
       expect(seatedAgain.max.distanceTo(originalBounds.max)).toBeLessThan(1e-4);
       car.remove(avatar.root); avatar.root.position.set(0, 0, 0); avatar.root.scale.setScalar(1);
-      for (const pose of ['car', 'bike', 'auto', 'bus'] as const) {
+      for (const pose of ['car', 'bike', 'pillion', 'auto', 'bus'] as const) {
         animateAvatar(avatar, .016, 0, 1, 0, 0, false, true, pose);
         const bounds = posedBounds(avatar.root);
         expect([...bounds.min.toArray(), ...bounds.max.toArray()].every(Number.isFinite)).toBe(true);

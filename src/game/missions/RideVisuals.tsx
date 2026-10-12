@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { CURB_HEIGHT } from '../data/cityMap';
-import { VEHICLES } from '../data/vehicles';
+import { VEHICLES, type VehicleKind } from '../data/vehicles';
 import { mulberry32 } from '../core/rng';
 import { runtime } from '../core/runtime';
 import { buildVehicleParts } from '../render/models';
@@ -163,7 +163,7 @@ function BayMarker() {
 }
 
 /** Waiting passengers on the sidewalk (hailing the driver), boarding walk, seated rider, alighting walk. */
-function Passengers({ seat }: { seat: React.RefObject<THREE.Group | null> }) {
+function Passengers({ seat, vehicleKind }: { seat: React.RefObject<THREE.Group | null>; vehicleKind: VehicleKind }) {
   const passengerName = useGame(() => rideVisual.passengerName);
   const seed = useGame(() => rideVisual.seed);
   const characterChoice = useGame((s) => s.save.settings.passengerCharacter);
@@ -311,7 +311,7 @@ function Passengers({ seat }: { seat: React.RefObject<THREE.Group | null> }) {
   );
   return (
     <>
-      <LeadPassenger seat={seat} look={party.looks[0]} />
+      <LeadPassenger seat={seat} look={party.looks[0]} vehicleKind={vehicleKind} />
       {walkers.map((w, i) => (
         <primitive key={i} object={w.mesh} />
       ))}
@@ -334,12 +334,12 @@ function doorOffset(id: keyof typeof VEHICLES) {
   return d;
 }
 
-export function RideVisuals({ seat }: { seat: React.RefObject<THREE.Group | null> }) {
+export function RideVisuals({ seat, vehicleKind }: { seat: React.RefObject<THREE.Group | null>; vehicleKind: VehicleKind }) {
   return (
     <>
       <RouteArrows />
       <BayMarker />
-      <Passengers seat={seat} />
+      <Passengers seat={seat} vehicleKind={vehicleKind} />
     </>
   );
 }

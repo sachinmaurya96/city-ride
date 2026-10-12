@@ -41,7 +41,7 @@ export const WorldScene = memo(function WorldScene(p: GameCanvasProps) {
       {vehicleReady && <PlayerVehicle key={`${p.vehicleId}-${p.spawnNonce}`} vehicleId={p.vehicleId} paint={p.paint}
         upgrades={p.upgrades} rain={p.rain} spawn={p.spawn} anchor={p.anchor} seatAnchor={p.seat} />}
       <CameraRig anchor={p.anchor} autoRecenter={p.autoRecenter} />
-      <RideVisuals seat={p.seat} />
+      <RideVisuals seat={p.seat} vehicleKind={spec.kind} />
       {p.sceneReady && <GameSystems />}
       {vehicleReady && appState === 'LOADING' && <ReadySignal key={`${p.vehicleId}-${p.spawnNonce}`} onReady={p.onReady} />}
     </Physics>

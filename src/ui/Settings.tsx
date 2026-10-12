@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { useGame } from '../app/store';
 import { CHARACTER_NAMES, loadCharacter, useCharacter } from '../game/render/importedCharacters';
 import { persistence } from '../storage/persistence';
+import { STEERING_SENSITIVITY_RANGE } from '../storage/schema';
 import { Modal } from './Screens';
 import { defaultQuality, type RenderResolution, type ShadowMode, type ViewDistance } from '../game/render/quality';
+import { ControlIcon } from './ControlIcon';
+import './panelsTheme.css';
 
 function GraphicsSettings() {
   const t = useGame((s) => s.t);
@@ -11,8 +14,8 @@ function GraphicsSettings() {
   const update = useGame((s) => s.updateSettings);
   const description = settings.quality === 'low' ? t.graphicsLow : settings.quality === 'medium' ? t.graphicsMedium : settings.quality === 'high' ? t.graphicsHigh : t.graphicsUltra;
   return (
-    <section className="graphics-settings" data-testid="graphics-settings">
-      <h3>{t.graphics}</h3>
+    <section className="graphics-settings options-section" data-testid="graphics-settings">
+      <h3><ControlIcon name="camera" />{t.graphics}</h3>
       <div className="seg graphics-presets" role="group" aria-label={t.quality}>
         {(['low', 'medium', 'high', 'ultra'] as const).map((level) => (
           <button key={level} className={settings.quality === level ? 'on' : ''} aria-pressed={settings.quality === level} onClick={() => update({ quality: level })} data-testid={`quality-${level}`}>
@@ -68,13 +71,16 @@ export function SettingsOverlay() {
   const close = useGame((s) => s.closeOverlay);
   const [confirmReset, setConfirmReset] = useState(false);
   const slider = (label: string, key: 'masterVolume' | 'sfxVolume' | 'ambienceVolume' | 'musicVolume') => (
-    <label className="set-row">
+    <label className="set-row slider-row">
       <span>{label}</span>
-      <input type="range" min={0} max={1} step={0.05} value={st[key]} onChange={(e) => update({ [key]: Number(e.target.value) })} aria-label={label} />
+      <span className="setting-slider">
+        <input type="range" min={0} max={1} step={0.05} value={st[key]} onChange={(e) => update({ [key]: Number(e.target.value) })} aria-label={label} aria-valuetext={`${Math.round(st[key] * 100)}%`} />
+        <span className="slider-value" aria-hidden="true">{Math.round(st[key] * 100)}%</span>
+      </span>
     </label>
   );
   const toggle = (label: string, key: 'muted' | 'autoRecenter' | 'reducedMotion') => (
-    <label className="set-row">
+    <label className="set-row toggle-row">
       <span>{label}</span>
       <input type="checkbox" checked={st[key]} onChange={(e) => update({ [key]: e.target.checked })} aria-label={label} data-testid={`set-${key}`} />
     </label>
@@ -83,42 +89,46 @@ export function SettingsOverlay() {
   return (
     <Modal label={t.settings} onClose={close} className="settings" testId="settings">
       <div className="modal-head">
-        <h2>⚙️ {t.settings}</h2>
+        <h2><ControlIcon name="settings" /> {t.settings}</h2>
         <button className="icon-btn" onClick={close} aria-label={t.close}>
           ✕
         </button>
       </div>
       <div className="settings-body">
         <GraphicsSettings />
-        <section>
-          <h3>{t.audio}</h3>
+        <section className="options-section">
+          <h3><ControlIcon name="sound" />{t.audio}</h3>
           {slider(t.master, 'masterVolume')}
           {slider(t.effects, 'sfxVolume')}
           {slider(t.ambience, 'ambienceVolume')}
           {slider(t.music, 'musicVolume')}
           {toggle(t.mute, 'muted')}
         </section>
-        <section>
-          <h3>{t.controlPreset}</h3>
-          <div className="seg">
-            <button className={st.controls === 'joystick' ? 'on' : ''} onClick={() => update({ controls: 'joystick' })} data-testid="preset-joystick">
+        <section className="options-section">
+          <h3><ControlIcon name="controller" />{t.controlPreset}</h3>
+          <div className="seg" role="group" aria-label={t.controlPreset}>
+            <button className={st.controls === 'joystick' ? 'on' : ''} aria-pressed={st.controls === 'joystick'} onClick={() => update({ controls: 'joystick' })} data-testid="preset-joystick">
               {t.presetJoystick}
             </button>
-            <button className={st.controls === 'pedals' ? 'on' : ''} onClick={() => update({ controls: 'pedals' })} data-testid="preset-pedals">
+            <button className={st.controls === 'pedals' ? 'on' : ''} aria-pressed={st.controls === 'pedals'} onClick={() => update({ controls: 'pedals' })} data-testid="preset-pedals">
               {t.presetPedals}
             </button>
           </div>
-          <label className="set-row">
+          <label className="set-row slider-row">
             <span>{t.sensitivity}</span>
-            <input type="range" min={0.5} max={1.6} step={0.05} value={st.steerSensitivity} onChange={(e) => update({ steerSensitivity: Number(e.target.value) })} aria-label={t.sensitivity} />
+            <span className="setting-slider">
+              <input type="range" {...STEERING_SENSITIVITY_RANGE} value={st.steerSensitivity} onChange={(e) => update({ steerSensitivity: Number(e.target.value) })} aria-label={t.sensitivity} aria-describedby="steering-sensitivity-hint" data-testid="steering-sensitivity" />
+              <span className="slider-value" aria-hidden="true">{st.steerSensitivity.toFixed(2)}</span>
+            </span>
           </label>
+          <p className="graphics-hint" id="steering-sensitivity-hint">{t.steeringSensitivityHint}</p>
           {toggle(t.autoRecenter, 'autoRecenter')}
         </section>
-        <section>
-          <h3>{t.driver}</h3>
-          <div className="seg character-options">
+        <section className="options-section">
+          <h3><ControlIcon name="garage" />{t.driver}</h3>
+          <div className="seg character-options" role="group" aria-label={t.driver}>
             {(['male', 'female', 'lynae', 'cartethyia'] as const).map((g) => (
-              <button key={g} className={st.driver === g ? 'on' : ''} onClick={() => update({ driver: g })} data-testid={`driver-${g}`}>
+              <button key={g} className={st.driver === g ? 'on' : ''} aria-pressed={st.driver === g} onClick={() => update({ driver: g })} data-testid={`driver-${g}`}>
                 {g === 'male' ? t.driverMale : g === 'female' ? t.driverFemale : CHARACTER_NAMES[g]}
               </button>
             ))}
@@ -132,30 +142,34 @@ export function SettingsOverlay() {
           </label>
           {passengerModel.state?.status === 'loading' && <p className="graphics-hint">{t.characterLoading}</p>}
           {passengerModel.state?.status === 'error' && <button className="link" onClick={() => { if (st.passengerCharacter === 'lynae' || st.passengerCharacter === 'cartethyia') void loadCharacter(st.passengerCharacter, true).catch(() => {}); }}>{t.retry}</button>}
-          <h3>{t.language}</h3>
-          <div className="seg">
-            <button className={st.language === 'en' ? 'on' : ''} onClick={() => update({ language: 'en' })}>
+        </section>
+        <section className="options-section">
+          <h3><ControlIcon name="map" />{t.language}</h3>
+          <div className="seg" role="group" aria-label={t.language}>
+            <button className={st.language === 'en' ? 'on' : ''} aria-pressed={st.language === 'en'} onClick={() => update({ language: 'en' })}>
               English
             </button>
-            <button className={st.language === 'ru' ? 'on' : ''} onClick={() => update({ language: 'ru' })} data-testid="lang-ru">
+            <button className={st.language === 'ru' ? 'on' : ''} aria-pressed={st.language === 'ru'} onClick={() => update({ language: 'ru' })} data-testid="lang-ru">
               Русский
             </button>
           </div>
-          <h3>{t.uiScale}</h3>
-          <div className="seg">
+          <h3 className="options-subheading">{t.uiScale}</h3>
+          <div className="seg" role="group" aria-label={t.uiScale}>
             {[1, 1.15, 1.3].map((v) => (
-              <button key={v} className={st.uiScale === v ? 'on' : ''} onClick={() => update({ uiScale: v })}>
+              <button key={v} className={st.uiScale === v ? 'on' : ''} aria-pressed={st.uiScale === v} onClick={() => update({ uiScale: v })}>
                 {Math.round(v * 100)}%
               </button>
             ))}
           </div>
           {toggle(t.reducedMotion, 'reducedMotion')}
         </section>
-        <section>
-          <h3>{t.saveStatus}</h3>
-          <p className={status === 'error' || status === 'unavailable' ? 'bad' : 'muted'} data-testid="save-status">
-            {statusText}
-          </p>
+        <section className="options-section save-section">
+          <div className="save-summary">
+            <h3><ControlIcon name="tasks" />{t.saveStatus}</h3>
+            <p className={status === 'error' || status === 'unavailable' ? 'bad' : 'save-state'} data-testid="save-status" role="status">
+              {statusText}
+            </p>
+          </div>
           {!confirmReset ? (
             <button className="btn danger-outline" onClick={() => setConfirmReset(true)}>
               {t.resetProgress}

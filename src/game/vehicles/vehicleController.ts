@@ -45,6 +45,13 @@ export interface SafeRoadPose {
 
 const REVERSE_HOLD_TIME = 0.4;
 const REVERSE_MAX = 10 / 3.6;
+/** Full lock is capped near 1.2 g at city speeds, so ordinary turns hold the road instead of scrubbing wide. */
+const MAX_STEER_LATERAL_ACCEL = 11.8;
+/** Above ~40 km/h the cap rises (m/s² per m/s) so highway turns stay quick without the old full-lock slide. */
+const HIGH_SPEED_STEER_GAIN = 1.2;
+const HIGH_SPEED_STEER_FROM = 11;
+/** Ceiling (~2.65 g) just under what the tyres hold (~3 g), so near top speed the car carves instead of sliding wide. */
+const MAX_STEER_LATERAL_LIMIT = 26;
 
 /**
  * Arcade raycast vehicle on top of Rapier's DynamicRayCastVehicleController.
@@ -68,6 +75,8 @@ export class RaycastVehicle {
   private npcImpactTime = 0;
   private approachX = 0;
   private approachZ = 1;
+  /** Steered-to-fixed axle distance used for the grip-limited steering angle. */
+  private readonly wheelbase: number;
   private readonly ownerBodies: RAPIER_NS.RigidBodySet;
   holdBrake = false; // forced brake hold (boarding, capture, pause)
 
@@ -92,6 +101,13 @@ export class RaycastVehicle {
         spec.wheelRadius,
       );
     }
+    const axleZ = (steer: boolean) => {
+      const zs = spec.wheels.physics.filter(w => w.steer === steer).map(w => w.z);
+      return zs.length ? zs.reduce((a, z) => a + z, 0) / zs.length : NaN;
+    };
+    const zs = spec.wheels.physics.map(w => w.z);
+    const axles = Math.abs(axleZ(true) - axleZ(false));
+    this.wheelbase = Number.isFinite(axles) && axles > .5 ? axles : Math.max(1, Math.max(...zs) - Math.min(...zs));
     this.wheelSpin = spec.wheels.visual.map(() => 0);
     this.applySuspension();
   }
@@ -146,7 +162,11 @@ export class RaycastVehicle {
     this.steerState += (inp.steer - this.steerState) * k;
     const speedFrac = Math.min(1, absV / Math.min(h.topSpeed, 30));
     const maxSteer = h.maxSteer * (1 - (1 - h.highSpeedSteer) * speedFrac);
-    const angle = -this.steerState * maxSteer;
+    // Kinematic turn: lateral accel = v² tan(angle) / wheelbase. Drifting deliberately exceeds it.
+    const lateralLimit = Math.min(MAX_STEER_LATERAL_LIMIT, MAX_STEER_LATERAL_ACCEL + HIGH_SPEED_STEER_GAIN * Math.max(0, absV - HIGH_SPEED_STEER_FROM));
+    const gripSteer = Math.atan(this.wheelbase * lateralLimit / Math.max(1, v * v));
+    const steerLimit = Math.min(maxSteer, gripSteer + (maxSteer - gripSteer) * this.driftAmount);
+    const angle = -this.steerState * Math.max(0, steerLimit);
 
     let engine = 0; // total force, N
     let brakeDecel = 0; // m/s²

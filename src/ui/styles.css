@@ -1,23 +1,25 @@
 :root {
   color-scheme: dark;
-  --text: #f3f8ff;
-  --surface: #080f1be8;
-  --surface-2: #121e2ce8;
-  --surface-3: #1b2b3e;
-  --accent: #36ceff;
-  --accent-dim: #36ceff22;
-  --line: #8bcbff2b;
+  --text: #f5f4ed;
+  --surface: #14161bf2;
+  --surface-2: #22252be8;
+  --surface-3: #30333a;
+  --accent: #f5d232;
+  --accent-dim: #f5d2321f;
+  --line: #ffffff26;
   --navy: var(--text);
-  --navy-2: #c5eaff;
+  --navy-2: #e1e1dc;
   --cream: var(--surface);
   --cream-2: var(--surface-2);
   --teal: var(--accent);
-  --teal-dark: #62dbff;
-  --amber: #d5eaff;
-  --danger: #ff6c7b;
+  --teal-dark: #ffe46b;
+  --amber: var(--accent);
+  --danger: #ff7b73;
   --danger-fill: #d43c50; /* filled buttons: white text needs ≥4.5:1 */
-  --ink-soft: #a5b9cc;
-  --radius: 10px;
+  --ink-soft: #b8b9b5;
+  --good: #b8d793;
+  --font-display: Impact, Haettenschweiler, 'Arial Narrow', sans-serif;
+  --radius: 0px;
   --shadow: 0 10px 30px #00000055;
   --ui-scale: 1;
   --safe-l: env(safe-area-inset-left, 0px);
@@ -263,25 +265,24 @@ button:focus-visible, [tabindex]:focus-visible { outline: 3px solid var(--amber)
 .btn, .icon-btn, .seg, .tabs, .task, .stat, .garage-panel, .vcard, .lines, .goal,
 .graphics-settings, .bus-card, .confirm-pop { border: 1px solid var(--line); }
 .btn { letter-spacing: .04em; border-radius: 8px; box-shadow: none; }
-.btn.primary { box-shadow: 0 0 20px #36ceff1c; border-color: var(--accent); }
+.btn.primary { border-color: var(--accent); }
 .btn.primary:active { box-shadow: none; transform: translateY(1px); }
 .btn svg { width: 18px; height: 18px; flex: none; }
 .modal h2, .wordmark { letter-spacing: .06em; }
 .wordmark .w3 { color: var(--ink-soft); letter-spacing: .18em; line-height: 1.6; }
-.menu-card { position: relative; z-index: 1; box-shadow: 0 24px 80px #000a, 0 0 60px #36ceff0c; }
-.main-menu::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, transparent 49.9%, #36ceff12 50%, transparent 50.1%), repeating-linear-gradient(0deg, transparent 0 79px, #36ceff07 80px); }
-.main-menu::after { content: ''; position: absolute; width: 80vw; height: 50vh; border: 1px solid #36ceff26; border-left: 12px solid #36ceff20; transform: skew(-28deg) rotate(-16deg); pointer-events: none; }
+.menu-card { position: relative; z-index: 1; }
+.main-menu::before, .main-menu::after { content: ''; position: absolute; pointer-events: none; }
 .boot-bar { height: 4px; background: var(--surface-3); }
 .menu-vehicle { text-transform: uppercase; letter-spacing: .08em; font-size: .8em; padding: 8px; }
 .util, .power-brake, .speed-pill, .fuel-gauge, .instruction, .offer-card, .stop-card,
 .bus-panel, .hud-top-left .cash, .hud-top-left .lvl { border: 1px solid var(--line); }
-.joy-home, .joy-live, .steer-pad { border-color: #36ceff75; box-shadow: inset 0 0 20px #36ceff0a; }
-.joy-knob { background: #16384bd9; box-shadow: 0 0 14px #36ceff30; }
+.joy-home, .joy-live, .steer-pad { border-color: #ffffff70; box-shadow: inset 0 0 20px #ffffff05; }
+.joy-knob { background: #25272bd9; box-shadow: none; }
 .wallet-ico svg { width: 16px; height: 16px; color: var(--accent); }
 .fuel-gauge button { background: var(--accent-dim); color: var(--text); border: 1px solid var(--line); }
-.toast.good { background: #0c2536; border: 1px solid #36ceff66; }
-.toast.warn { background: #252732; border: 1px solid #d5eaff55; }
-.toast.bad { background: #331a27; border: 1px solid #ff6c7b77; }
+.toast.good { background: #20271c; border: 1px solid #b8d79380; }
+.toast.warn { background: #2b291a; border: 1px solid #f5d23280; }
+.toast.bad { background: #331d1b; border: 1px solid #ff7b7380; }
 .signal-ico { background: var(--surface-3); }
 select { color: var(--text); background: var(--surface-3); }
 .preview { border: 1px solid var(--line); }
