@@ -1,10 +1,11 @@
 import { it, expect } from 'vitest';
 import * as THREE from 'three';
-import { readAsset } from './assets';
+import { CHARACTER_FILES, readAsset } from './assets';
 import { VEHICLES } from '../src/game/data/vehicles';
 import { prepareImportedModel, calibratedVehicleSpec } from '../src/game/render/importedVehicles';
 import { prepareCharacter, createAvatar, animateAvatar } from '../src/game/render/importedCharacters';
 import { characterBounds } from '../src/game/render/characterBounds';
+import { CHARACTER_IDS } from '../src/game/data/characters';
 import { cabinLayout, seatedCharacterFit } from '../src/game/vehicles/cabin';
 
 it('keeps every seated character head beneath the actual curved McLaren roof, not its rear wing', async () => {
@@ -13,9 +14,8 @@ it('keeps every seated character head beneath the actual curved McLaren roof, no
   const ray = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, -1, 0));
   expect(model.userData.dimensions[1]).toBeGreaterThan(1.4);
   expect(cabin.roofY).toBeLessThan(1.1);
-  for (const id of ['male', 'female', 'lynae', 'cartethyia'] as const) {
-    const file = id === 'lynae' ? 'lynae_from_wuthering_waves.glb' : id === 'cartethyia' ? 'cartethyia_wuthering_waves.glb' : `${id}-rover.glb`;
-    const { scene } = await readAsset(file), actor = createAvatar(prepareCharacter(scene, id), id);
+  for (const id of CHARACTER_IDS) {
+    const { scene } = await readAsset(CHARACTER_FILES[id]), actor = createAvatar(prepareCharacter(scene, id), id);
     animateAvatar(actor, 0, 0, 1, 0, 0, false, true);
     const fit = seatedCharacterFit(spec, characterBounds(actor.root), actor.hipHeight);
     expect(fit.scale, id).toBeGreaterThan(.75);

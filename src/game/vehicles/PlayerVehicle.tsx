@@ -28,6 +28,7 @@ import { events } from '../core/events';
 import { addCutDoors } from '../render/doorGeometry';
 import { applyVehicleEnvironment, calibratedVehicleSpec } from '../render/importedVehicles';
 import { traffic } from '../traffic/traffic';
+import { CHARACTER_GENDER } from '../data/characters';
 
 const drive = { ...NEUTRAL_INPUT };
 
@@ -155,7 +156,7 @@ export function PlayerVehicle({ vehicleId, paint, upgrades, rain, spawn, anchor,
   useEffect(() => () => { proceduralBody?.traverse((o) => { if (o instanceof THREE.Mesh) o.geometry.dispose(); }); }, [proceduralBody]);
   const driver = useGame((s) => s.save.settings.driver);
   const look = useMemo<Look>(() => {
-    const base = driver === 'female' ? PLAYER_LOOK_FEMALE : PLAYER_LOOK;
+    const base = CHARACTER_GENDER[driver] === 'female' ? PLAYER_LOOK_FEMALE : PLAYER_LOOK;
     return { ...base, helmet: spec.kind === 'bike' ? '#2fc4a8' : undefined, acc: spec.kind === 'bus' ? 'none' : base.acc };
   }, [spec.kind, driver]);
   const col = chassisCollider(spec);

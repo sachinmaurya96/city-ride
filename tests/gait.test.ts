@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { readAsset } from './assets';
-import { animateAvatar, createAvatar, prepareCharacter, type CharacterId } from '../src/game/render/importedCharacters';
+import { CHARACTER_FILES, readAsset } from './assets';
+import { animateAvatar, createAvatar, prepareCharacter } from '../src/game/render/importedCharacters';
+import { CHARACTER_IDS } from '../src/game/data/characters';
 import { BONE, createCharacterMesh, PLAYER_LOOK, PLAYER_LOOK_FEMALE } from '../src/game/render/characters';
 import { animateLocomotion, newAnimState } from '../src/game/render/charAnim';
 import { MATERIALS } from '../src/game/render/materials';
 
-const FILES: Record<CharacterId, string> = { male: 'male-rover.glb', female: 'female-rover.glb', lynae: 'lynae_from_wuthering_waves.glb', cartethyia: 'cartethyia_wuthering_waves.glb' };
 
 /** Walk an avatar straight ahead at `speed` (60 fps) after a one-second start, and measure the gait. */
 function walk(avatar: ReturnType<typeof createAvatar>, speed: number) {
@@ -34,9 +34,9 @@ function walk(avatar: ReturnType<typeof createAvatar>, speed: number) {
 }
 
 describe('walking gait of the imported characters', () => {
-  for (const id of ['male', 'female', 'lynae', 'cartethyia'] as const) {
+  for (const id of CHARACTER_IDS) {
     it(`${id}: planted feet, a natural cadence and hip bob, no foot through the ground`, async () => {
-      const avatar = createAvatar(prepareCharacter((await readAsset(FILES[id])).scene, id), id);
+      const avatar = createAvatar(prepareCharacter((await readAsset(CHARACTER_FILES[id])).scene, id), id);
       for (const speed of [.6, 1.3]) {
         const g = walk(avatar, speed);
         expect(g.slideFrames, `${id} ${speed}`).toBeGreaterThan(20);

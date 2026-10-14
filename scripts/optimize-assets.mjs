@@ -11,7 +11,7 @@ const worldFiles = new Set(['city-building-pack', 'night-city-building-pack', 'f
 const only = process.env.ONLY?.split(',');
 const allFiles = (await readdir('assets/glb-files')).filter(file => file.endsWith('.glb')).map(file => file.slice(0, -4));
 const files = allFiles.filter(name => !only || only.includes(name));
-const kindOf = name => worldFiles.has(name) ? 'world' : /rover|lynae|cartethyia/.test(name) ? 'characters' : 'vehicles';
+const kindOf = name => worldFiles.has(name) ? 'world' : /rover|lynae|cartethyia|carlotta|chisa|zani|shoerkeeper|mint|phoebe/i.test(name) ? 'characters' : 'vehicles';
 await MeshoptEncoder.ready;
 const output = resolve('assets/optimized');
 await mkdir(output, { recursive: true });

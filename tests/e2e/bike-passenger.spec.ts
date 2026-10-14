@@ -3,7 +3,7 @@ import { boot, fixture, play, waitStage } from './helpers';
 
 test.use({ viewport: { width: 900, height: 560 } });
 
-for (const [vehicleId, passengerCharacter] of [['bike_basic', 'lynae'], ['ducati_v4r', 'cartethyia']] as const) {
+for (const [vehicleId, passengerCharacter] of [['bike_basic', 'lynae'], ['ducati_v4r', 'cartethyia'], ['bike_basic', 'zani'], ['ducati_v4r', 'phoebe'], ['bike_basic', 'mint'], ['ducati_v4r', 'shorekeeper']] as const) {
   test(`${vehicleId}: a passenger straddles the rear seat, follows the bike lean and climbs on and off without car-door sounds`, async ({ page }) => {
     test.setTimeout(300000);
     await boot(page, { clear: true });
@@ -35,13 +35,13 @@ for (const [vehicleId, passengerCharacter] of [['bike_basic', 'lynae'], ['ducati
     const pose = () => page.evaluate(() => {
       const c = window.__cr, T = c.debug.extra.THREE as typeof import('three'), scene = c.debug.extra.scene as import('three').Scene;
       const passenger = scene.getObjectByName('ride-passenger-lead')!, bike = scene.getObjectByName('player-driver')!.parent!;
-      const joint = (pattern: RegExp) => {
+      const joint = (key: string) => {
         let bone: import('three').Object3D | undefined;
-        passenger.traverse(o => { if (pattern.test(o.name)) bone = o; });
+        passenger.traverse(o => { if (o.userData.joint === key) bone = o; });
         return bike.worldToLocal(bone!.getWorldPosition(new T.Vector3()));
       };
-      const hip = joint(/Bip001Pelvis_|avatar-hips$/), left = joint(/Bip001LFoot_|avatar-footL$/), right = joint(/Bip001RFoot_|avatar-footR$/);
-      const knees = [joint(/Bip001LCalf_|avatar-calfL$/), joint(/Bip001RCalf_|avatar-calfR$/)];
+      const hip = joint('hips'), left = joint('footL'), right = joint('footR');
+      const knees = [joint('calfL'), joint('calfR')];
       return { hip: hip.toArray(), left: left.sub(hip).toArray(), right: right.sub(hip).toArray(),
         knees: knees.map(knee => knee.sub(hip).toArray()),
         leanError: passenger.getWorldQuaternion(new T.Quaternion()).angleTo(bike.getWorldQuaternion(new T.Quaternion())) };

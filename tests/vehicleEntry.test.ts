@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import { advanceVehicleEntry, CAR_ALIGHT_SECONDS, DRIVER_ENTRY_SECONDS, entryPhase, entryPosition, requestDriverDoor, resetVehicleEntry, vehicleEntry } from '../src/game/vehicles/entry';
+import { advanceVehicleEntry, CAR_ALIGHT_SECONDS, DRIVER_ENTRY_SECONDS, entryPhase, entryPosition, passengerDoorPoint, passengerWalkPath, pointAlongPath, requestDriverDoor, resetVehicleEntry, vehicleEntry } from '../src/game/vehicles/entry';
 import { runtime } from '../src/game/core/runtime';
 import type { RaycastVehicle } from '../src/game/vehicles/vehicleController';
 import { splitGeometryBox } from '../src/game/render/doorGeometry';
@@ -101,5 +101,31 @@ describe('asset compatibility and recorded engine selection', () => {
     expect(engineProfile(VEHICLES.audi_r8_gt).redline).toBeGreaterThan(engineProfile(VEHICLES.aston_one77).redline);
     expect(engineProfile(VEHICLES.rolls_ghost).redline).toBeLessThan(engineProfile(VEHICLES.aston_one77).redline);
     expect(engineProfile(VEHICLES.rolls_ghost).gain).toBeLessThan(engineProfile(VEHICLES.aston_one77).gain);
+  });
+});
+
+describe('ride passenger walk to the door', () => {
+  const spec = VEHICLES.car_compact;
+  const pose = { x: 0, z: 0, heading: 0 };
+  const door = passengerDoorPoint(spec, pose, new THREE.Vector3());
+  // Every sampled point along the walk stays outside the car's footprint.
+  const clear = (from: THREE.Vector3) => {
+    const path = passengerWalkPath(spec, pose, from, door);
+    const p = new THREE.Vector3();
+    for (let f = 0; f <= 1; f += .01) {
+      pointAlongPath(path, f, p);
+      expect(Math.abs(p.x) > spec.width / 2 || Math.abs(p.z) > spec.length / 2).toBe(true);
+    }
+    expect(pointAlongPath(path, 1, p).distanceTo(door)).toBeLessThan(1e-6);
+    return path;
+  };
+  it('walks straight when the door faces the curb', () => {
+    const path = clear(new THREE.Vector3(3, 0, -1));
+    expect(path.count).toBe(2);
+  });
+  it('walks round the car when its door faces away (stopped the other way or across the road)', () => {
+    expect(clear(new THREE.Vector3(-3, 0, 0)).count).toBe(4);
+    expect(clear(new THREE.Vector3(-12, 0, 1)).count).toBe(4);
+    expect(clear(new THREE.Vector3(0, 0, spec.length)).count).toBe(3);
   });
 });

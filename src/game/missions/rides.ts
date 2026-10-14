@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { ALIGHT_WALK, BOARD_WALK, CAR_BOARD_SECONDS, CAR_ALIGHT_SECONDS, bayWaitPoint, passengerDoorPoint, vehicleEntry, walkTimedProgress } from '../vehicles/entry';
-import { BAYS, BAY_BY_ID, DIR_VEC, FUEL_STATIONS, LANDMARK_BY_ID, SEGMENT_BY_ID, garageSpawn, landmarkName, type Bay } from '../data/cityMap';
+import { ALIGHT_WALK, BOARD_WALK, CAR_BOARD_SECONDS, CAR_ALIGHT_SECONDS, bayWaitPoint, passengerDoorPoint, passengerWalkPath, vehicleEntry, walkTimedProgress } from '../vehicles/entry';
+import { BAYS, BAY_BY_ID, DIR_VEC, FUEL_STATIONS, LANDMARK_BY_ID, SEGMENT_BY_ID, STRIP_WIDTH, garageSpawn, stripOffset, landmarkName, type Bay } from '../data/cityMap';
 import { VEHICLES, type VehicleId, type VehicleSpec } from '../data/vehicles';
 import { RIDE_TIMING, SATISFACTION } from '../data/economy';
 import { runtime } from '../core/runtime';
@@ -85,7 +85,11 @@ function bayDir(b: Bay) {
   return DIR_VEC[seg.dir];
 }
 
-export function checkStop(bay: Bay, spec: VehicleSpec, capacityOk: boolean): StopCheck {
+/**
+ * Whether the vehicle is stopped at `bay`. With `anySide`, a car facing the other way, or stopped in the lanes
+ * across the road from the bay, also counts (the passenger walks over to it).
+ */
+export function checkStop(bay: Bay, spec: VehicleSpec, capacityOk: boolean, anySide = false): StopCheck {
   const p = runtime.pose;
   const [dx, dz] = bayDir(bay);
   const lx = dz;
@@ -95,8 +99,12 @@ export function checkStop(bay: Bay, spec: VehicleSpec, capacityOk: boolean): Sto
   const ds = rx * dx + rz * dz;
   const dl = rx * lx + rz * lz;
   const allowS = Math.max(2.5, bay.length / 2 - spec.length / 2 + 1.6);
-  const inBay = Math.abs(ds) <= allowS && Math.abs(dl) <= bay.width / 2 + 0.9;
-  const aligned = p.fx * dx + p.fz * dz >= Math.cos((RIDE_TIMING.maxHeadingDeg * Math.PI) / 180);
+  const allowL = bay.width / 2 + 0.9;
+  // The far curb strip is 2× the bay's offset from the centerline away (toward -l).
+  const farSide = anySide ? 2 * stripOffset(SEGMENT_BY_ID.get(bay.segmentId)!) + STRIP_WIDTH / 2 : 0;
+  const inBay = Math.abs(ds) <= allowS && dl <= allowL && dl >= -allowL - farSide;
+  const along = p.fx * dx + p.fz * dz;
+  const aligned = (anySide ? Math.abs(along) : along) >= Math.cos((RIDE_TIMING.maxHeadingDeg * Math.PI) / 180);
   const slow = Math.abs(runtime.telemetry.speed) <= RIDE_TIMING.maxStopSpeed;
   const drive = input.getDrive({ steer: 0, throttle: 0, brake: 0, handbrake: false });
   const noThrottle = drive.throttle < 0.05;
@@ -553,7 +561,7 @@ export class RideSystem {
         this.comfort(dt);
         const bay = BAY_BY_ID.get(this.stage === 'TO_PICKUP' ? m.pickupBayId : m.dropBayId)!;
         if (vehicleEntry.mode !== 'seated') return;
-        const chk = checkStop(bay, this.spec, m.partySize <= this.spec.passengerSeats);
+        const chk = checkStop(bay, this.spec, m.partySize <= this.spec.passengerSeats, true);
         if (chk.ok) this.stopTimer += dt;
         else this.stopTimer = 0;
         nav.stopProgress = chk.inBay ? Math.min(1, this.stopTimer / RIDE_TIMING.stopHold) : 0;
@@ -566,9 +574,10 @@ export class RideSystem {
           const car = this.spec.kind === 'car', board = this.stage === 'TO_PICKUP';
           const door = passengerDoorPoint(this.spec, rideVisual.stopPose, new THREE.Vector3());
           const curb = bayWaitPoint(bay, board ? -(Math.min(3, m.partySize) - 1) * .45 : 3, new THREE.Vector3());
+          const walk = passengerWalkPath(this.spec, rideVisual.stopPose, curb, door).length;
           this.timing = board
-            ? walkTimedProgress(car ? CAR_BOARD_SECONDS : RIDE_TIMING.boardTime, BOARD_WALK, door.distanceTo(curb))
-            : walkTimedProgress(car ? CAR_ALIGHT_SECONDS : RIDE_TIMING.alightTime, ALIGHT_WALK, door.distanceTo(curb), true);
+            ? walkTimedProgress(car ? CAR_BOARD_SECONDS : RIDE_TIMING.boardTime, BOARD_WALK, walk)
+            : walkTimedProgress(car ? CAR_ALIGHT_SECONDS : RIDE_TIMING.alightTime, ALIGHT_WALK, walk, true);
           if (board) {
             this.stage = 'BOARDING';
             rideVisual.boardProgress = 0;

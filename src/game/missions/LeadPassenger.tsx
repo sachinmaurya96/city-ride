@@ -6,7 +6,7 @@ import { runtime } from '../core/runtime';
 import { VEHICLES, type VehicleKind } from '../data/vehicles';
 import { CURB_HEIGHT } from '../data/cityMap';
 import { cabinLayout, seatedCharacterFit } from '../vehicles/cabin';
-import { entryPosition, lerpAngle, turnToward } from '../vehicles/entry';
+import { entryPosition, lerpAngle, newWalkPath, passengerWalkPath, turnToward } from '../vehicles/entry';
 import { plantFeet } from '../vehicles/driverPose';
 import { driverCabin } from '../data/importedCatalog';
 import { rideVisual } from './rides';
@@ -15,7 +15,7 @@ import { mulberry32 } from '../core/rng';
 import type { CharacterId } from '../render/importedCharacters';
 
 // 'Mixed' rotates through every model (matching the name's gender) and never repeats the previous rider.
-const MIXED: Record<'male' | 'female', CharacterId[]> = { male: ['male'], female: ['female', 'lynae', 'cartethyia'] };
+const MIXED: Record<'male' | 'female', CharacterId[]> = { male: ['male'], female: ['female', 'lynae', 'cartethyia', 'carlotta', 'chisa', 'zani', 'shorekeeper', 'mint', 'phoebe'] };
 let lastMixed: { seed: number; id: CharacterId } | null = null;
 function mixedCharacter(seed: number, name: string): CharacterId {
   if (lastMixed?.seed === seed) return lastMixed.id;
@@ -31,7 +31,7 @@ export function LeadPassenger({ seat, look, vehicleKind }: { seat: React.RefObje
   const name = useGame(() => rideVisual.passengerName);
   const active = useGame((s) => !!s.save.mission);
   const id = (active || !!rideVisual.alightBay) && choice !== 'original' ? choice === 'mixed' ? mixedCharacter(seed, name) : choice : null;
-  const points = useMemo(() => ({ start: new THREE.Vector3(), door: new THREE.Vector3(), seat: new THREE.Vector3(), feet: new THREE.Vector3(), previous: new THREE.Vector3(), init: false, heading: 0, hip: new THREE.Vector3(), rotation: new THREE.Quaternion(), sim: 0 }), []);
+  const points = useMemo(() => ({ start: new THREE.Vector3(), door: new THREE.Vector3(), seat: new THREE.Vector3(), feet: new THREE.Vector3(), previous: new THREE.Vector3(), init: false, heading: 0, hip: new THREE.Vector3(), rotation: new THREE.Quaternion(), sim: 0, path: newWalkPath() }), []);
   const pose = vehicleKind === 'bike' ? 'pillion' : 'car';
   return <CharacterActor id={id} look={look} name="ride-passenger-lead" pose={pose} frame={(actor, dt) => {
     const spec = runtime.vehicle?.spec ?? VEHICLES[runtime.vehicleId];
@@ -58,7 +58,8 @@ export function LeadPassenger({ seat, look, vehicleKind }: { seat: React.RefObje
     const scale = fit?.scale ?? (spec.kind === 'bike' ? .82 : .88);
     if (fit) points.seat.y += fit.hipY - c.hipY;
     // Leaving, the passenger carries on walking along the curb instead of stopping at the end of the exit walk.
-    const phase = entryPosition(points.feet, t, points.start, points.door, points.seat, actor.hipHeight * scale, exit, exit);
+    const path = bay ? passengerWalkPath(spec, p, points.start, points.door, points.path) : undefined;
+    const phase = entryPosition(points.feet, t, points.start, points.door, points.seat, actor.hipHeight * scale, exit, exit, path);
     const heightScale = THREE.MathUtils.lerp(1, scale, phase.inside);
     actor.object.scale.set(heightScale * THREE.MathUtils.lerp(1, fit?.widthScale ?? 1, phase.inside), heightScale, heightScale);
     if (v.waitingBay && v.boardProgress < 0) points.feet.copy(points.start);

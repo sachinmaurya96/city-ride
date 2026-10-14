@@ -48,7 +48,7 @@ test('McLaren keeps all drivers and the boarded passenger beneath its actual roo
   await fixture(page, { owned: ['mclaren_p1'], equipped: 'mclaren_p1' });
   await play(page);
   await expect.poll(() => page.evaluate(() => window.__cr.vehicleEntry.mode), { timeout: 60000 }).toBe('seated');
-  for (const id of ['male', 'female', 'lynae', 'cartethyia'] as const) {
+  for (const id of ['male', 'female', 'lynae', 'cartethyia', 'carlotta', 'chisa', 'zani', 'shorekeeper', 'mint', 'phoebe'] as const) {
     await page.evaluate(id => window.__cr.store.getState().updateSettings({ driver: id }), id);
     await expect.poll(() => page.evaluate(() => {
       const scene = window.__cr.debug.extra.scene as THREE.Scene;

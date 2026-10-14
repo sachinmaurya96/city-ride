@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isVehicleId, isPlayableVehicleId, type VehicleId } from '../game/data/vehicles';
+import { CHARACTER_IDS, PASSENGER_CHARACTER_IDS } from '../game/data/characters';
 import type { QualityLevel } from '../game/render/quality';
 
 export const SCHEMA_VERSION = 1;
@@ -51,8 +52,8 @@ export const SettingsSchema = z.object({
   speedLimiter: z.boolean().optional().transform(() => false),
   cameraMode: z.enum(['chase', 'high', 'eye']),
   /** Player character: older saves without it default to the male driver. */
-  driver: z.enum(['male', 'female', 'lynae', 'cartethyia']).default('male'),
-  passengerCharacter: z.enum(['original', 'mixed', 'lynae', 'cartethyia']).default('mixed'),
+  driver: z.enum(CHARACTER_IDS).default('male'),
+  passengerCharacter: z.enum(['original', 'mixed', ...PASSENGER_CHARACTER_IDS]).default('mixed'),
 });
 
 export const DailyTaskSchema = z.object({

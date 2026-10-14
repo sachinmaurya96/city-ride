@@ -1,3 +1,11 @@
+## Six new characters — 14 October 2026
+
+- Added Carlotta, Chisa, Zani, Shorekeeper (Wuthering Waves), Mint (Neverness to Everness) and Phoebe as driver and passenger choices, and to the Mixed passenger rotation. Credits added; optimized GLBs are 2.1–4.7 MB each (from 11–25 MB) with geometry and rigs unchanged.
+- Native skeletons (MMD, Kuro Bip001, NTE dashed Bip001) are matched by bone name. Kuro's auxiliary hip/shoulder bones now follow their limb by half (also on Lynae), measured to reduce torn edges. Loose chains are posed kinematically: skirts drape over the thighs, coats/capes/sashes/ribbons/sleeves keep hanging when leaning, long cloth lies along the seat, tails hang standing and curl behind the hips when seated.
+- Shorekeeper and Phoebe (no skeleton) use joints measured from orthographic renders and slice centrelines, calibrated against native skeletons in the same pose, with seam-free skinning. Mint's unlit materials are lit. New characters are scaled to the original female characters' 1.525 m eye height.
+- Seat fitting ignores loose cloth; drivers who cannot reach the wheel fully leaned slide the seat forward (≤ 7 cm; used only in a few supercars, at most 2.4 cm). Joint bones are tagged (userData.joint) for tests on any skeleton.
+- Validation: typecheck, lint and unit tests pass, including all ten characters in every car (hands on the rim, reach < 0.96, head under the roof, feet on the floor, seat scale > 0.75), gait checks, and new character tests. In-game screenshots checked for every new character as driver (car entry/seated/exit/walking, both bikes, auto, bus) and passenger (car, bike pillion, auto).
+
 ## Playgama publishing kit — 11 October 2026
 
 - Added `playgama/PLAYGAMA.md` with the game name, short/full descriptions, how to play, keyboard/touch controls, landscape orientation, features, suggested tags and upload instructions. `playgama/assets/ASSETS.md` links to every cover and car view; the main README links to the kit.

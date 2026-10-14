@@ -7,7 +7,7 @@ import type { VehicleSpec } from '../data/vehicles';
 import { runtime } from '../core/runtime';
 import { cabinLayout, seatedCharacterFit } from './cabin';
 import { driverCabin } from '../data/importedCatalog';
-import { fallbackWheelFrame, holdSteeringWheel, type DriverSeat } from './driverPose';
+import { fallbackWheelFrame, holdSteeringWheel, settleDriverPosture, type DriverSeat } from './driverPose';
 import { entryPosition, lerpAngle, turnToward, vehicleEntry } from './entry';
 import { elbowPole, type VehicleModelParts } from '../render/models';
 import type { SeatDynamics } from '../render/charAnim';
@@ -34,10 +34,10 @@ export function CarDriver({ spec, look, steeringWheel = null }: { spec: VehicleS
     const c = cabinLayout(spec), hip = new THREE.Vector3(-c.seatX, c.hipY, c.seatZ);
     return { wheel: steeringWheel, radius: steeringWheel?.userData.radius ?? .17, fallback: fallbackWheelFrame(hip), hip, floor: driverCabin(spec.id)?.floor ?? c.floorY };
   }, [spec, steeringWheel]);
-  const posture = useMemo(() => ({ lean: 0 }), []);
+  const posture = useMemo(() => ({ lean: 0, slide: 0 }), []);
   const points = useMemo(() => {
     const c = cabinLayout(spec);
-    return { start: new THREE.Vector3(-c.doorX - .95, 0, c.seatZ - 1.2), door: new THREE.Vector3(-c.doorX - .55, 0, c.seatZ), seat: new THREE.Vector3(-c.seatX, c.hipY, c.seatZ), feet: new THREE.Vector3(), previous: new THREE.Vector3(), init: false, heading: 0, sim: 0 };
+    return { start: new THREE.Vector3(-c.doorX - .95, 0, c.seatZ - 1.2), door: new THREE.Vector3(-c.doorX - .55, 0, c.seatZ), seat: new THREE.Vector3(-c.seatX, c.hipY, c.seatZ), seatZ: c.seatZ, feet: new THREE.Vector3(), previous: new THREE.Vector3(), init: false, heading: 0, sim: 0 };
   }, [spec]);
   const dyn = useMemo<SeatDynamics>(() => ({ steer: 0, longAccel: 0, lateralAccel: 0, speed: 0, roll: 0 }), []);
   return <CharacterActor id={driver} look={look} name="player-driver" driver frame={(actor, dt) => {
@@ -45,7 +45,7 @@ export function CarDriver({ spec, look, steeringWheel = null }: { spec: VehicleS
     const exit = vehicleEntry.mode === 'exiting' || outside;
     const t = vehicleEntry.active ? vehicleEntry.progress : 1;
     const fit = seatedCharacterFit(spec, actor.seatedBounds, actor.hipHeight), scale = fit.scale;
-    points.seat.y = fit.hipY;
+    points.seat.y = fit.hipY; points.seat.z = seat.hip.z = points.seatZ + posture.slide;
     const phase = entryPosition(points.feet, t, vehicleEntry.approach, points.door, points.seat, actor.hipHeight * scale, exit);
     if (outside) points.feet.copy(vehicleEntry.outside);
     const heightScale = THREE.MathUtils.lerp(1, scale, phase.inside);
@@ -79,9 +79,8 @@ export function CarDriver({ spec, look, steeringWheel = null }: { spec: VehicleS
       seat.hip.y = fit.hipY;
       actor.object.updateWorldMatrix(true, true);
       const reach = holdSteeringWheel(actor, parent, seat, seated ? dyn.steer : 0, scale, THREE.MathUtils.smoothstep(phase.inside, .6, 1));
-      // Lean in from the seat back only as far as a relaxed reach (elbows slightly bent) needs.
-      if (dt > 0) posture.lean = THREE.MathUtils.clamp(posture.lean + THREE.MathUtils.clamp((reach - .9) * 4, -1, 1) * dt * 2.5, 0, .9);
-      actor.object.userData.reach = reach; actor.object.userData.lean = posture.lean;
+      if (dt > 0) settleDriverPosture(posture, reach, dt);
+      actor.object.userData.reach = reach; actor.object.userData.lean = posture.lean; actor.object.userData.slide = posture.slide;
     }
   }} />;
 }
