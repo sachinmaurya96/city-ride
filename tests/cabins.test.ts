@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { readAsset } from './assets';
+import { CHARACTER_FILES, readAsset } from './assets';
 import { VEHICLES, VEHICLE_ORDER } from '../src/game/data/vehicles';
 import { CAR_CABINS, EXTRA_BY_ID, carDoor, doorInner, driverCabin } from '../src/game/data/importedCatalog';
 import { calibratedVehicleSpec, insideOutline, prepareImportedModel } from '../src/game/render/importedVehicles';
-import { animateAvatar, avatarArm, createAvatar, prepareCharacter, reachAvatarArm, reachAvatarLeg, type CharacterId } from '../src/game/render/importedCharacters';
+import { animateAvatar, avatarArm, createAvatar, prepareCharacter, reachAvatarArm, reachAvatarLeg } from '../src/game/render/importedCharacters';
+import { CHARACTER_IDS } from '../src/game/data/characters';
 import { characterBounds } from '../src/game/render/characterBounds';
 import { cabinLayout, doorPivot, seatedCharacterFit, setDoorPose } from '../src/game/vehicles/cabin';
-import { fallbackWheelFrame, holdSteeringWheel, type DriverSeat } from '../src/game/vehicles/driverPose';
+import { fallbackWheelFrame, holdSteeringWheel, settleDriverPosture, type DriverSeat } from '../src/game/vehicles/driverPose';
 import type { Actor } from '../src/game/render/CharacterActor';
 
 const CARS = VEHICLE_ORDER.filter((id) => VEHICLES[id].kind === 'car' && VEHICLES[id].importedModel);
-const FILES: Record<CharacterId, string> = { male: 'male-rover.glb', female: 'female-rover.glb', lynae: 'lynae_from_wuthering_waves.glb', cartethyia: 'cartethyia_wuthering_waves.glb' };
 const models = new Map<string, Promise<THREE.Group>>();
 function model(id: string) {
   let task = models.get(id);
@@ -46,9 +46,9 @@ describe('measured cabins: right-hand drive, seats, steering wheels', () => {
     }
   });
 
-  for (const driver of ['male', 'female', 'lynae', 'cartethyia'] as const) {
+  for (const driver of CHARACTER_IDS) {
     it(`${driver}: sits on each seat with hands on the rim, head under the roof and feet on the floor`, async () => {
-      const template = prepareCharacter((await readAsset(FILES[driver])).scene, driver);
+      const template = prepareCharacter((await readAsset(CHARACTER_FILES[driver])).scene, driver);
       for (const id of CARS) {
         const root = (await model(id)).clone(true), spec = calibratedVehicleSpec(VEHICLES[id], root), c = cabinLayout(spec);
         const avatar = createAvatar(template, driver);
@@ -62,12 +62,14 @@ describe('measured cabins: right-hand drive, seats, steering wheels', () => {
           arm: (side, out) => avatarArm(avatar, side, out), limb: (k, out) => { avatar.bones[k]!.getWorldPosition(out); return true; } } as Actor;
         const wheel = root.getObjectByName('steering-wheel') ?? null, hip = new THREE.Vector3(-c.seatX, fit.hipY, c.seatZ);
         const seat: DriverSeat = { wheel, radius: wheel?.userData.radius ?? .17, fallback: fallbackWheelFrame(hip), hip, floor: driverCabin(id)?.floor ?? c.floorY };
-        // Settle the lean controller as CarDriver does, steering a little to the right.
-        let lean = 0, reach = 0;
+        // Settle the lean/seat controller as CarDriver does, steering a little to the right.
+        const posture = { lean: 0, slide: 0 };
+        let reach = 0;
         for (let k = 0; k < 150; k++) {
-          animateAvatar(avatar, 1 / 60, 0, 1, 0, 0, false, true, 'car', { steer: .3, longAccel: 0, lateralAccel: 0, speed: 5, roll: 0, extraLean: lean, control: { steer: .3, drive: 0 } });
+          avatar.root.position.z = hip.z = c.seatZ + posture.slide;
+          animateAvatar(avatar, 1 / 60, 0, 1, 0, 0, false, true, 'car', { steer: .3, longAccel: 0, lateralAccel: 0, speed: 5, roll: 0, extraLean: posture.lean, control: { steer: .3, drive: 0 } });
           reach = holdSteeringWheel(actor, root, seat, .3, fit.scale);
-          lean = THREE.MathUtils.clamp(lean + THREE.MathUtils.clamp((reach - .9) * 4, -1, 1) / 60 * 2.5, 0, .9);
+          settleDriverPosture(posture, reach, 1 / 60);
         }
         root.updateMatrixWorld(true);
         const label = `${id}/${driver}`;

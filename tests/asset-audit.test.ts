@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { readAsset } from './assets';
+import { CHARACTER_FILES, readAsset } from './assets';
 import { VEHICLES, VEHICLE_ORDER, isPlayableVehicleId } from '../src/game/data/vehicles';
 import { BIKE_MODELS, CAR_CABINS, EXTRA_BY_ID } from '../src/game/data/importedCatalog';
 import { prepareImportedBike, prepareImportedModel, calibratedVehicleSpec, type BikeRig } from '../src/game/render/importedVehicles';
@@ -10,6 +10,7 @@ import { createCharacterMesh, PLAYER_LOOK, PLAYER_LOOK_FEMALE } from '../src/gam
 import { poseSeated, newAnimState } from '../src/game/render/charAnim';
 import { MATERIALS } from '../src/game/render/materials';
 import { characterBounds } from '../src/game/render/characterBounds';
+import { CHARACTER_IDS } from '../src/game/data/characters';
 
 const cache = new Map<string, ReturnType<typeof readAsset>>();
 const prepared = new Map<string, THREE.Group>();
@@ -105,11 +106,10 @@ describe('actual supplied asset geometry', () => {
     });
   }
 
-  it('fits male, female, Lynae and Cartethyia seated meshes inside every player car', async () => {
+  it('fits every imported character\'s seated mesh inside every player car', async () => {
     const characters: { name: string; root: THREE.Object3D; hip: number }[] = [];
-    for (const id of ['male', 'female', 'lynae', 'cartethyia'] as const) {
-      const file = id === 'lynae' ? 'lynae_from_wuthering_waves.glb' : id === 'cartethyia' ? 'cartethyia_wuthering_waves.glb' : `${id}-rover.glb`;
-      const { scene } = await asset(file);
+    for (const id of CHARACTER_IDS) {
+      const { scene } = await asset(CHARACTER_FILES[id]);
       const avatar = createAvatar(prepareCharacter(scene, id), id);
       animateAvatar(avatar, 0, 0, 1, 0, 0, false, true);
       characters.push({ name: id, root: avatar.root, hip: avatar.hipHeight });
@@ -120,7 +120,8 @@ describe('actual supplied asset geometry', () => {
       characters.push({ name: `${name} loading fallback`, root: mesh, hip: rig.P.joints[0].y });
     }
     for (const character of characters) {
-      const bounds = posedBounds(character.root);
+      // The bounds the game fits seats with (CharacterActor): loose cloth rests on the seat and is left out.
+      const bounds = characterBounds(character.root);
       for (const id of VEHICLE_ORDER.filter(id => VEHICLES[id].kind === 'car')) {
         const spec = calibratedVehicleSpec(VEHICLES[id], prepared.get(id));
         const cabin = cabinLayout(spec);

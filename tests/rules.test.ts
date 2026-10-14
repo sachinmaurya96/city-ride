@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { BAY_BY_ID, DIR_VEC, INTERSECTIONS, SEGMENTS, laneOffset, segmentPoint, type Segment } from '../src/game/data/cityMap';
+import { BAY_BY_ID, DIR_VEC, INTERSECTIONS, SEGMENTS, SEGMENT_BY_ID, laneOffset, segmentPoint, stripOffset, type Segment } from '../src/game/data/cityMap';
 import { VEHICLES } from '../src/game/data/vehicles';
 import { runtime } from '../src/game/core/runtime';
 import { events, type GameEvent } from '../src/game/core/events';
@@ -150,7 +150,7 @@ describe('episodes and debounce', () => {
 describe('pickup stop rule', () => {
   const bay = BAY_BY_ID.get('cafe_corner_bay1')!;
   const spec = VEHICLES.car_compact;
-  const at = (dx: number, dl: number, headingOffset: number, speed: number) => {
+  const at = (dx: number, dl: number, headingOffset: number, speed: number, anySide = false) => {
     const fx = Math.sin(bay.heading);
     const fz = Math.cos(bay.heading);
     const lx = fz;
@@ -158,7 +158,7 @@ describe('pickup stop rule', () => {
     const h = bay.heading + headingOffset;
     runtime.pose = { x: bay.x + fx * dx + lx * dl, y: 0.7, z: bay.z + fz * dx + lz * dl, heading: h, fx: Math.sin(h), fz: Math.cos(h) };
     runtime.telemetry.speed = speed;
-    return checkStop(bay, spec, true);
+    return checkStop(bay, spec, true, anySide);
   };
   it('requires being in the bay, nearly stopped, aligned, and on the correct side', () => {
     expect(at(0, 0, 0, 0).ok).toBe(true);
@@ -168,6 +168,17 @@ describe('pickup stop rule', () => {
     expect(at(14, 0, 0, 0).ok).toBe(false); // past the bay
     expect(at(0, -7, 0, 0).ok).toBe(false); // across the road
     expect(checkStop(bay, VEHICLES.bike_basic, false).ok).toBe(false); // capacity
+  });
+  it('ride pickups also accept facing the other way or stopping in the lanes across the road', () => {
+    const seg = SEGMENT_BY_ID.get(bay.segmentId)!;
+    const across = -(stripOffset(seg) + laneOffset(seg, seg.lanes - 1)); // the opposite carriageway's curb lane
+    expect(at(0, 0, Math.PI, 0, true).ok).toBe(true); // in the bay, facing the wrong way
+    expect(at(0, across, Math.PI, 0, true).ok).toBe(true); // driving the other way, on the far side
+    expect(at(0, across, 0, 0, true).ok).toBe(true);
+    expect(at(0, 0, Math.PI / 2, 0, true).ok).toBe(false); // still has to be lined up with the road
+    expect(at(14, across, Math.PI, 0, true).ok).toBe(false); // past the bay
+    expect(at(0, across - 8, Math.PI, 0, true).ok).toBe(false); // beyond the far curb
+    expect(at(0, across, Math.PI, 0).ok).toBe(false); // buses keep the strict rule
   });
 });
 

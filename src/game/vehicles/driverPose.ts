@@ -56,6 +56,16 @@ export function holdSteeringWheel(actor: Actor, car: THREE.Object3D, seat: Drive
   return reach;
 }
 
+/**
+ * Reach controller, fed each frame with the reach holdSteeringWheel returns: lean in from the seat back only as far as
+ * a relaxed reach (elbows slightly bent) needs. Fully leaned in and still stretching — short arms, or a character scaled
+ * down under a low roof — the seat slides forward, up to 7 cm, as a real driver would set it.
+ */
+export function settleDriverPosture(posture: { lean: number; slide: number }, reach: number, dt: number) {
+  posture.lean = THREE.MathUtils.clamp(posture.lean + THREE.MathUtils.clamp((reach - .9) * 4, -1, 1) * dt * 2.5, 0, .9);
+  posture.slide = THREE.MathUtils.clamp(posture.slide + (posture.lean > .88 && reach > .92 ? 1 : reach < .86 ? -1 : 0) * dt * .08, 0, .07);
+}
+
 /** Feet on the footwell floor ahead of the seat, knees up: hip → ankle at ~88 % of the leg (drivers and passengers). */
 export function plantFeet(actor: Actor, car: THREE.Object3D, hip: THREE.Vector3, floor: number, scale: number, weight = 1) {
   car.getWorldQuaternion(carQ);

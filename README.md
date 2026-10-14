@@ -73,7 +73,7 @@ This replaces the original 5 MB project target. The budget is set in `scripts/si
   Horn, sound, camera, door and recover controls also sit on the right.
   An alternative *Steering + pedals* layout is in Settings.
 - **Map:** tap the minimap in the top-right corner to open the city map. Pause sits beside it.
-- Settings → *Your driver* switches between **Male Rover** (the default), **Female Rover**, **Lynae** and **Cartethyia**. Existing Male/Female selections automatically use the Rover GLBs. The passenger character selector chooses Lynae, Cartethyia, a mixture, or the original passengers.
+- Settings → *Your driver* switches between **Male Rover** (the default), **Female Rover**, **Lynae**, **Cartethyia**, **Carlotta**, **Chisa**, **Zani**, **Shorekeeper**, **Mint** and **Phoebe**. Existing Male/Female selections automatically use the Rover GLBs. The passenger character selector chooses any of the eight non-Rover characters, a mixture (all of them, matched to the passenger's name), or the original passengers.
 - **Keyboard:** W/↑ accelerate · S/↓ brake/reverse · A/D steer · Space/Shift Power Brake (steer to drift) · F enter/get out · C camera · H horn · R recover ·
   E/Enter accept · Esc/P pause · M map. Mouse drag orbits the camera.
 - Tap a stopped car's door to get out or enter. Outside, use left/right steering with the forward/reverse buttons, or WASD, to walk back to the door.

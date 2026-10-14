@@ -4,7 +4,7 @@ import { boot, fixture, play } from './helpers';
 test.use({ viewport: { width: 1000, height: 600 } });
 
 const CARS = ['bmw_i8', 'bmw_m4_gt3', 'lambo_lp670', 'black_huracan', 'mclaren_p1', 'mustang_rtr', 'porsche_718', 'supra_a80', 'mercedes_maybach', 'amg_gt_mansory', 'naran_hyper', 'aston_one77', 'audi_r8_gt', 'bmw_m4_widebody', 'bmw_m3_gtr', 'rolls_ghost'] as const;
-const DRIVERS = ['male', 'lynae', 'female', 'cartethyia'] as const;
+const DRIVERS = ['male', 'lynae', 'carlotta', 'female', 'chisa', 'cartethyia', 'zani', 'shorekeeper', 'mint', 'phoebe'] as const;
 
 /** Hands relative to the steering-wheel rim (wheel frame: radial error, axial offset) and the wheel's turn. */
 async function cabin(page: Page, id: string) {
@@ -13,8 +13,8 @@ async function cabin(page: Page, id: string) {
     const driver = scene.getObjectByName('player-driver'), car = scene.getObjectByName(`imported-vehicle-${id}`);
     if (!driver || !car) return { mode: c.vehicleEntry.mode, doors: [0, 0], rim: null, turn: 0, reach: 0, lean: 0, wheelX: null, loaded: false };
     const wheel = car.getObjectByName('steering-wheel');
-    const find = (re: RegExp) => { let p: import('three').Vector3 | null = null; driver.traverse(o => { if (!p && re.test(o.name)) p = o.getWorldPosition(new T.Vector3()); }); return p as unknown as import('three').Vector3; };
-    const hands = [find(/Bip001LHand_|avatar-handL$/), find(/Bip001RHand_|avatar-handR$/)];
+    const find = (joint: string) => { let p: import('three').Vector3 | null = null; driver.traverse(o => { if (!p && o.userData.joint === joint) p = o.getWorldPosition(new T.Vector3()); }); return p as unknown as import('three').Vector3; };
+    const hands = [find('handL'), find('handR')];
     const r = wheel?.userData.radius as number | undefined;
     const rim = wheel && r ? hands.map(h => { const p = wheel.worldToLocal(h.clone()); return { radial: Math.abs(Math.hypot(p.x, p.y) - r), axial: p.z }; }) : null;
     const rest = wheel?.userData.rest as number[] | undefined;

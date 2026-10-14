@@ -15,7 +15,7 @@ it('reduces all supplied models by at least 60% and the world by 75%, retaining 
   const files = (await readdir(new URL('../assets/glb-files', import.meta.url))).filter(file => file.endsWith('.glb')).map(file => file.slice(0, -4));
   let originalBytes = 0, runtimeBytes = 0, worldOriginal = 0, worldRuntime = 0;
   for (const file of files) {
-    const folder = worldFiles.has(file) ? 'world' : /rover|lynae|cartethyia/.test(file) ? 'characters' : 'vehicles';
+    const folder = worldFiles.has(file) ? 'world' : /rover|lynae|cartethyia|carlotta|chisa|zani|shoerkeeper|mint|phoebe/i.test(file) ? 'characters' : 'vehicles';
     const original = await asset(`glb-files/${file}`), optimized = await asset(`optimized/${folder}/${file}`);
     originalBytes += original.bytes.length; runtimeBytes += optimized.bytes.length;
     if (folder === 'world') { worldOriginal += original.bytes.length; worldRuntime += optimized.bytes.length; }

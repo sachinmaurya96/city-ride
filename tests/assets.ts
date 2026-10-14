@@ -3,6 +3,13 @@ import { readFile } from 'node:fs/promises';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { upgradeLegacyMaterials } from '../src/game/render/glbAssets';
+import type { CharacterId } from '../src/game/data/characters';
+
+/** Source GLB (assets/glb-files) of every imported character. */
+export const CHARACTER_FILES: Record<CharacterId, string> = {
+  male: 'male-rover.glb', female: 'female-rover.glb', lynae: 'lynae_from_wuthering_waves.glb', cartethyia: 'cartethyia_wuthering_waves.glb',
+  carlotta: 'Carlotta.glb', chisa: 'chisa.glb', zani: 'zani.glb', shorekeeper: 'shoerkeeper.glb', mint: 'mint.glb', phoebe: 'phoebe.glb',
+};
 
 /** Parse the real vertex/skeleton data without a DOM or GPU; textures do not affect geometry. */
 export async function readAsset(file: string) {

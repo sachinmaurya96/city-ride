@@ -237,3 +237,13 @@ ASSET_CREDITS.push(...[
     "licenseUrl": "http://creativecommons.org/licenses/by/4.0/"
   }
 ]);
+
+// Attribution embedded in the supplied character files.
+ASSET_CREDITS.push(...[
+  { title: 'Carlotta Swimming Suit wuthering waves', author: 'Chía Lucía', source: 'https://sketchfab.com/3d-models/carlotta-swimming-suit-wuthering-waves-66f8818d0f8c4635bf5ad8e9a09674f1' },
+  { title: 'Chisa Wuthering waves', author: 'Hollowlight', source: 'https://sketchfab.com/3d-models/chisa-wuthering-waves-8192aa7517ce4125a1afb8b593af4fc1' },
+  { title: 'Zani wuthering waves', author: 'Chía Lucía', source: 'https://sketchfab.com/3d-models/zani-wuthering-waves-4d9e356644ba4fa2a0f26da81982a7fc' },
+  { title: 'Shorekeeper wuthering waves', author: 'ilyakardailskiy', source: 'https://sketchfab.com/3d-models/shorekeeper-wuthering-waves-c67656f9ac37460dbcfc900aad5e4c26' },
+  { title: 'Mint - Neverness To Everness', author: 'Jun Hungry', source: 'https://sketchfab.com/3d-models/mint-neverness-to-everness-d29dd26ffcbc4ef0a1fd326f34ae6d14' },
+  { title: 'Phoebe (Hair More Stable Version) wuthering wave', author: 'ilyakardailskiy', source: 'https://sketchfab.com/3d-models/phoebe-hair-more-stable-version-wuthering-wave-bfa694bd4d1d4d4db5b0acc41dc92056' },
+].map((credit) => ({ ...credit, license: 'CC-BY-4.0', licenseUrl: 'http://creativecommons.org/licenses/by/4.0/' })));

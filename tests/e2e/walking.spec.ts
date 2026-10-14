@@ -17,8 +17,8 @@ async function track(page: Page, name: string, seconds: number, local = false) {
       const o = scene.getObjectByName(name);
       if (o) {
         o.getWorldPosition(p); o.getWorldQuaternion(q); e.setFromQuaternion(q, 'YXZ');
-        const foot = (re: RegExp) => { let v: number[] = []; o.traverse(b => { if (!v.length && re.test(b.name)) v = b.getWorldPosition(new T.Vector3()).toArray(); }); return v; };
-        out.push({ t: c.runtime.simTime - start, x: p.x, z: p.z, heading: local ? o.rotation.y : e.y, visible: o.visible, footL: foot(/Bip001LFoot_|avatar-footL$/), footR: foot(/Bip001RFoot_|avatar-footR$/), id: o.uuid, inside: (o.userData.inside ?? o.userData.entryProgress ?? -1) as number });
+        const foot = (joint: string) => { let v: number[] = []; o.traverse(b => { if (!v.length && b.userData.joint === joint) v = b.getWorldPosition(new T.Vector3()).toArray(); }); return v; };
+        out.push({ t: c.runtime.simTime - start, x: p.x, z: p.z, heading: local ? o.rotation.y : e.y, visible: o.visible, footL: foot('footL'), footR: foot('footR'), id: o.uuid, inside: (o.userData.inside ?? o.userData.entryProgress ?? -1) as number });
       }
       if (c.runtime.simTime - start < seconds) requestAnimationFrame(tick); else resolve(out);
     };

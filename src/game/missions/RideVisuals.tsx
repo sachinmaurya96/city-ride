@@ -13,6 +13,7 @@ import { useGame } from '../../app/store';
 import { MATERIALS } from '../render/materials';
 import { fuel } from '../vehicles/fuel';
 import { nav, rideVisual } from './rides';
+import { newWalkPath, passengerWalkPath, pointAlongPath } from '../vehicles/entry';
 
 const AMBER = new THREE.Color('#f4b544');
 const TEAL = new THREE.Color('#2fd1c0');
@@ -211,6 +212,7 @@ function Passengers({ seat, vehicleKind }: { seat: React.RefObject<THREE.Group |
     return { plain: l, helmet: { ...l, helmet: '#f4b544' } };
   }, [party]);
   const doorWorld = useMemo(() => new THREE.Vector3(), []);
+  const walk = useMemo(() => ({ path: newWalkPath(), curb: new THREE.Vector3(), at: new THREE.Vector3() }), []);
   useFrame((_, rawDt) => {
     const dt = Math.min(rawDt, 0.1);
     const spec = VEHICLES[runtime.vehicleId];
@@ -246,15 +248,17 @@ function Passengers({ seat, vehicleKind }: { seat: React.RefObject<THREE.Group |
       let target: [number, number] = [bay.x, bay.z];
       if (rideVisual.waitingBay && rideVisual.boardProgress >= 0) {
         const t = Math.min(1, (rideVisual.boardProgress - i * 0.06) / 0.8);
-        x = wx + (doorWorld.x - wx) * Math.max(0, t);
-        z = wz + (doorWorld.z - wz) * Math.max(0, t);
+        pointAlongPath(passengerWalkPath(spec, stop, walk.curb.set(wx, CURB_HEIGHT, wz), doorWorld, walk.path), t, walk.at);
+        x = walk.at.x;
+        z = walk.at.z;
         visible = rideVisual.boardProgress < 0.94 - i * 0.02;
         target = [doorWorld.x, doorWorld.z];
       } else if (rideVisual.alightBay && rideVisual.alightProgress >= 0) {
         const t = Math.max(0, Math.min(1, (rideVisual.alightProgress - 0.15 - i * 0.05) / 0.8));
         const departing = rideVisual.departureAt >= 0 ? Math.max(0, runtime.simTime - rideVisual.departureAt) : 0;
-        x = doorWorld.x + (wx + fx * 3 - doorWorld.x) * t + fx * departing * 1.2;
-        z = doorWorld.z + (wz + fz * 3 - doorWorld.z) * t + fz * departing * 1.2;
+        pointAlongPath(passengerWalkPath(spec, stop, walk.curb.set(wx + fx * 3, CURB_HEIGHT, wz + fz * 3), doorWorld, walk.path), 1 - t, walk.at);
+        x = walk.at.x + fx * departing * 1.2;
+        z = walk.at.z + fz * departing * 1.2;
         visible = rideVisual.alightProgress >= 0.15 + i * 0.05 && departing < 10;
         target = t >= 1 ? [x + fx, z + fz] : [wx + fx * 3, wz + fz * 3];
       } else if (!rideVisual.waitingBay) visible = false;

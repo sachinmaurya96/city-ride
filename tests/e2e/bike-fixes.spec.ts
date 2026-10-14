@@ -9,14 +9,14 @@ async function contacts(page: Page) {
   return page.evaluate(() => {
     const T = window.__cr.debug.extra.THREE as typeof import('three'), scene = window.__cr.debug.extra.scene as import('three').Scene;
     const driver = scene.getObjectByName('player-driver')!, bike = driver.parent!;
-    const local = (name: RegExp) => { let p: import('three').Vector3 | null = null; driver.traverse(o => { if (!p && name.test(o.name)) p = bike.worldToLocal(o.getWorldPosition(new T.Vector3())); }); return p as unknown as import('three').Vector3; };
+    const local = (joint: string) => { let p: import('three').Vector3 | null = null; driver.traverse(o => { if (!p && o.userData.joint === joint) p = bike.worldToLocal(o.getWorldPosition(new T.Vector3())); }); return p as unknown as import('three').Vector3; };
     const grip = (i: number) => bike.worldToLocal(scene.getObjectByName(`player-steering-grip-${i}`)!.getWorldPosition(new T.Vector3()));
-    const handL = local(/Bip001LHand_|avatar-handL$/), handR = local(/Bip001RHand_|avatar-handR$/), footL = local(/Bip001LFoot_|avatar-footL$/), footR = local(/Bip001RFoot_|avatar-footR$/);
+    const handL = local('handL'), handR = local('handR'), footL = local('footL'), footR = local('footR');
     return { hands: Math.max(handL.distanceTo(grip(0)), handR.distanceTo(grip(1))), footL: footL.toArray(), footR: footR.toArray() };
   });
 }
 
-for (const [id, driver] of [['ducati_v4r', 'lynae'], ['bike_basic', 'male']] as const) {
+for (const [id, driver] of [['ducati_v4r', 'lynae'], ['bike_basic', 'male'], ['ducati_v4r', 'carlotta'], ['bike_basic', 'chisa'], ['ducati_v4r', 'zani'], ['bike_basic', 'shorekeeper'], ['ducati_v4r', 'mint'], ['bike_basic', 'phoebe']] as const) {
   test(`${id}: ${driver} sits on the seat, hands on the grips, feet on the pegs (left foot down when stopped), and the engine follows the revs`, async ({ page }) => {
     test.setTimeout(300000);
     const rig = BIKE_MODELS[id].rig;

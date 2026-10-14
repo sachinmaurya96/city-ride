@@ -84,11 +84,25 @@
     "compressedViews": 4
   },
   {
+    "name": "Carlotta",
+    "kind": "characters",
+    "originalBytes": 24948764,
+    "runtimeBytes": 4669824,
+    "compressedViews": 6
+  },
+  {
     "name": "cartethyia_wuthering_waves",
     "kind": "characters",
     "originalBytes": 7936748,
     "runtimeBytes": 2702416,
     "compressedViews": 3
+  },
+  {
+    "name": "chisa",
+    "kind": "characters",
+    "originalBytes": 11454988,
+    "runtimeBytes": 3677340,
+    "compressedViews": 6
   },
   {
     "name": "city-building-pack",
@@ -168,6 +182,13 @@
     "compressedViews": 3
   },
   {
+    "name": "mint",
+    "kind": "characters",
+    "originalBytes": 15180784,
+    "runtimeBytes": 2117248,
+    "compressedViews": 6
+  },
+  {
     "name": "mustang",
     "kind": "vehicles",
     "originalBytes": 4597584,
@@ -196,6 +217,13 @@
     "compressedViews": 4
   },
   {
+    "name": "phoebe",
+    "kind": "characters",
+    "originalBytes": 15923780,
+    "runtimeBytes": 2338964,
+    "compressedViews": 3
+  },
+  {
     "name": "road-pack",
     "kind": "world",
     "originalBytes": 1636292,
@@ -210,6 +238,13 @@
     "compressedViews": 4
   },
   {
+    "name": "shoerkeeper",
+    "kind": "characters",
+    "originalBytes": 18336444,
+    "runtimeBytes": 2557212,
+    "compressedViews": 3
+  },
+  {
     "name": "toyota_supra_a80_1993",
     "kind": "vehicles",
     "originalBytes": 3291204,
@@ -222,5 +257,12 @@
     "originalBytes": 2130580,
     "runtimeBytes": 875980,
     "compressedViews": 3
+  },
+  {
+    "name": "zani",
+    "kind": "characters",
+    "originalBytes": 17154420,
+    "runtimeBytes": 3485956,
+    "compressedViews": 6
   }
 ]
