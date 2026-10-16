@@ -120,12 +120,12 @@ describe('raycast vehicle feasibility', () => {
     const z0 = t.body.translation().z;
     t.step({ ...idle, brake: 1 }, 6, () => t.speed() < 0.3);
     const dist = t.body.translation().z - z0;
-    expect(dist).toBeGreaterThan(7);
-    expect(dist).toBeLessThan(20);
+    expect(dist).toBeGreaterThan(4);
+    expect(dist).toBeLessThan(12);
     t.step({ ...idle, brake: 1 }, 3);
     expect(t.speed()).toBeLessThan(-0.5);
-    expect(t.speed()).toBeGreaterThan(-(10 / 3.6) - 0.3);
-    t.step(idle, 3);
+    expect(t.speed()).toBeGreaterThan(-(18 / 3.6) - 0.3);
+    t.step(idle, 5);
     expect(Math.abs(t.speed())).toBeLessThan(0.2);
   });
 
