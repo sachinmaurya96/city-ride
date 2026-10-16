@@ -44,7 +44,9 @@ export interface SafeRoadPose {
 }
 
 const REVERSE_HOLD_TIME = 0.4;
-const REVERSE_MAX = 10 / 3.6;
+const REVERSE_MAX = 18 / 3.6;
+/** Reverse pedal at speed scrubs this much harder than the nominal brake: a firm slow-down short of the power brake's instant stop. */
+const REVERSE_BRAKE_BOOST = 1.5;
 /** Full lock is capped near 1.2 g at city speeds, so ordinary turns hold the road instead of scrubbing wide. */
 const MAX_STEER_LATERAL_ACCEL = 11.8;
 /** Above ~40 km/h the cap rises (m/s² per m/s) so highway turns stay quick without the old full-lock slide. */
@@ -170,6 +172,7 @@ export class RaycastVehicle {
 
     let engine = 0; // total force, N
     let brakeDecel = 0; // m/s²
+    let assistDecel = 0; // m/s², applied directly to velocity (wheel brakes alone fade under Rapier's slip limit)
 
     if (emergencyStop) {
       this.stopImmediately();
@@ -198,7 +201,8 @@ export class RaycastVehicle {
       }
     } else if (inp.brake > 0.02) {
       if (!this.reverseMode && v > 0.6) {
-        brakeDecel = h.brakeDecel * inp.brake;
+        brakeDecel = h.brakeDecel * REVERSE_BRAKE_BOOST * inp.brake;
+        assistDecel = h.brakeDecel * (REVERSE_BRAKE_BOOST - 1) * inp.brake;
         this.reverseTimer = 0;
       } else if (!this.reverseMode) {
         this.reverseTimer += dt;
@@ -207,7 +211,7 @@ export class RaycastVehicle {
       }
       if (this.reverseMode) {
         const fade = Math.max(0, 1 - Math.max(0, -v) / Math.min(REVERSE_MAX, inp.speedLimit ?? Infinity));
-        engine = -h.mass * Math.min(2.5, h.accel0) * fade * inp.brake;
+        engine = -h.mass * Math.min(4, h.accel0) * fade * inp.brake;
       }
     } else {
       // Released: gentle assisted deceleration, then auto-hold.
@@ -248,6 +252,11 @@ export class RaycastVehicle {
       const follow = (1 - Math.exp(-dt * .8)) * this.driftAmount;
       this.body.setLinvel({ x: velocity.x + (Math.sin(heading + targetSlip) * speed - velocity.x) * follow, y: velocity.y,
         z: velocity.z + (Math.cos(heading + targetSlip) * speed - velocity.z) * follow }, true);
+    }
+
+    if (assistDecel > 0 && v > 0.6) {
+      const vel = this.body.linvel(), k = Math.max(0, 1 - assistDecel * dt / Math.max(absV, 1e-3));
+      this.body.setLinvel({ x: vel.x * k, y: vel.y, z: vel.z * k }, true);
     }
 
     // Light aerodynamic + yaw damping (timestep-aware), and anti-slide at standstill.
